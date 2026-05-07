@@ -1,1 +1,0 @@
-export { TeacherView } from './TeacherViewWithDnD';
