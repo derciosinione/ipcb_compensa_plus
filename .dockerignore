@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/.idea/
+**/.vs/
+**/node_modules/
+**/dist/
+**/.vite/
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+.git/
+.env
+*.user
+*.suo

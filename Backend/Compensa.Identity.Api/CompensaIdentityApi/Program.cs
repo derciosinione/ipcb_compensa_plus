@@ -1,5 +1,7 @@
 using CompensaIdentityApi.Data;
 using CompensaIdentityApi.Contracts;
+using CompensaIdentityApi.Infrastructure.Auth;
+using CompensaIdentityApi.Infrastructure.Database;
 using CompensaIdentityApi.Infrastructure.Email;
 using CompensaIdentityApi.Infrastructure.MagicLinks;
 using CompensaIdentityApi.Middleware;
@@ -34,12 +36,16 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<MagicLinkOptions>(builder.Configuration.GetSection(MagicLinkOptions.SectionName));
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<IdentitySeedOptions>(builder.Configuration.GetSection(IdentitySeedOptions.SectionName));
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IMagicLinkUrlBuilder, HttpContextMagicLinkUrlBuilder>();
 builder.Services.AddScoped<IAuthTokenRepository, AuthTokenRepository>();
 builder.Services.AddScoped<IMagicLinkService, MagicLinkService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddHostedService<IdentityDatabaseStartupService>();
 
 builder.Services
     .AddControllers()
@@ -68,10 +74,15 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "compensa-identity-api" }));
 
 app.MapControllers();
 

@@ -1,5 +1,6 @@
 using CompensaIdentityApi.Contracts.Auth;
 using CompensaIdentityApi.DTOs;
+using CompensaIdentityApi.Infrastructure.Auth;
 using CompensaIdentityApi.Infrastructure.Email;
 using CompensaIdentityApi.Infrastructure.MagicLinks;
 using CompensaIdentityApi.Models;
@@ -12,6 +13,7 @@ public sealed class AuthService : IAuthService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IMagicLinkService _magicLinkService;
     private readonly IMagicLinkUrlBuilder _magicLinkUrlBuilder;
+    private readonly IJwtTokenService _jwtTokenService;
     private readonly IEmailSender _emailSender;
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<AuthService> _logger;
@@ -20,6 +22,7 @@ public sealed class AuthService : IAuthService
         UserManager<ApplicationUser> userManager,
         IMagicLinkService magicLinkService,
         IMagicLinkUrlBuilder magicLinkUrlBuilder,
+        IJwtTokenService jwtTokenService,
         IEmailSender emailSender,
         IWebHostEnvironment environment,
         ILogger<AuthService> logger)
@@ -27,6 +30,7 @@ public sealed class AuthService : IAuthService
         _userManager = userManager;
         _magicLinkService = magicLinkService;
         _magicLinkUrlBuilder = magicLinkUrlBuilder;
+        _jwtTokenService = jwtTokenService;
         _emailSender = emailSender;
         _environment = environment;
         _logger = logger;
@@ -65,6 +69,15 @@ public sealed class AuthService : IAuthService
             return null;
 
         var roles = await _userManager.GetRolesAsync(user);
-        return new VerifyMagicLinkResponse(user.Id, user.Email, user.FullName, roles.ToArray());
+        var roleArray = roles.ToArray();
+        var accessToken = _jwtTokenService.CreateAccessToken(user, roleArray);
+
+        return new VerifyMagicLinkResponse(
+            user.Id,
+            user.Email,
+            user.FullName,
+            roleArray,
+            accessToken.AccessToken,
+            accessToken.ExpiresAt);
     }
 }

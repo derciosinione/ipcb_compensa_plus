@@ -1,0 +1,143 @@
+services:
+  postgres:
+    build:
+      context: ./Database
+      dockerfile: Dockerfile
+    container_name: compensa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compensa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-compensa}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - compensa_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compensa} -d ${POSTGRES_DB:-compensa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
+  identity-api:
+    build:
+      context: .
+      dockerfile: Backend/Compensa.Identity.Api/CompensaIdentityApi/Dockerfile
+    container_name: compensa-identity-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      Email__FromAddress: ${EMAIL_FROM_ADDRESS:-info@kiaricode.com}
+      Email__FromName: ${EMAIL_FROM_NAME:-Compensa+}
+      Email__SmtpHost: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}
+      Email__SmtpPort: ${EMAIL_SMTP_PORT:-587}
+      Email__Username: ${EMAIL_USERNAME:-info@kiaricode.com}
+      Email__Password: ${EMAIL_PASSWORD:-}
+      Email__UseStartTls: ${EMAIL_USE_STARTTLS:-true}
+      MagicLinks__ExpirationMinutes: ${MAGIC_LINK_EXPIRATION_MINUTES:-15}
+      MagicLinks__VerifyPath: /api/auth/verify
+      Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
+      Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-60}
+      IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
+      IdentitySeed__AdminFullName: ${IDENTITY_SEED_ADMIN_FULL_NAME:-Compensa Admin}
+    ports:
+      - "${IDENTITY_API_PORT:-5002}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
+  core-api:
+    build:
+      context: .
+      dockerfile: Backend/Compensa.Core.Api/CompensaCoreApi/Dockerfile
+    container_name: compensa-core-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${CORE_DB:-CompensaCoreDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      Services__IdentityApi: http://identity-api:8080
+      Services__CompensaAI: http://compensa-ai:8000
+      Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
+      Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+    ports:
+      - "${CORE_API_PORT:-5001}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identity-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
+  compensa-ai:
+    build:
+      context: .
+      dockerfile: Backend/CompensaAI/Dockerfile
+    container_name: compensa-ai
+    restart: unless-stopped
+    environment:
+      COMPENSA_AI_ENVIRONMENT: ${COMPENSA_AI_ENVIRONMENT:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${AI_DB:-CompensaAiDB}
+      CORE_API_URL: http://core-api:8080
+    ports:
+      - "${COMPENSA_AI_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: compensa-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      core-api:
+        condition: service_healthy
+      identity-api:
+        condition: service_healthy
+      compensa-ai:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
+volumes:
+  compensa_postgres_data:
+
+networks:
+  compensa:
+    driver: bridge

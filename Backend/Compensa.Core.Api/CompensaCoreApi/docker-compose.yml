@@ -1,0 +1,55 @@
+services:
+  postgres:
+    build:
+      context: ../../../Database
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compensa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-compensa}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - compensa_core_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compensa} -d ${POSTGRES_DB:-compensa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa-core
+
+  core-api:
+    build:
+      context: ../../..
+      dockerfile: Backend/Compensa.Core.Api/CompensaCoreApi/Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${CORE_DB:-CompensaCoreDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      Services__IdentityApi: ${IDENTITY_API_URL:-http://host.docker.internal:5002}
+      Services__CompensaAI: ${COMPENSA_AI_URL:-http://host.docker.internal:8000}
+      Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
+      Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+    ports:
+      - "${CORE_API_PORT:-5001}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa-core
+
+volumes:
+  compensa_core_postgres_data:
+
+networks:
+  compensa-core:
+    driver: bridge

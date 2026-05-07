@@ -4,4 +4,6 @@ public sealed record VerifyMagicLinkResponse(
     string UserId,
     string? Email,
     string? FullName,
-    IReadOnlyCollection<string> Roles);
+    IReadOnlyCollection<string> Roles,
+    string AccessToken,
+    DateTimeOffset AccessTokenExpiresAt);

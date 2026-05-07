@@ -1,0 +1,4 @@
+*.md
+*.mmd
+*.sql
+!docker/init/*.sql
