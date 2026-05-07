@@ -1,0 +1,91 @@
+---
+config:
+  layout: elk
+  theme: mc
+  look: classic
+---
+classDiagram
+direction LR
+    class Utilizador {
+    }
+
+    class Perfil {
+    }
+
+    class Curso {
+    }
+
+    class AnoLetivo {
+    }
+
+    class CursoAnoLetivo {
+    }
+
+    class UnidadeCurricular {
+    }
+
+    class OfertaUC {
+    }
+
+    class Semestre {
+    }
+
+    class ComponenteUC {
+    }
+
+    class Turma {
+    }
+
+    class Horario {
+    }
+
+    class Aula {
+    }
+
+    class Sala {
+    }
+
+    class PedidoCompensacao {
+    }
+
+    class Notificacao {
+    }
+
+    class Feriado {
+    }
+
+    class EstadoPedido {
+	    SUBMETIDO
+	    APROVADO
+	    RECUSADO
+	    CANCELADO
+    }
+
+	<<enumeration>> EstadoPedido
+
+    Utilizador "0..*" -- "0..*" Perfil : tem
+    Curso "1" --> "0..*" CursoAnoLetivo : possui
+    AnoLetivo "1" --> "0..*" CursoAnoLetivo : define
+    UnidadeCurricular "1" <-- "0..*" OfertaUC : baseia-seEm
+    CursoAnoLetivo "1" --> "0..*" OfertaUC : inclui
+    Semestre "1" <-- "0..*" OfertaUC : lecionadaEm
+    OfertaUC "0..*" --> "0..1" Utilizador : docenteResponsavel
+    OfertaUC "1" --> "0..*" ComponenteUC : tem
+    Utilizador "0..*" -- "0..*" ComponenteUC : leciona
+    CursoAnoLetivo "1" --> "0..*" Turma : agrega
+    Turma "1" --> "1" Horario : tem
+    Horario "1" --> "0..*" Aula : inclui
+    Turma "1" --> "0..*" Aula : possui
+    ComponenteUC "1" --> "0..*" Aula : ocorreEm
+    Sala "1" --> "0..*" Aula : decorreEm
+    ComponenteUC "1" <-- "0..*" PedidoCompensacao : referenteA
+    Turma "1" <-- "0..*" PedidoCompensacao : paraTurma
+    Utilizador "1" <-- "0..*" PedidoCompensacao : submetidoPor
+    Utilizador "0..*" <-- "0..1" PedidoCompensacao : decididoPorCoordenador
+    PedidoCompensacao "0..*" --> "1" EstadoPedido : estado
+    PedidoCompensacao "1" --> "1" Aula : aulaOriginal
+    PedidoCompensacao "1" --> "1" Aula : aulaProposta
+    PedidoCompensacao "1" --> "0..*" Notificacao : gera
+    Notificacao "0..*" --> "1" Utilizador : destinatario
+    AnoLetivo "0..1" <-- "0..*" Feriado : pertenceA
+    Feriado "0..*" --> "1" Utilizador : criadoPor

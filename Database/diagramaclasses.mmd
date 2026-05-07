@@ -1,0 +1,179 @@
+---
+config:
+  layout: elk
+  theme: mc
+  look: classic
+---
+classDiagram
+direction TB
+    class Utilizador {
+	    +id: UUID
+	    +nome: string
+	    +email: string
+	    +username: string
+	    +passwordHash: string
+	    +ativo: bool
+	    +dataCriacao: datetime
+	    +ultimoLogin: datetime
+    }
+
+    class Perfil {
+	    +id: int
+	    +nome: string  %% Docente | CoordenadorCurso | Administrador
+	    +descricao: string
+	    +ativo: bool
+    }
+
+    class Curso {
+	    +id: int
+	    +nome: string
+	    +sigla: string
+	    +grau: string       %% Licenciatura/Mestrado/etc.
+	    +ativo: bool
+    }
+
+    class AnoLetivo {
+	    +id: int
+	    +designacao: string %% ex: 2025/2026
+	    +dataInicio: date
+	    +dataFim: date
+	    +ativo: bool
+    }
+
+    class CursoAnoLetivo {
+	    +id: int
+	    +dataCriacao: datetime
+	    +estado: string     %% Ativo/Encerrado(opcional)
+    }
+
+    class UnidadeCurricular {
+	    +id: int
+	    +codigo: string
+	    +nome: string
+	    +ects: float
+	    +descricao: string
+	    +ativa: bool
+    }
+
+    class OfertaUC {
+	    +id: int
+	    +ativa: bool
+	    +observacoes: string
+	    +dataCriacao: datetime
+    }
+
+    class Semestre {
+	    +id: int
+	    +numero: int        %% 1 ou 2
+	    +designacao: string %% ex: 1.º Semestre
+    }
+
+    class ComponenteUC {
+	    +id: int
+	    +nome: string       %% Teórica/Prática/TP/etc.
+	    +sigla: string      %% T, P, TP...
+	    +cargaHorariaSemanal: float
+	    +descricao: string
+	    +ativa: bool
+    }
+
+    class Turma {
+	    +id: int
+	    +codigo: string
+	    +anoCurricular: int
+	    +ativa: bool
+	    +turno: string      %% Diurno/Noturno(opcional)
+    }
+
+    class Horario {
+	    +id: int
+	    +designacao: string %% ex: "Horário Turma A"
+	    +ativo: bool
+	    +dataCriacao: datetime
+    }
+
+    class Aula {
+	    +id: UUID
+	    +diaSemana: string  %% Seg/Ter/...
+	    +horaInicio: time
+	    +horaFim: time
+	    +observacoes: string
+	    +dataEspecifica: date %% opcional(para aulas pontuais/compensações)
+	    +tipo: string       %% Regular/Compensação(opcional)
+    }
+
+    class Sala {
+	    +id: int
+	    +codigo: string
+	    +edificio: string
+	    +piso: string
+	    +capacidade: int
+	    +ativa: bool
+	    +tipo: string       %% Sala/Lab/Auditório(opcional)
+    }
+
+    class PedidoCompensacao {
+	    +id: UUID
+	    +motivo: string
+	    +justificacao: string
+	    +dataSubmissao: datetime
+	    +dataDecisao: datetime
+	    +comentarioDecisao: string
+	    +estado: EstadoPedido
+    }
+
+    class Notificacao {
+	    +id: UUID
+	    +titulo: string
+	    +mensagem: string
+	    +tipo: string       %% Sistema/Pedido/etc.
+	    +dataHora: datetime
+	    +lida: bool
+    }
+
+    class Feriado {
+	    +id: int
+	    +designacao: string
+	    +descricao: string
+	    +dataInicio: date
+	    +dataFim: date
+	    +ativo: bool
+	    +dataCriacao: datetime
+	    +tipo: string       %% Nacional/Institucional/Outro(opcional)
+    }
+
+    class EstadoPedido {
+	    SUBMETIDO
+	    APROVADO
+	    RECUSADO
+	    CANCELADO
+    }
+
+	<<enumeration>> EstadoPedido
+
+    Utilizador "0..*" -- "0..*" Perfil : tem
+    Curso "1" --> "0..*" CursoAnoLetivo : possui
+    AnoLetivo "1" --> "0..*" CursoAnoLetivo : define
+    UnidadeCurricular "1" <-- "0..*" OfertaUC : baseia-seEm
+    CursoAnoLetivo "1" --> "0..*" OfertaUC : inclui
+    Semestre "1" <-- "0..*" OfertaUC : lecionadaEm
+    OfertaUC "0..*" --> "0..1" Utilizador : docenteResponsavel
+    OfertaUC "1" --> "0..*" ComponenteUC : tem
+    Utilizador "0..*" -- "0..*" ComponenteUC : leciona
+    CursoAnoLetivo "1" --> "0..*" Turma : agrega
+    Turma "1" --> "1" Horario : tem
+    Horario "1" --> "0..*" Aula : inclui
+    Turma "1" --> "0..*" Aula : possui
+    ComponenteUC "1" --> "0..*" Aula : ocorreEm
+    Sala "1" --> "0..*" Aula : decorreEm
+    ComponenteUC "1" <-- "0..*" PedidoCompensacao : referenteA
+    Turma "1" <-- "0..*" PedidoCompensacao : paraTurma
+    Utilizador "1" <-- "0..*" PedidoCompensacao : submetidoPor
+    Utilizador "0..*" <-- "0..1" PedidoCompensacao : decididoPorCoordenador
+    PedidoCompensacao "0..*" --> "1" EstadoPedido : estado
+    PedidoCompensacao "1" --> "1" Aula : aulaOriginal
+    PedidoCompensacao "1" --> "1" Aula : aulaProposta
+    PedidoCompensacao "1" --> "0..*" Notificacao : gera
+    Notificacao "0..*" --> "1" Utilizador : destinatario
+    AnoLetivo "0..1" <-- "0..*" Feriado : pertenceA
+    Feriado "0..*" --> "1" Utilizador : criadoPor
