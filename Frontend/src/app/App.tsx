@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router';
 import { Layout } from './components/compensa/Layout';
 import { Overview } from './components/compensa/Overview';
 import { TeacherView } from './components/compensa/TeacherView';
@@ -16,22 +17,50 @@ import { AIDocumentConverter } from './components/compensa/AIDocumentConverter';
 import { FloatingAIChat } from './components/compensa/FloatingAIChat';
 import { SignInPage } from './components/auth/SignInPage';
 import { SignUpPage } from './components/auth/SignUpPage';
-import { mockUser, UserRole } from './components/compensa/data';
+import { mockUser, UserRole, User } from './components/compensa/data';
 import { ThemeProvider } from './components/ui/theme-provider';
 import { LanguageProvider } from './components/compensa/LanguageContext';
 import { EmptyState } from './components/common/EmptyState';
-import { User, Settings, Sliders } from 'lucide-react';
+import { Settings, Sliders } from 'lucide-react';
 import { Toaster } from 'sonner@2.0.3';
+
+// 1. Auth Guard Component
+const ProtectedRoute = ({ isAuthenticated, children }: { isAuthenticated: boolean, children: React.ReactNode }) => {
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
+// 2. Application Wrapper that provides State & Layout
+const AppLayout = ({ 
+  user, 
+  onRoleChange, 
+  onLogout 
+}: { 
+  user: User, 
+  onRoleChange: (role: UserRole) => void,
+  onLogout: () => void 
+}) => {
+  return (
+    <Layout
+      user={user}
+      onRoleChange={onRoleChange}
+      onLogout={onLogout}
+    >
+      {/* This renders the matched child route */}
+      <Outlet />
+    </Layout>
+  );
+};
 
 export default function App() {
   const [user, setUser] = useState(mockUser);
-  const [currentView, setCurrentView] = useState('dashboard');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authView, setAuthView] = useState('signin'); // 'signin' or 'signup'
+  const [authView, setAuthView] = useState('signin'); // Used for the /login page internal toggle
 
   const handleRoleChange = (role: UserRole) => {
     setUser({ ...user, role });
-    setCurrentView('dashboard'); 
   };
 
   const handleLogin = () => {
@@ -40,104 +69,80 @@ export default function App() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
-    setAuthView('signin');
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <ThemeProvider defaultTheme="light" storageKey="compensa-theme">
-        <LanguageProvider>
-          <Toaster richColors position="top-right" />
-          {authView === 'signin' ? (
-            <SignInPage onNavigate={setAuthView} onLogin={handleLogin} />
-          ) : (
-            <SignUpPage onNavigate={setAuthView} onLogin={handleLogin} />
-          )}
-        </LanguageProvider>
-      </ThemeProvider>
-    );
-  }
-
-  // Full Screen Mode for Storyboard
-  if (currentView === 'full-storyboard') {
-     return (
-        <ThemeProvider defaultTheme="light" storageKey="compensa-theme">
-           <LanguageProvider>
-             <FullProjectStoryboard onExit={() => setCurrentView('dashboard')} />
-           </LanguageProvider>
-        </ThemeProvider>
-     );
-  }
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'dashboard':
-        return <Overview onNavigate={setCurrentView} />;
-      case 'requests':
-        if (user.role === 'coordinator' || user.role === 'admin') return <CoordinatorView userRole={user.role} />;
-        if (user.role === 'teacher') return <TeacherView />;
-        return <TeacherView />; // Default fallback
-      case 'calendar':
-        return <CalendarView userRole={user.role} />;
-      case 'notifications':
-        return <NotificationsView />;
-      case 'courses':
-        return <CoursesView user={user} />;
-      case 'classrooms':
-        return <ClassroomsView user={user} />;
-      case 'users':
-        return <UsersView />;
-      case 'system-calendar':
-        return <SystemCalendarView />;
-      case 'project-storyboard':
-        return <ProjectStoryboard />;
-      case 'ai-converter':
-        return <AIDocumentConverter />;
-      case 'profile':
-        return <UserProfile user={user} />;
-      case 'settings':
-        return (
-          <EmptyState
-            icon={Settings}
-            title="System Settings"
-            description="Global configuration coming soon."
-          />
-        );
-      case 'profile':
-        return (
-          <EmptyState
-            icon={User}
-            title="My Profile"
-            description="User profile settings coming soon."
-          />
-        );
-      case 'preferences':
-        return (
-          <EmptyState
-            icon={Sliders}
-            title="Preferences"
-            description="System preferences coming soon."
-          />
-        );
-      default:
-        return <div className="p-12 text-center text-slate-500">Page under construction: {currentView}</div>;
-    }
   };
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="compensa-theme">
       <LanguageProvider>
         <Toaster richColors position="top-right" />
-        <Layout
-          user={user}
-          currentView={currentView}
-          setCurrentView={setCurrentView}
-          onRoleChange={handleRoleChange}
-          onLogout={handleLogout}
-        >
-          {renderContent()}
-        </Layout>
-        <FloatingAIChat />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Auth Routes */}
+            <Route 
+              path="/login" 
+              element={
+                isAuthenticated ? (
+                  <Navigate to="/dashboard" replace />
+                ) : (
+                  authView === 'signin' ? 
+                    <SignInPage onNavigate={setAuthView} onLogin={handleLogin} /> : 
+                    <SignUpPage onNavigate={setAuthView} onLogin={handleLogin} />
+                )
+              } 
+            />
+
+            {/* Full Screen Storyboard (No Layout) */}
+            <Route 
+              path="/full-storyboard" 
+              element={
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
+                   <FullProjectStoryboard onExit={() => window.history.back()} />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Protected Routes Wrapped in Layout */}
+            <Route 
+              element={
+                <ProtectedRoute isAuthenticated={isAuthenticated}>
+                  <AppLayout user={user} onRoleChange={handleRoleChange} onLogout={handleLogout} />
+                  <FloatingAIChat />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Overview />} />
+              
+              <Route path="/requests" element={
+                (user.role === 'coordinator' || user.role === 'admin') 
+                  ? <CoordinatorView userRole={user.role} /> 
+                  : <TeacherView />
+              } />
+              
+              <Route path="/calendar" element={<CalendarView userRole={user.role} />} />
+              <Route path="/notifications" element={<NotificationsView />} />
+              <Route path="/courses" element={<CoursesView user={user} />} />
+              <Route path="/classrooms" element={<ClassroomsView user={user} />} />
+              <Route path="/users" element={<UsersView />} />
+              <Route path="/system-calendar" element={<SystemCalendarView />} />
+              <Route path="/project-storyboard" element={<ProjectStoryboard />} />
+              <Route path="/ai-converter" element={<AIDocumentConverter />} />
+              <Route path="/profile" element={<UserProfile user={user} />} />
+              
+              <Route path="/settings" element={
+                <EmptyState icon={Settings} title="System Settings" description="Global configuration coming soon." />
+              } />
+              <Route path="/preferences" element={
+                <EmptyState icon={Sliders} title="Preferences" description="System preferences coming soon." />
+              } />
+              
+              {/* Catch-all 404 Route */}
+              <Route path="*" element={
+                <div className="p-12 text-center text-slate-500">Page not found.</div>
+              } />
+            </Route>
+          </Routes>
+        </BrowserRouter>
       </LanguageProvider>
     </ThemeProvider>
   );

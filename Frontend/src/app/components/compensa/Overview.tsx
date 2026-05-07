@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { kpiData } from './data';
 import {
@@ -112,8 +113,9 @@ const WeeklyCalendar = () => {
   );
 };
 
-const QuickActions = ({ onNavigate }: { onNavigate?: (view: string) => void }) => {
+const QuickActions = () => {
    const { t } = useLanguage();
+   const navigate = useNavigate();
    
    return (
     <Card className="h-full border-none shadow-md bg-slate-900 dark:bg-black text-white relative overflow-hidden ring-1 ring-slate-900 dark:ring-slate-800">
@@ -132,7 +134,7 @@ const QuickActions = ({ onNavigate }: { onNavigate?: (view: string) => void }) =
       <CardContent className="space-y-4 relative z-10">
          <div 
            className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
-           onClick={() => onNavigate?.('requests')}
+           onClick={() => navigate('/requests')}
          >
             <div className="flex justify-between items-start mb-2">
                <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{t('dashboard.pending_status')}</span>
@@ -146,7 +148,7 @@ const QuickActions = ({ onNavigate }: { onNavigate?: (view: string) => void }) =
 
          <div 
            className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
-           onClick={() => onNavigate?.('calendar')}
+           onClick={() => navigate('/calendar')}
          >
             <div className="flex justify-between items-start mb-2">
                <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">{t('dashboard.upcoming_status')}</span>
@@ -160,7 +162,7 @@ const QuickActions = ({ onNavigate }: { onNavigate?: (view: string) => void }) =
          
          <Button 
            className="w-full bg-blue-600 hover:bg-blue-500 text-white border-none mt-4"
-           onClick={() => onNavigate?.('notifications')}
+           onClick={() => navigate('/notifications')}
          >
             {t('dashboard.view_all')}
          </Button>
@@ -169,11 +171,7 @@ const QuickActions = ({ onNavigate }: { onNavigate?: (view: string) => void }) =
    );
 };
 
-interface OverviewProps {
-  onNavigate?: (view: string) => void;
-}
-
-export const Overview = ({ onNavigate }: OverviewProps) => {
+export const Overview = () => {
   const { t } = useLanguage();
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -218,7 +216,7 @@ export const Overview = ({ onNavigate }: OverviewProps) => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <CompensationChart />
         <div className="lg:col-span-1 h-full">
-           <QuickActions onNavigate={onNavigate} />
+           <QuickActions />
         </div>
       </div>
       

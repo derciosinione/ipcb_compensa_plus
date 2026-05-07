@@ -29,4 +29,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src/app'),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['lucide-react'],
+        }
+      }
+    }
+  }
 })

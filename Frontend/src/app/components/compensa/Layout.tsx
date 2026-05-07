@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
 import {
   LayoutDashboard,
   FileText,
@@ -47,32 +48,33 @@ import { Check } from 'lucide-react';
 interface LayoutProps {
   children: React.ReactNode;
   user: User;
-  currentView: string;
-  setCurrentView: (view: string) => void;
   onRoleChange?: (role: UserRole) => void;
   onLogout?: () => void;
 }
 
-export const Layout = ({ children, user, currentView, setCurrentView, onRoleChange, onLogout }: LayoutProps) => {
+export const Layout = ({ children, user, onRoleChange, onLogout }: LayoutProps) => {
   const { t } = useLanguage();
+  const location = useLocation();
+  const currentPath = location.pathname;
+  
   const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const [showHelp, setShowHelp] = useState(false);
 
   const sidebarItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: t('menu.dashboard') },
-    { id: 'requests', icon: FileText, label: user.role === 'teacher' ? t('menu.my_requests') : t('menu.requests'), badge: '3' },
-    { id: 'calendar', icon: CalendarDays, label: t('menu.calendar') },
-    { id: 'courses', icon: BookOpen, label: t('menu.courses') },
-    { id: 'classrooms', icon: MapPin, label: t('menu.classrooms') },
-    { id: 'ai-converter', icon: Sparkles, label: t('menu.ai_converter') || 'AI Converter' },
+    { path: '/dashboard', icon: LayoutDashboard, label: t('menu.dashboard') },
+    { path: '/requests', icon: FileText, label: user.role === 'teacher' ? t('menu.my_requests') : t('menu.requests'), badge: '3' },
+    { path: '/calendar', icon: CalendarDays, label: t('menu.calendar') },
+    { path: '/courses', icon: BookOpen, label: t('menu.courses') },
+    { path: '/classrooms', icon: MapPin, label: t('menu.classrooms') },
+    { path: '/ai-converter', icon: Sparkles, label: t('menu.ai_converter') || 'AI Converter' },
   ];
 
   const adminItems = [
-    { id: 'users', icon: Users, label: t('menu.users') },
-    { id: 'system-calendar', icon: Calendar, label: t('menu.holidays') },
-    { id: 'settings', icon: Settings, label: t('menu.settings') },
+    { path: '/users', icon: Users, label: t('menu.users') },
+    { path: '/system-calendar', icon: Calendar, label: t('menu.holidays') },
+    { path: '/settings', icon: Settings, label: t('menu.settings') },
   ];
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -95,7 +97,7 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
       <div className="flex min-h-screen w-full bg-slate-50 dark:bg-slate-950">
         <Sidebar className="border-r border-slate-200 bg-white dark:bg-slate-900 dark:border-slate-800" variant="sidebar" collapsible="icon">
           <SidebarHeader className="h-16 flex items-center px-4 border-b border-slate-100 dark:border-slate-800 group-data-[collapsible=icon]:px-0">
-            <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+            <Link to="/dashboard" className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center hover:opacity-90 transition-opacity">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 shadow-sm transition-all group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
                 <span className="text-sm font-bold text-white">C+</span>
               </div>
@@ -103,7 +105,7 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
                 <span className="font-bold text-slate-900 dark:text-slate-50 tracking-tight">{t('app.name')}</span>
                 <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase">{t('app.subtitle')}</span>
               </div>
-            </div>
+            </Link>
           </SidebarHeader>
 
           <SidebarContent className="px-2 py-4 gap-4 group-data-[collapsible=icon]:px-0">
@@ -114,37 +116,37 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
               <SidebarGroupContent>
                 <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
                   {sidebarItems.map((item) => (
-                    <SidebarMenuItem key={item.id} className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                    <SidebarMenuItem key={item.path} className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
                       <SidebarMenuButton
-                        onClick={() => setCurrentView(item.id)}
-                        isActive={currentView === item.id}
+                        asChild
+                        isActive={currentPath === item.path || (currentPath === '/' && item.path === '/dashboard')}
                         tooltip={{
                           children: item.label,
                           className: "bg-slate-900 text-slate-50 border-slate-800 dark:bg-slate-100 dark:text-slate-900 font-medium"
                         }}
                         className={cn(
                           "transition-all duration-200",
-                          // Styles for expanded state
                           "w-full justify-start",
-                          // Styles for collapsed state (icon mode)
                           "group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl",
-                          currentView === item.id 
+                          currentPath === item.path 
                             ? "bg-blue-50 text-blue-600 font-medium dark:bg-blue-900/20 dark:text-blue-400 shadow-sm" 
                             : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                         )}
                       >
-                        <item.icon className={cn("h-5 w-5 shrink-0 transition-colors", currentView === item.id ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300")} />
-                        <span className="group-data-[collapsible=icon]:hidden font-medium">{item.label}</span>
-                        {item.badge && (
-                          <SidebarMenuBadge className={cn(
-                            "ml-auto group-data-[collapsible=icon]:hidden", 
-                            currentView === item.id 
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" 
-                              : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                          )}>
-                            {item.badge}
-                          </SidebarMenuBadge>
-                        )}
+                        <Link to={item.path}>
+                          <item.icon className={cn("h-5 w-5 shrink-0 transition-colors", currentPath === item.path ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300")} />
+                          <span className="group-data-[collapsible=icon]:hidden font-medium">{item.label}</span>
+                          {item.badge && (
+                            <SidebarMenuBadge className={cn(
+                              "ml-auto group-data-[collapsible=icon]:hidden", 
+                              currentPath === item.path 
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" 
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                            )}>
+                              {item.badge}
+                            </SidebarMenuBadge>
+                          )}
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
@@ -160,27 +162,27 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
                 <SidebarGroupContent>
                   <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
                     {adminItems.map((item) => (
-                      <SidebarMenuItem key={item.id} className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                      <SidebarMenuItem key={item.path} className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
                         <SidebarMenuButton
-                          onClick={() => setCurrentView(item.id)}
-                          isActive={currentView === item.id}
+                          asChild
+                          isActive={currentPath === item.path}
                           tooltip={{
                              children: item.label,
                              className: "bg-slate-900 text-slate-50 border-slate-800 dark:bg-slate-100 dark:text-slate-900 font-medium"
                           }}
                           className={cn(
                              "transition-all duration-200",
-                             // Styles for expanded state
                              "w-full justify-start",
-                             // Styles for collapsed state
                              "group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl",
-                            currentView === item.id 
+                            currentPath === item.path 
                               ? "bg-blue-50 text-blue-600 font-medium dark:bg-blue-900/20 dark:text-blue-400 shadow-sm" 
                               : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                           )}
                         >
-                          <item.icon className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
-                          <span className="group-data-[collapsible=icon]:hidden font-medium">{item.label}</span>
+                          <Link to={item.path}>
+                            <item.icon className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
+                            <span className="group-data-[collapsible=icon]:hidden font-medium">{item.label}</span>
+                          </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
@@ -236,7 +238,7 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
             </div>
 
             <div className="flex items-center gap-4">
-              <GlobalSearch onNavigate={setCurrentView} />
+              <GlobalSearch onNavigate={(path) => { /* Will update to use navigate later if needed */ }} />
 
               <ModeToggle />
 
@@ -292,10 +294,10 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
                        <Button 
                           variant="ghost" 
                           size="sm" 
+                          asChild
                           className="w-full text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
-                          onClick={() => setCurrentView('notifications')}
                        >
-                          {t('header.view_all')}
+                          <Link to="/notifications">{t('header.view_all')}</Link>
                        </Button>
                     </div>
                  </PopoverContent>
@@ -306,13 +308,13 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{user.name}</p>
                    <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user.role}</p>
                  </div>
-                 <DropdownUser user={user} onRoleChange={onRoleChange} setCurrentView={setCurrentView} onLogout={onLogout} />
+                 <DropdownUser user={user} onRoleChange={onRoleChange} onLogout={onLogout} />
               </div>
             </div>
           </header>
 
           <main className="flex-1 overflow-auto p-8">
-            <div className="max-w-7xl mx-auto space-y-6">
+            <div className="max-w-7xl mx-auto space-y-6 h-full flex flex-col">
               {children}
             </div>
           </main>
@@ -344,12 +346,10 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
                      variant="outline" 
                      size="sm" 
                      className="w-full h-8"
-                     onClick={() => {
-                        setCurrentView('full-storyboard');
-                        setShowHelp(false);
-                     }}
+                     asChild
+                     onClick={() => setShowHelp(false)}
                   >
-                     View Full Storyboard
+                     <Link to="/full-storyboard">View Full Storyboard</Link>
                   </Button>
                </div>
                <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg text-sm">
@@ -390,9 +390,10 @@ export const Layout = ({ children, user, currentView, setCurrentView, onRoleChan
   );
 };
 
-const DropdownUser = ({ user, onRoleChange, setCurrentView, onLogout }: { user: User, onRoleChange?: (role: UserRole) => void, setCurrentView: (v: string) => void, onLogout?: () => void }) => {
+const DropdownUser = ({ user, onRoleChange, onLogout }: { user: User, onRoleChange?: (role: UserRole) => void, onLogout?: () => void }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const { language, setLanguage, t } = useLanguage();
+  const navigate = useNavigate();
   
   return (
     <div className="relative">
@@ -419,24 +420,27 @@ const DropdownUser = ({ user, onRoleChange, setCurrentView, onLogout }: { user: 
           <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
             {t('user.account')}
           </div>
-          <button 
-             onClick={() => { setCurrentView('profile'); setIsOpen(false); }}
+          <Link 
+             to="/profile"
+             onClick={() => setIsOpen(false)}
              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
              <UserIcon className="h-4 w-4" /> {t('user.profile')}
-          </button>
-          <button 
-             onClick={() => { setCurrentView('preferences'); setIsOpen(false); }}
+          </Link>
+          <Link 
+             to="/preferences"
+             onClick={() => setIsOpen(false)}
              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
              <Sliders className="h-4 w-4" /> {t('user.preferences')}
-          </button>
-          <button 
-             onClick={() => { setCurrentView('settings'); setIsOpen(false); }}
+          </Link>
+          <Link 
+             to="/settings"
+             onClick={() => setIsOpen(false)}
              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
              <Settings className="h-4 w-4" /> {t('user.system_settings')}
-          </button>
+          </Link>
 
           <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
           
@@ -479,6 +483,7 @@ const DropdownUser = ({ user, onRoleChange, setCurrentView, onLogout }: { user: 
               onClick={() => {
                 onRoleChange?.(r);
                 setIsOpen(false);
+                navigate('/dashboard'); // Reset to dashboard on role change
               }}
               className={cn(
                 "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
