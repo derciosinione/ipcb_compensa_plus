@@ -1,25 +1,27 @@
 import { Navigate, Route, Routes } from 'react-router';
-import { FloatingAIChat } from '../layouts/FloatingAIChat';
-import { User, UserRole } from '../mocks/data';
 import { AppShell } from '../layouts/AppShell';
 import { FullStoryboardPage, LoginPage, NotFoundPage } from '../pages';
+import { VerifyMagicLinkPage } from '../pages/Login/VerifyMagicLinkPage';
 import type { AuthView } from '../types/auth';
+import type { AuthenticatedUser, UserRole } from '../types/user';
 import { appPaths } from './paths';
 import { ProtectedRoute } from './ProtectedRoute';
 import { getProtectedRouteDefinitions } from './routeConfig';
 
 interface AppRoutesProps {
   authView: AuthView;
+  isAuthReady: boolean;
   isAuthenticated: boolean;
-  user: User;
+  user: AuthenticatedUser | null;
   onAuthViewChange: (view: AuthView) => void;
-  onLogin: () => void;
+  onLogin: (user: AuthenticatedUser) => void;
   onLogout: () => void;
   onRoleChange: (role: UserRole) => void;
 }
 
 export const AppRoutes = ({
   authView,
+  isAuthReady,
   isAuthenticated,
   user,
   onAuthViewChange,
@@ -27,7 +29,12 @@ export const AppRoutes = ({
   onLogout,
   onRoleChange,
 }: AppRoutesProps) => {
-  const protectedRoutes = getProtectedRouteDefinitions(user);
+  const protectedRoutes = user ? getProtectedRouteDefinitions(user) : [];
+  const canRenderProtectedShell = isAuthenticated && Boolean(user);
+
+  if (!isAuthReady) {
+    return null;
+  }
 
   return (
     <Routes>
@@ -41,11 +48,12 @@ export const AppRoutes = ({
           )
         }
       />
+      <Route path={appPaths.authVerify} element={<VerifyMagicLinkPage onAuthenticated={onLogin} />} />
 
       <Route
         path={appPaths.fullStoryboard}
         element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
+          <ProtectedRoute isAuthenticated={canRenderProtectedShell}>
             <FullStoryboardPage />
           </ProtectedRoute>
         }
@@ -53,17 +61,26 @@ export const AppRoutes = ({
 
       <Route
         element={
-          <ProtectedRoute isAuthenticated={isAuthenticated}>
-            <>
-              <AppShell user={user} onRoleChange={onRoleChange} onLogout={onLogout} />
-              <FloatingAIChat />
-            </>
+          <ProtectedRoute isAuthenticated={canRenderProtectedShell}>
+            <AppShell user={user!} onLogout={onLogout} onRoleChange={onRoleChange} />
           </ProtectedRoute>
         }
       >
         <Route path={appPaths.root} element={<Navigate to={appPaths.dashboard} replace />} />
         {protectedRoutes.map((route) => (
-          <Route key={route.path} path={route.path} element={route.element} />
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              <ProtectedRoute
+                isAuthenticated={canRenderProtectedShell}
+                user={user}
+                allowedRoles={route.allowedRoles}
+              >
+                {route.element}
+              </ProtectedRoute>
+            }
+          />
         ))}
         <Route path="*" element={<NotFoundPage />} />
       </Route>

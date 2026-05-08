@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner@2.0.3";
 import { useLanguage } from '../../../providers/LanguageContext';
 import { ModeToggle } from "../../../components/ui/theme-provider";
+import { requestMagicLink } from "../../../services/auth/authApi";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,15 +29,15 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import type { AuthView } from "../../../types/auth";
+import type { AuthenticatedUser } from "../../../types/user";
 
 interface SignInPageProps {
   onNavigate: (view: AuthView) => void;
-  onLogin: () => void;
+  onLogin: (user: AuthenticatedUser) => void;
 }
 
 export const SignInPage = ({
   onNavigate,
-  onLogin,
 }: SignInPageProps) => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -46,21 +47,22 @@ export const SignInPage = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    setIsLoading(true);
+    if (!email) {
+      toast.error(t('auth.enter_email'));
+      return;
+    }
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      setIsLoading(true);
+      await requestMagicLink(email);
+
       setIsLoading(false);
       setEmailSent(true);
       toast.success(t('auth.success_magic_link'));
-
-      // In a real app, the user would click the link in their email.
-      // Here we'll simulate the login happening after a delay or just let them stay on the "email sent" screen
-      // For this demo, we'll auto-login after 2 seconds to show the flow
-      setTimeout(() => {
-        onLogin();
-      }, 2000);
-    }, 1500);
+    } catch (error) {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Unable to send magic link.');
+    }
   };
 
   return (
@@ -168,11 +170,6 @@ export const SignInPage = ({
                   </button>
                   .
                 </p>
-                <div className="pt-2">
-                  <p className="text-xs text-slate-400 animate-pulse">
-                    {t('auth.redirecting')}
-                  </p>
-                </div>
               </div>
             )}
           </CardContent>

@@ -4,10 +4,16 @@ using CompensaCoreApi.Contracts;
 using CompensaCoreApi.Data;
 using CompensaCoreApi.Infrastructure.Auth;
 using CompensaCoreApi.Infrastructure.Database;
+using CompensaCoreApi.Infrastructure.OpenApi;
 using CompensaCoreApi.Middleware;
+using CompensaCoreApi.Repositories.Classrooms;
 using CompensaCoreApi.Repositories.CompensationRequests;
+using CompensaCoreApi.Repositories.Courses;
+using CompensaCoreApi.Services.Classrooms;
 using CompensaCoreApi.Services.CompensationRequests;
+using CompensaCoreApi.Services.Courses;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -24,9 +30,12 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("JWT settings are missing.");
+var jwtSigningKeyValue = Environment.GetEnvironmentVariable("Jwt__SigningKey") ?? jwtOptions.SigningKey;
 
-if (string.IsNullOrWhiteSpace(jwtOptions.SigningKey) || jwtOptions.SigningKey.Length < 32)
+if (string.IsNullOrWhiteSpace(jwtSigningKeyValue) || jwtSigningKeyValue.Length < 32)
     throw new InvalidOperationException("JWT signing key must be configured with at least 32 characters.");
+
+var jwtSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKeyValue));
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -39,14 +48,36 @@ builder.Services
             ValidateAudience = true,
             ValidAudience = jwtOptions.Audience,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SigningKey)),
+            IssuerSigningKey = jwtSigningKey,
+            IssuerSigningKeyResolver = (_, _, _, _) => [jwtSigningKey],
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins(
+                builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? ["http://localhost:5173"])
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 
+builder.Services.AddScoped<IClassroomRepository, ClassroomRepository>();
+builder.Services.AddScoped<IClassroomService, ClassroomService>();
+builder.Services.AddScoped<ICourseRepository, CourseRepository>();
+builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICompensationRequestRepository, CompensationRequestRepository>();
 builder.Services.AddScoped<ICompensationRequestService, CompensationRequestService>();
 builder.Services.AddHostedService<DatabaseStartupService>();
@@ -79,7 +110,8 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
+    app.MapSwaggerUi("Compensa Core API");
 }
 
 if (!app.Environment.IsDevelopment())
@@ -87,8 +119,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "compensa-core-api" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "compensa-core-api" }))
+    .AllowAnonymous();
 
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -37,7 +37,9 @@ services:
       Email__Password: ${EMAIL_PASSWORD:-}
       Email__UseStartTls: ${EMAIL_USE_STARTTLS:-true}
       MagicLinks__ExpirationMinutes: ${MAGIC_LINK_EXPIRATION_MINUTES:-15}
-      MagicLinks__VerifyPath: /api/auth/verify
+      MagicLinks__VerifyPath: /auth/verify
+      MagicLinks__ClientBaseUrl: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+      Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}

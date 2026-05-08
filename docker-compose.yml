@@ -39,7 +39,9 @@ services:
       Email__Password: ${EMAIL_PASSWORD:-}
       Email__UseStartTls: ${EMAIL_USE_STARTTLS:-true}
       MagicLinks__ExpirationMinutes: ${MAGIC_LINK_EXPIRATION_MINUTES:-15}
-      MagicLinks__VerifyPath: /api/auth/verify
+      MagicLinks__VerifyPath: /auth/verify
+      MagicLinks__ClientBaseUrl: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+      Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
@@ -74,6 +76,7 @@ services:
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
     ports:
       - "${CORE_API_PORT:-5001}:8080"
     depends_on:
@@ -116,6 +119,9 @@ services:
     build:
       context: ./Frontend
       dockerfile: Dockerfile
+      args:
+        VITE_IDENTITY_API_URL: ${VITE_IDENTITY_API_URL:-http://localhost:5002}
+        VITE_CORE_API_URL: ${VITE_CORE_API_URL:-http://localhost:5001}
     container_name: compensa-frontend
     restart: unless-stopped
     ports:

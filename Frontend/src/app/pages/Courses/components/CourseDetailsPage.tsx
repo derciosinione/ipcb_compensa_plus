@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ArrowLeft, 
   CalendarRange, 
@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 import { Separator } from '../../../components/ui/separator';
-import { mockCourses, mockUnits, mockClasses, mockTeachers, mockTimetable, Course, CurricularUnit, ClassGroup, User, TimeSlot } from '../../../mocks/data';
+import { mockCourses, mockTeachers, mockTimetable, Course as MockCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../mocks/data';
 import { cn } from '../../../components/ui/utils';
 import { toast } from 'sonner@2.0.3';
 import { AddCurricularUnitModal } from './AddCurricularUnitModal';
@@ -49,21 +49,59 @@ import { AssignTeachersModal } from './AssignTeachersModal';
 import { AssignTeacherToCourseModal } from './AssignTeacherToCourseModal';
 import { ClassDetailsView } from '../../../components/domain/requests/ClassDetailsView';
 import { BulkImportSchedulesSheet } from './BulkImportSchedulesSheet';
+import { getCourseDetails } from '../../../services/courses/coursesApi';
+import type { Course as ApiCourse, ClassGroup as ApiClassGroup, CurricularUnit as ApiCurricularUnit } from '../../../services/courses/courseTypes';
 
 interface CourseDetailsPageProps {
   courseId: string;
+  course?: ApiCourse;
   userRole: 'coordinator' | 'teacher' | 'admin';
   userId: string; 
   onBack: () => void;
 }
 
-export const CourseDetailsPage = ({ courseId, userRole, userId, onBack }: CourseDetailsPageProps) => {
-  const course = mockCourses.find(c => c.id === courseId);
+const toDetailsCourse = (course: ApiCourse): MockCourse => ({
+  id: course.id,
+  name: course.name,
+  abbreviation: course.abbreviation,
+  description: course.description,
+  type: course.type,
+  durationYears: course.durationYears,
+  totalCredits: course.totalCredits,
+  coordinatorId: course.coordinatorUserId ?? '',
+  image: course.imageUrl,
+});
+
+const toDetailsUnit = (unit: ApiCurricularUnit): CurricularUnit => ({
+  id: unit.id,
+  name: unit.name,
+  courseId: unit.courseId,
+  year: unit.year,
+  semester: unit.semester,
+  ects: unit.ects,
+  teacherIds: unit.teacherIds,
+  regentId: unit.regentId ?? undefined,
+  theoreticalTeacherId: unit.theoreticalTeacherId ?? undefined,
+  practicalTeacherId: unit.practicalTeacherId ?? undefined,
+  component: unit.component,
+});
+
+const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
+  id: group.id,
+  name: group.name,
+  unitId: group.curricularUnitId,
+  teacherId: group.teacherId,
+});
+
+export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userId, onBack }: CourseDetailsPageProps) => {
+  const [course, setCourse] = useState<MockCourse | undefined>(
+    apiCourse ? toDetailsCourse(apiCourse) : mockCourses.find(c => c.id === courseId)
+  );
   
-  // Local state to simulate database changes
-  const [localUnits, setLocalUnits] = useState<CurricularUnit[]>(mockUnits);
-  const [localClasses, setLocalClasses] = useState<ClassGroup[]>(mockClasses);
+  const [localUnits, setLocalUnits] = useState<CurricularUnit[]>([]);
+  const [localClasses, setLocalClasses] = useState<ClassGroup[]>([]);
   const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>(mockTimetable);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -81,6 +119,45 @@ export const CourseDetailsPage = ({ courseId, userRole, userId, onBack }: Course
   const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
   
   const [selectedYear, setSelectedYear] = useState<number>(1);
+
+  useEffect(() => {
+      let isMounted = true;
+
+      const loadDetails = async () => {
+          try {
+              setIsLoadingDetails(true);
+              const details = await getCourseDetails(courseId);
+
+              if (!isMounted || !details) {
+                  return;
+              }
+
+              setCourse(toDetailsCourse(details.course));
+              setLocalUnits(details.units.map(toDetailsUnit));
+              setLocalClasses(details.classes.map(toDetailsClassGroup));
+          } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Unable to load course details.");
+          } finally {
+              if (isMounted) {
+                  setIsLoadingDetails(false);
+              }
+          }
+      };
+
+      loadDetails();
+
+      return () => {
+          isMounted = false;
+      };
+  }, [courseId]);
+
+  if (isLoadingDetails && !course) {
+      return (
+          <div className="flex min-h-[360px] items-center justify-center text-slate-500">
+              Loading course details...
+          </div>
+      );
+  }
 
   if (!course) return <div>Course not found</div>;
 

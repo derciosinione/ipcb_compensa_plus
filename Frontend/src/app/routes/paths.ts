@@ -1,6 +1,7 @@
 export const appPaths = {
   root: '/',
   login: '/login',
+  authVerify: '/auth/verify',
   dashboard: '/dashboard',
   requests: '/requests',
   calendar: '/calendar',

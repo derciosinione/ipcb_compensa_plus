@@ -7,11 +7,16 @@ namespace CompensaIdentityApi.Infrastructure.Email;
 public sealed class SmtpEmailSender : IEmailSender
 {
     private readonly EmailOptions _options;
+    private readonly IWebHostEnvironment _environment;
     private readonly ILogger<SmtpEmailSender> _logger;
 
-    public SmtpEmailSender(IOptions<EmailOptions> options, ILogger<SmtpEmailSender> logger)
+    public SmtpEmailSender(
+        IOptions<EmailOptions> options,
+        IWebHostEnvironment environment,
+        ILogger<SmtpEmailSender> logger)
     {
         _options = options.Value;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -20,7 +25,18 @@ public sealed class SmtpEmailSender : IEmailSender
         string magicLink,
         CancellationToken cancellationToken = default)
     {
-        EnsureConfigured();
+        if (!IsConfigured())
+        {
+            if (_environment.IsDevelopment())
+            {
+                _logger.LogWarning(
+                    "Magic link email was not sent to {RecipientEmail} because SMTP settings are incomplete in development.",
+                    recipientEmail);
+                return;
+            }
+
+            throw new InvalidOperationException("Email settings are incomplete.");
+        }
 
         using var message = new MailMessage
         {
@@ -42,15 +58,12 @@ public sealed class SmtpEmailSender : IEmailSender
         _logger.LogInformation("Magic link email sent to {RecipientEmail}", recipientEmail);
     }
 
-    private void EnsureConfigured()
+    private bool IsConfigured()
     {
-        if (string.IsNullOrWhiteSpace(_options.FromAddress) ||
-            string.IsNullOrWhiteSpace(_options.SmtpHost) ||
-            string.IsNullOrWhiteSpace(_options.Username) ||
-            string.IsNullOrWhiteSpace(_options.Password))
-        {
-            throw new InvalidOperationException("Email settings are incomplete.");
-        }
+        return !string.IsNullOrWhiteSpace(_options.FromAddress) &&
+               !string.IsNullOrWhiteSpace(_options.SmtpHost) &&
+               !string.IsNullOrWhiteSpace(_options.Username) &&
+               !string.IsNullOrWhiteSpace(_options.Password);
     }
 
     private static string BuildMagicLinkBody(string magicLink) =>

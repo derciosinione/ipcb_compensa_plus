@@ -18,7 +18,9 @@ public sealed class JwtTokenService : IJwtTokenService
 
     public JwtTokenResult CreateAccessToken(ApplicationUser user, IReadOnlyCollection<string> roles)
     {
-        if (string.IsNullOrWhiteSpace(_options.SigningKey) || _options.SigningKey.Length < 32)
+        var signingKeyValue = Environment.GetEnvironmentVariable("Jwt__SigningKey") ?? _options.SigningKey;
+
+        if (string.IsNullOrWhiteSpace(signingKeyValue) || signingKeyValue.Length < 32)
             throw new InvalidOperationException("JWT signing key must be configured with at least 32 characters.");
 
         var now = DateTimeOffset.UtcNow;
@@ -35,7 +37,7 @@ public sealed class JwtTokenService : IJwtTokenService
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
-        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SigningKey));
+        var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKeyValue));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,

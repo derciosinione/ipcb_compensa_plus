@@ -4,6 +4,7 @@ using CompensaIdentityApi.Infrastructure.Auth;
 using CompensaIdentityApi.Infrastructure.Database;
 using CompensaIdentityApi.Infrastructure.Email;
 using CompensaIdentityApi.Infrastructure.MagicLinks;
+using CompensaIdentityApi.Infrastructure.OpenApi;
 using CompensaIdentityApi.Middleware;
 using CompensaIdentityApi.Models;
 using CompensaIdentityApi.Repositories.AuthTokens;
@@ -38,6 +39,18 @@ builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailO
 builder.Services.Configure<MagicLinkOptions>(builder.Configuration.GetSection(MagicLinkOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<IdentitySeedOptions>(builder.Configuration.GetSection(IdentitySeedOptions.SectionName));
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .WithOrigins(
+                builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                ?? ["http://localhost:5173"])
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+    });
+});
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
@@ -72,6 +85,7 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapSwaggerUi("Compensa Identity API");
 }
 
 if (!app.Environment.IsDevelopment())
@@ -79,6 +93,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 

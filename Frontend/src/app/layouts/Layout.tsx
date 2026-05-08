@@ -42,11 +42,11 @@ import { appPaths, resolveAppPath } from '../routes/paths';
 interface LayoutProps {
   children: React.ReactNode;
   user: User;
-  onRoleChange?: (role: UserRole) => void;
   onLogout?: () => void;
+  onRoleChange?: (role: UserRole) => void;
 }
 
-export const Layout = ({ children, user, onRoleChange, onLogout }: LayoutProps) => {
+export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) => {
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
@@ -291,7 +291,7 @@ export const Layout = ({ children, user, onRoleChange, onLogout }: LayoutProps) 
                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{user.name}</p>
                    <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{user.role}</p>
                  </div>
-                 <DropdownUser user={user} onRoleChange={onRoleChange} onLogout={onLogout} />
+                 <DropdownUser user={user} onLogout={onLogout} onRoleChange={onRoleChange} />
               </div>
             </div>
           </header>
@@ -373,10 +373,19 @@ export const Layout = ({ children, user, onRoleChange, onLogout }: LayoutProps) 
   );
 };
 
-const DropdownUser = ({ user, onRoleChange, onLogout }: { user: User, onRoleChange?: (role: UserRole) => void, onLogout?: () => void }) => {
+const DropdownUser = ({
+  user,
+  onLogout,
+  onRoleChange,
+}: {
+  user: User;
+  onLogout?: () => void;
+  onRoleChange?: (role: UserRole) => void;
+}) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const { language, setLanguage, t } = useLanguage();
   const navigate = useNavigate();
+  const availableRoles = user.roles ?? [user.role];
   
   return (
     <div className="relative">
@@ -456,30 +465,33 @@ const DropdownUser = ({ user, onRoleChange, onLogout }: { user: User, onRoleChan
           </div>
 
           <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-          
-          <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-            {t('user.switch_role')}
-          </div>
-          {(['teacher', 'coordinator', 'admin'] as UserRole[]).map((r) => (
-            <button
-              key={r}
-              onClick={() => {
-                onRoleChange?.(r);
-                setIsOpen(false);
-                navigate(appPaths.dashboard);
-              }}
-              className={cn(
-                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
-                user.role === r 
-                  ? "bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/20 dark:text-blue-400" 
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              )}
-            >
-              <div className={cn("h-2 w-2 rounded-full", user.role === r ? "bg-blue-600 dark:bg-blue-400" : "bg-slate-300 dark:bg-slate-600")} />
-              {t(`role.${r}`)}
-            </button>
-          ))}
-          <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+          {availableRoles.length > 1 && (
+            <>
+              <div className="px-2 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                {t('user.switch_role')}
+              </div>
+              {availableRoles.map((role) => (
+                <button
+                  key={role}
+                  onClick={() => {
+                    onRoleChange?.(role);
+                    setIsOpen(false);
+                    navigate(appPaths.dashboard);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors",
+                    user.role === role
+                      ? "bg-blue-50 text-blue-700 font-medium dark:bg-blue-900/20 dark:text-blue-400"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  )}
+                >
+                  <div className={cn("h-2 w-2 rounded-full", user.role === role ? "bg-blue-600 dark:bg-blue-400" : "bg-slate-300 dark:bg-slate-600")} />
+                  {t(`role.${role}`)}
+                </button>
+              ))}
+              <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+            </>
+          )}
           <button 
             onClick={() => {
               setIsOpen(false);

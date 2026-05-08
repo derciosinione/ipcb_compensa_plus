@@ -16,23 +16,33 @@ import {
   User,
   ArrowRight,
   BookOpen,
+  Globe,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
+import { requestMagicLink } from "../../../services/auth/authApi";
+import { useLanguage } from "../../../providers/LanguageContext";
+import { ModeToggle } from "../../../components/ui/theme-provider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu";
 import type { AuthView } from "../../../types/auth";
 
 interface SignUpPageProps {
   onNavigate: (view: AuthView) => void;
-  onLogin: () => void;
 }
 
 export const SignUpPage = ({
   onNavigate,
-  onLogin,
 }: SignUpPageProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const { language, setLanguage } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,33 +52,53 @@ export const SignUpPage = ({
       return;
     }
 
-    setIsLoading(true);
-
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      setIsLoading(true);
+      await requestMagicLink(email);
       setIsLoading(false);
       setEmailSent(true);
-      toast.success("Account created! Verification link sent.");
-
-      // Simulate auto-login for demo
-      setTimeout(() => {
-        onLogin();
-      }, 2000);
-    }, 1500);
+      toast.success("Access request received. Check your inbox.");
+    } catch (error) {
+      setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : "Unable to request access.");
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 relative">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <ModeToggle />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Globe className="h-4 w-4" />
+              {language === "en" ? "English" : "Português"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setLanguage("en")} className="gap-2">
+              <span>English</span>
+              {language === "en" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setLanguage("pt")} className="gap-2">
+              <span>Português</span>
+              {language === "pt" && <Check className="h-4 w-4 ml-auto" />}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <div className="w-full max-w-md space-y-8">
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 text-white mb-4 shadow-lg shadow-blue-600/20">
             <BookOpen className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Create your account
+            Request access
           </h1>
           <p className="text-slate-500 dark:text-slate-400">
-            Join Compensa+ for academic management
+            Use your institutional email to access Compensa+
           </p>
         </div>
 
@@ -79,8 +109,8 @@ export const SignUpPage = ({
             </CardTitle>
             <CardDescription>
               {emailSent
-                ? `We've sent a verification link to ${email}. Click the link to complete your registration.`
-                : "Enter your details to create a new account."}
+                ? `If ${email} is eligible, we sent a magic link with access instructions.`
+                : "Enter your details and we will send a magic link if your email is eligible."}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -100,6 +130,7 @@ export const SignUpPage = ({
                       className="pl-9"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -114,6 +145,7 @@ export const SignUpPage = ({
                       className="pl-9"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
+                      disabled={isLoading}
                     />
                   </div>
                 </div>
@@ -125,11 +157,11 @@ export const SignUpPage = ({
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
+                      Requesting access...
                     </>
                   ) : (
                     <>
-                      Create account
+                      Request access
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -150,11 +182,6 @@ export const SignUpPage = ({
                   </button>
                   .
                 </p>
-                <div className="pt-2">
-                  <p className="text-xs text-slate-400 animate-pulse">
-                    Redirecting you to dashboard...
-                  </p>
-                </div>
               </div>
             )}
           </CardContent>

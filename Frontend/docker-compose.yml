@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_IDENTITY_API_URL: ${VITE_IDENTITY_API_URL:-http://localhost:5002}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5173}:80"

@@ -2,11 +2,13 @@ using CompensaIdentityApi.Contracts;
 using CompensaIdentityApi.Contracts.Auth;
 using CompensaIdentityApi.DTOs;
 using CompensaIdentityApi.Services.Auth;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CompensaIdentityApi.Controllers;
 
 [ApiController]
+[AllowAnonymous]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {

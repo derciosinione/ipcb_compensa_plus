@@ -24,6 +24,10 @@ public sealed class HttpContextMagicLinkUrlBuilder : IMagicLinkUrlBuilder
         var path = _options.VerifyPath.TrimStart('/');
         var encodedToken = Uri.EscapeDataString(token);
 
-        return $"{request.Scheme}://{request.Host}/{path}?token={encodedToken}";
+        var baseUrl = string.IsNullOrWhiteSpace(_options.ClientBaseUrl)
+            ? $"{request.Scheme}://{request.Host}"
+            : _options.ClientBaseUrl.TrimEnd('/');
+
+        return $"{baseUrl}/{path}?token={encodedToken}";
     }
 }
