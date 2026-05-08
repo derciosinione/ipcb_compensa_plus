@@ -1,0 +1,50 @@
+services:
+  postgres:
+    build:
+      context: ../../Database
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compensa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-compensa}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - compensa_ai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compensa} -d ${POSTGRES_DB:-compensa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa-ai
+
+  compensa-ai:
+    build:
+      context: ../..
+      dockerfile: Backend/CompensaAI/Dockerfile
+    restart: unless-stopped
+    environment:
+      COMPENSA_AI_ENVIRONMENT: ${COMPENSA_AI_ENVIRONMENT:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${AI_DB:-CompensaAiDB}
+      CORE_API_URL: ${CORE_API_URL:-http://host.docker.internal:5001}
+    ports:
+      - "${COMPENSA_AI_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa-ai
+
+volumes:
+  compensa_ai_postgres_data:
+
+networks:
+  compensa-ai:
+    driver: bridge
