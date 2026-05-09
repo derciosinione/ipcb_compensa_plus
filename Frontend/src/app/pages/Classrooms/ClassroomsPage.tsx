@@ -33,6 +33,7 @@ import {
   updateClassroom,
 } from '../../services/classrooms/classroomsApi';
 import type { Classroom, ClassroomType, UpsertClassroomRequest } from '../../services/classrooms/classroomTypes';
+import { getErrorMessage } from '../../utils/errors';
 
 interface ClassroomsPageProps {
   user: User;
@@ -91,7 +92,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       const result = await listClassrooms();
       setClassrooms(result);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to load classrooms.');
+      toast.error(getErrorMessage(error, 'Unable to load classrooms.'));
     } finally {
       setIsLoading(false);
     }
@@ -198,7 +199,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       setIsFormOpen(false);
       toast.success(editingClassroom ? 'Classroom updated.' : 'Classroom created.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to save classroom.');
+      toast.error(getErrorMessage(error, 'Unable to save classroom.'));
     } finally {
       setIsSaving(false);
     }
@@ -214,7 +215,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       setClassrooms((current) => current.filter((item) => item.id !== classroom.id));
       toast.success('Classroom deleted.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to delete classroom.');
+      toast.error(getErrorMessage(error, 'Unable to delete classroom.'));
     }
   };
 

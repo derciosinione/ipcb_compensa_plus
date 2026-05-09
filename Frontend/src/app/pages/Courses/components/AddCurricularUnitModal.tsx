@@ -19,12 +19,11 @@ import {
   SelectValue, 
 } from '../../../components/ui/select';
 import { CurricularUnit } from '../../../mocks/data';
-import { toast } from 'sonner@2.0.3';
 
 interface AddCurricularUnitModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (unit: Omit<CurricularUnit, 'id'>) => void;
+  onSave: (unit: Omit<CurricularUnit, 'id'>) => void | Promise<void>;
   courseId: string;
   year: number;
   initialData?: CurricularUnit; // For editing
@@ -65,7 +64,7 @@ export const AddCurricularUnitModal = ({
     }
   }, [isOpen, initialData, reset, setValue]);
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     const unitData: Omit<CurricularUnit, 'id'> = {
       name: data.name,
       courseId,
@@ -76,9 +75,7 @@ export const AddCurricularUnitModal = ({
       component: data.component
     };
 
-    onSave(unitData);
-    onClose();
-    toast.success(initialData ? "Curricular unit updated successfully" : "Curricular unit created successfully");
+    await onSave(unitData);
   };
 
   return (

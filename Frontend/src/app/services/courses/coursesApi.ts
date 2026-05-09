@@ -1,37 +1,26 @@
-import { apiRequest, coreApiBaseUrl } from '../api/httpClient';
-import { getStoredAccessToken } from '../auth/authSession';
-import type { Course, CourseDetails, UpsertCourseRequest } from './courseTypes';
-
-const getAccessToken = () => {
-  const accessToken = getStoredAccessToken();
-
-  if (!accessToken) {
-    throw new Error('You need to sign in again.');
-  }
-
-  return accessToken;
-};
+import { authenticatedApiRequest, buildApiPath, coreApiBaseUrl } from '../api/httpClient';
+import type {
+  Course,
+  CourseDetails,
+  CurricularUnit,
+  CurricularUnitComponent,
+  UpsertCourseRequest,
+  UpsertCurricularUnitComponentRequest,
+  UpsertCurricularUnitRequest,
+} from './courseTypes';
 
 export const listCourses = async (search?: string) => {
-  const params = new URLSearchParams();
-
-  if (search?.trim()) {
-    params.set('search', search.trim());
-  }
-
-  const response = await apiRequest<Course[]>(
+  const response = await authenticatedApiRequest<Course[]>(
     coreApiBaseUrl,
-    `/api/courses${params.size ? `?${params.toString()}` : ''}`,
-    { accessToken: getAccessToken() },
+    buildApiPath('/api/courses', { search }),
   );
 
   return response.data ?? [];
 };
 
 export const createCourse = async (request: UpsertCourseRequest) => {
-  const response = await apiRequest<Course>(coreApiBaseUrl, '/api/courses', {
+  const response = await authenticatedApiRequest<Course>(coreApiBaseUrl, '/api/courses', {
     method: 'POST',
-    accessToken: getAccessToken(),
     body: JSON.stringify(request),
   });
 
@@ -39,17 +28,14 @@ export const createCourse = async (request: UpsertCourseRequest) => {
 };
 
 export const getCourseDetails = async (id: string) => {
-  const response = await apiRequest<CourseDetails>(coreApiBaseUrl, `/api/courses/${id}/details`, {
-    accessToken: getAccessToken(),
-  });
+  const response = await authenticatedApiRequest<CourseDetails>(coreApiBaseUrl, `/api/courses/${id}/details`);
 
   return response.data;
 };
 
 export const updateCourse = async (id: string, request: UpsertCourseRequest) => {
-  const response = await apiRequest<Course>(coreApiBaseUrl, `/api/courses/${id}`, {
+  const response = await authenticatedApiRequest<Course>(coreApiBaseUrl, `/api/courses/${id}`, {
     method: 'PUT',
-    accessToken: getAccessToken(),
     body: JSON.stringify(request),
   });
 
@@ -57,8 +43,92 @@ export const updateCourse = async (id: string, request: UpsertCourseRequest) => 
 };
 
 export const deleteCourse = async (id: string) => {
-  await apiRequest<void>(coreApiBaseUrl, `/api/courses/${id}`, {
+  await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/courses/${id}`, {
     method: 'DELETE',
-    accessToken: getAccessToken(),
   });
+};
+
+export const createCurricularUnit = async (courseId: string, request: UpsertCurricularUnitRequest) => {
+  const response = await authenticatedApiRequest<CurricularUnit>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/units`,
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const updateCurricularUnit = async (
+  courseId: string,
+  unitId: string,
+  request: UpsertCurricularUnitRequest,
+) => {
+  const response = await authenticatedApiRequest<CurricularUnit>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/units/${unitId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const deleteCurricularUnit = async (courseId: string, unitId: string) => {
+  await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/courses/${courseId}/units/${unitId}`, {
+    method: 'DELETE',
+  });
+};
+
+export const createCurricularUnitComponent = async (
+  courseId: string,
+  unitId: string,
+  request: UpsertCurricularUnitComponentRequest,
+) => {
+  const response = await authenticatedApiRequest<CurricularUnitComponent>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/units/${unitId}/components`,
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const updateCurricularUnitComponent = async (
+  courseId: string,
+  unitId: string,
+  componentId: string,
+  request: UpsertCurricularUnitComponentRequest,
+) => {
+  const response = await authenticatedApiRequest<CurricularUnitComponent>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/units/${unitId}/components/${componentId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const deleteCurricularUnitComponent = async (
+  courseId: string,
+  unitId: string,
+  componentId: string,
+) => {
+  await authenticatedApiRequest<void>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/units/${unitId}/components/${componentId}`,
+    {
+      method: 'DELETE',
+    },
+  );
 };

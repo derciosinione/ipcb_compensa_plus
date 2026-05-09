@@ -1,3 +1,4 @@
+using CompensaCoreApi.Domain.Assignments;
 using CompensaCoreApi.Domain.CompensationRequests;
 using CompensaCoreApi.Domain.Classrooms;
 using CompensaCoreApi.Domain.Courses;
@@ -15,7 +16,10 @@ public sealed class CoreDbContext : DbContext
     public DbSet<Classroom> Classrooms => Set<Classroom>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CurricularUnit> CurricularUnits => Set<CurricularUnit>();
+    public DbSet<CurricularUnitComponent> CurricularUnitComponents => Set<CurricularUnitComponent>();
     public DbSet<ClassGroup> ClassGroups => Set<ClassGroup>();
+    public DbSet<CourseTeacherAssignment> CourseTeacherAssignments => Set<CourseTeacherAssignment>();
+    public DbSet<UserUnitAssignment> UserUnitAssignments => Set<UserUnitAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -142,24 +146,42 @@ public sealed class CoreDbContext : DbContext
                 .HasMaxLength(200)
                 .IsRequired();
 
-            entity.Property(unit => unit.TeacherIds)
-                .HasColumnType("text[]");
+            entity.Property(unit => unit.ResponsibleTeacherId)
+                .HasMaxLength(128)
+                .IsRequired();
 
-            entity.Property(unit => unit.RegentId)
-                .HasMaxLength(128);
+            entity.Property(unit => unit.ResponsibleTeacherEmail)
+                .HasMaxLength(256)
+                .IsRequired();
 
-            entity.Property(unit => unit.TheoreticalTeacherId)
-                .HasMaxLength(128);
+            entity.HasIndex(unit => new { unit.CourseId, unit.Name })
+                .IsUnique();
+        });
 
-            entity.Property(unit => unit.PracticalTeacherId)
-                .HasMaxLength(128);
+        modelBuilder.Entity<CurricularUnitComponent>(entity =>
+        {
+            entity.ToTable("curricular_unit_components");
 
-            entity.Property(unit => unit.Component)
+            entity.HasKey(component => component.Id);
+
+            entity.Property(component => component.Name)
+                .HasMaxLength(120)
+                .IsRequired();
+
+            entity.Property(component => component.Type)
                 .HasConversion<string>()
                 .HasMaxLength(32)
                 .IsRequired();
 
-            entity.HasIndex(unit => new { unit.CourseId, unit.Name })
+            entity.Property(component => component.ResponsibleTeacherId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(component => component.ResponsibleTeacherEmail)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            entity.HasIndex(component => new { component.CurricularUnitId, component.Type, component.Name })
                 .IsUnique();
         });
 
@@ -178,6 +200,44 @@ public sealed class CoreDbContext : DbContext
                 .IsRequired();
 
             entity.HasIndex(group => new { group.CurricularUnitId, group.Name })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<UserUnitAssignment>(entity =>
+        {
+            entity.ToTable("user_unit_assignments");
+
+            entity.HasKey(assignment => assignment.Id);
+
+            entity.Property(assignment => assignment.UserId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(assignment => assignment.UserEmail)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            entity.HasIndex(assignment => assignment.UserId);
+            entity.HasIndex(assignment => new { assignment.UserId, assignment.CurricularUnitId })
+                .IsUnique();
+        });
+
+        modelBuilder.Entity<CourseTeacherAssignment>(entity =>
+        {
+            entity.ToTable("course_teacher_assignments");
+
+            entity.HasKey(assignment => assignment.Id);
+
+            entity.Property(assignment => assignment.UserId)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(assignment => assignment.UserEmail)
+                .HasMaxLength(256)
+                .IsRequired();
+
+            entity.HasIndex(assignment => assignment.UserId);
+            entity.HasIndex(assignment => new { assignment.UserId, assignment.CourseId })
                 .IsUnique();
         });
     }

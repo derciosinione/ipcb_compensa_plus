@@ -24,6 +24,10 @@ public sealed class GlobalExceptionMiddleware
         {
             await WriteErrorAsync(context, exception, HttpStatusCode.BadRequest);
         }
+        catch (KeyNotFoundException exception)
+        {
+            await WriteErrorAsync(context, exception, HttpStatusCode.NotFound);
+        }
         catch (Exception exception)
         {
             await WriteErrorAsync(context, exception, HttpStatusCode.InternalServerError);

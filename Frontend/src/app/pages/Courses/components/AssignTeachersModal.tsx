@@ -17,15 +17,16 @@ import {
   SelectTrigger,
   SelectValue, 
 } from '../../../components/ui/select';
-import { CurricularUnit, mockTeachers, User } from '../../../mocks/data';
-import { toast } from 'sonner@2.0.3';
+import { CurricularUnit } from '../../../mocks/data';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
+import type { PlatformUser } from '../../../services/users/userTypes';
 
 interface AssignTeachersModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (unitId: string, assignments: { regentId: string, theoreticalTeacherId?: string, practicalTeacherId?: string }) => void;
+  onSave: (unitId: string, assignments: { regentId: string, theoreticalTeacherId?: string, practicalTeacherId?: string }) => void | Promise<void>;
   unit?: CurricularUnit;
+  teachers: PlatformUser[];
 }
 
 interface FormData {
@@ -38,7 +39,8 @@ export const AssignTeachersModal = ({
   isOpen, 
   onClose, 
   onSave,
-  unit 
+  unit,
+  teachers,
 }: AssignTeachersModalProps) => {
   const { control, handleSubmit, reset, watch } = useForm<FormData>();
   
@@ -52,17 +54,14 @@ export const AssignTeachersModal = ({
     }
   }, [isOpen, unit, reset]);
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     if (!unit) return;
     
-    onSave(unit.id, {
+    await onSave(unit.id, {
         regentId: data.regentId,
         theoreticalTeacherId: data.theoreticalTeacherId || undefined,
         practicalTeacherId: data.practicalTeacherId || undefined
     });
-    
-    onClose();
-    toast.success(`Teachers assigned to ${unit.name}`);
   };
 
   if (!unit) return null;
@@ -70,13 +69,15 @@ export const AssignTeachersModal = ({
   const showTheoretical = unit.component === 'All' || unit.component === 'Theoretical';
   const showPractical = unit.component === 'All' || unit.component === 'Practical';
 
-  const renderTeacherOption = (teacher: User) => (
+  const getTeacherName = (teacher: PlatformUser) => teacher.fullName || teacher.email;
+
+  const renderTeacherOption = (teacher: PlatformUser) => (
       <div className="flex items-center gap-2">
           <Avatar className="h-6 w-6">
-              <AvatarImage src={teacher.avatarUrl} alt={teacher.name} />
-              <AvatarFallback>{teacher.name.charAt(0)}</AvatarFallback>
+              <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getTeacherName(teacher))}&background=random`} alt={getTeacherName(teacher)} />
+              <AvatarFallback>{getTeacherName(teacher).charAt(0)}</AvatarFallback>
           </Avatar>
-          <span>{teacher.name}</span>
+          <span>{getTeacherName(teacher)}</span>
       </div>
   );
 
@@ -106,7 +107,7 @@ export const AssignTeachersModal = ({
                     <SelectValue placeholder="Select Regent" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockTeachers.map(teacher => (
+                    {teachers.map(teacher => (
                         <SelectItem key={teacher.id} value={teacher.id}>
                             {renderTeacherOption(teacher)}
                         </SelectItem>
@@ -134,7 +135,7 @@ export const AssignTeachersModal = ({
                             <SelectValue placeholder="Select Teacher" />
                           </SelectTrigger>
                           <SelectContent>
-                            {mockTeachers.map(teacher => (
+                            {teachers.map(teacher => (
                                 <SelectItem key={teacher.id} value={teacher.id}>
                                     {renderTeacherOption(teacher)}
                                 </SelectItem>
@@ -162,7 +163,7 @@ export const AssignTeachersModal = ({
                             <SelectValue placeholder="Select Teacher" />
                           </SelectTrigger>
                           <SelectContent>
-                            {mockTeachers.map(teacher => (
+                            {teachers.map(teacher => (
                                 <SelectItem key={teacher.id} value={teacher.id}>
                                     {renderTeacherOption(teacher)}
                                 </SelectItem>

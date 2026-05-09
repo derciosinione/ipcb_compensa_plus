@@ -1,4 +1,5 @@
 using CompensaCoreApi.Data;
+using CompensaCoreApi.Domain.Assignments;
 using CompensaCoreApi.Domain.Courses;
 using Microsoft.EntityFrameworkCore;
 
@@ -64,6 +65,16 @@ public sealed class CourseRepository : ICourseRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public Task<CurricularUnit?> GetUnitByIdAsync(
+        Guid courseId,
+        Guid unitId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.CurricularUnits.FirstOrDefaultAsync(
+            unit => unit.CourseId == courseId && unit.Id == unitId,
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(
         Guid courseId,
         CancellationToken cancellationToken = default)
@@ -75,9 +86,60 @@ public sealed class CourseRepository : ICourseRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<CurricularUnitComponent>> ListComponentsAsync(
+        Guid courseId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CurricularUnitComponents
+            .AsNoTracking()
+            .Where(component => component.CourseId == courseId)
+            .OrderBy(component => component.CurricularUnitId)
+            .ThenBy(component => component.Type)
+            .ThenBy(component => component.Name)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public Task<CurricularUnitComponent?> GetComponentByIdAsync(
+        Guid courseId,
+        Guid unitId,
+        Guid componentId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.CurricularUnitComponents.FirstOrDefaultAsync(
+            component =>
+                component.CourseId == courseId &&
+                component.CurricularUnitId == unitId &&
+                component.Id == componentId,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<UserUnitAssignment>> ListUnitAssignmentsAsync(
+        Guid courseId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.UserUnitAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.CourseId == courseId)
+            .OrderBy(assignment => assignment.CurricularUnitId)
+            .ThenBy(assignment => assignment.UserEmail)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(Course course, CancellationToken cancellationToken = default)
     {
         _context.Courses.Add(course);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddUnitAsync(CurricularUnit unit, CancellationToken cancellationToken = default)
+    {
+        _context.CurricularUnits.Add(unit);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddComponentAsync(CurricularUnitComponent component, CancellationToken cancellationToken = default)
+    {
+        _context.CurricularUnitComponents.Add(component);
         await _context.SaveChangesAsync(cancellationToken);
     }
 
@@ -89,6 +151,18 @@ public sealed class CourseRepository : ICourseRepository
     public async Task DeleteAsync(Course course, CancellationToken cancellationToken = default)
     {
         _context.Courses.Remove(course);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteUnitAsync(CurricularUnit unit, CancellationToken cancellationToken = default)
+    {
+        _context.CurricularUnits.Remove(unit);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteComponentAsync(CurricularUnitComponent component, CancellationToken cancellationToken = default)
+    {
+        _context.CurricularUnitComponents.Remove(component);
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

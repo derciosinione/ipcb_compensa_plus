@@ -1,3 +1,5 @@
+import { getStoredAccessToken } from '../auth/authSession';
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -19,7 +21,10 @@ export class ApiError extends Error {
 
 interface RequestOptions extends RequestInit {
   accessToken?: string;
+  authenticated?: boolean;
 }
+
+type QueryValue = string | number | boolean | null | undefined;
 
 const defaultIdentityApiUrl = 'http://localhost:5002';
 const defaultCoreApiUrl = 'http://localhost:5001';
@@ -35,13 +40,14 @@ export const apiRequest = async <T>(
   options: RequestOptions = {},
 ): Promise<ApiResponse<T>> => {
   const headers = new Headers(options.headers);
+  const accessToken = options.accessToken ?? (options.authenticated ? getRequiredAccessToken() : undefined);
 
   if (!headers.has('Content-Type') && options.body) {
     headers.set('Content-Type', 'application/json');
   }
 
-  if (options.accessToken) {
-    headers.set('Authorization', `Bearer ${options.accessToken}`);
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
   }
 
   const response = await fetch(`${baseUrl}${path}`, {
@@ -60,4 +66,42 @@ export const apiRequest = async <T>(
   }
 
   return payload ?? { success: true, message: '' };
+};
+
+export const authenticatedApiRequest = <T>(
+  baseUrl: string,
+  path: string,
+  options: Omit<RequestOptions, 'authenticated'> = {},
+) => apiRequest<T>(baseUrl, path, { ...options, authenticated: true });
+
+export const buildApiPath = (path: string, query?: Record<string, QueryValue>) => {
+  if (!query) {
+    return path;
+  }
+
+  const params = new URLSearchParams();
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === null || value === undefined) {
+      return;
+    }
+
+    const serializedValue = String(value).trim();
+
+    if (serializedValue) {
+      params.set(key, serializedValue);
+    }
+  });
+
+  return params.size ? `${path}?${params.toString()}` : path;
+};
+
+const getRequiredAccessToken = () => {
+  const accessToken = getStoredAccessToken();
+
+  if (!accessToken) {
+    throw new Error('You need to sign in again.');
+  }
+
+  return accessToken;
 };

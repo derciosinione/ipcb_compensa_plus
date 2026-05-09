@@ -23,6 +23,7 @@ import { toast } from "sonner@2.0.3";
 import { requestMagicLink } from "../../../services/auth/authApi";
 import { useLanguage } from "../../../providers/LanguageContext";
 import { ModeToggle } from "../../../components/ui/theme-provider";
+import { getErrorMessage } from "../../../utils/errors";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,7 +61,7 @@ export const SignUpPage = ({
       toast.success("Access request received. Check your inbox.");
     } catch (error) {
       setIsLoading(false);
-      toast.error(error instanceof Error ? error.message : "Unable to request access.");
+      toast.error(getErrorMessage(error, "Unable to request access."));
     }
   };
 

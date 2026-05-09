@@ -24,6 +24,7 @@ public sealed class DatabaseStartupService : IHostedService
         await EnsureClassroomsTableAsync(context, cancellationToken);
         await EnsureCoursesTableAsync(context, cancellationToken);
         await EnsureCourseDetailsTablesAsync(context, cancellationToken);
+        await EnsureUserAssignmentsTableAsync(context, cancellationToken);
         await SeedClassroomsAsync(context, cancellationToken);
         await SeedCoursesAsync(context, cancellationToken);
         await SeedCourseDetailsAsync(context, cancellationToken);
@@ -187,18 +188,34 @@ public sealed class DatabaseStartupService : IHostedService
                 "Year" integer not null,
                 "Semester" integer not null,
                 "Ects" integer not null,
-                "TeacherIds" text[] not null default ARRAY[]::text[],
-                "RegentId" varchar(128) null,
-                "TheoreticalTeacherId" varchar(128) null,
-                "PracticalTeacherId" varchar(128) null,
-                "Component" varchar(32) not null,
+                "ResponsibleTeacherId" varchar(128) not null default '',
+                "ResponsibleTeacherEmail" varchar(256) not null default '',
                 "IsActive" boolean not null default true,
                 "CreatedAt" timestamp with time zone not null,
                 "UpdatedAt" timestamp with time zone not null,
                 constraint "FK_curricular_units_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade
             );
+            alter table curricular_units add column if not exists "ResponsibleTeacherId" varchar(128) not null default '';
+            alter table curricular_units add column if not exists "ResponsibleTeacherEmail" varchar(256) not null default '';
             create unique index if not exists "IX_curricular_units_CourseId_Name" on curricular_units ("CourseId", "Name");
             create index if not exists "IX_curricular_units_CourseId" on curricular_units ("CourseId");
+
+            create table if not exists curricular_unit_components (
+                "Id" uuid primary key,
+                "CourseId" uuid not null,
+                "CurricularUnitId" uuid not null,
+                "Name" varchar(120) not null,
+                "Type" varchar(32) not null,
+                "ResponsibleTeacherId" varchar(128) not null,
+                "ResponsibleTeacherEmail" varchar(256) not null,
+                "IsActive" boolean not null default true,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null,
+                constraint "FK_curricular_unit_components_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade,
+                constraint "FK_curricular_unit_components_curricular_units_CurricularUnitId" foreign key ("CurricularUnitId") references curricular_units ("Id") on delete cascade
+            );
+            create unique index if not exists "IX_curricular_unit_components_CurricularUnitId_Type_Name" on curricular_unit_components ("CurricularUnitId", "Type", "Name");
+            create index if not exists "IX_curricular_unit_components_CourseId" on curricular_unit_components ("CourseId");
 
             create table if not exists class_groups (
                 "Id" uuid primary key,
@@ -214,6 +231,42 @@ public sealed class DatabaseStartupService : IHostedService
             );
             create unique index if not exists "IX_class_groups_CurricularUnitId_Name" on class_groups ("CurricularUnitId", "Name");
             create index if not exists "IX_class_groups_CourseId" on class_groups ("CourseId");
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureUserAssignmentsTableAsync(CoreDbContext context, CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            create table if not exists user_unit_assignments (
+                "Id" uuid primary key,
+                "UserId" varchar(128) not null,
+                "UserEmail" varchar(256) not null,
+                "CourseId" uuid not null,
+                "CurricularUnitId" uuid not null,
+                "IsResponsible" boolean not null default false,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null,
+                constraint "FK_user_unit_assignments_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade,
+                constraint "FK_user_unit_assignments_curricular_units_CurricularUnitId" foreign key ("CurricularUnitId") references curricular_units ("Id") on delete cascade
+            );
+            alter table user_unit_assignments add column if not exists "IsResponsible" boolean not null default false;
+            create index if not exists "IX_user_unit_assignments_UserId" on user_unit_assignments ("UserId");
+            create unique index if not exists "IX_user_unit_assignments_UserId_CurricularUnitId" on user_unit_assignments ("UserId", "CurricularUnitId");
+
+            create table if not exists course_teacher_assignments (
+                "Id" uuid primary key,
+                "UserId" varchar(128) not null,
+                "UserEmail" varchar(256) not null,
+                "CourseId" uuid not null,
+                "IsCoordinator" boolean not null default false,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null,
+                constraint "FK_course_teacher_assignments_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade
+            );
+            create index if not exists "IX_course_teacher_assignments_UserId" on course_teacher_assignments ("UserId");
+            create unique index if not exists "IX_course_teacher_assignments_UserId_CourseId" on course_teacher_assignments ("UserId", "CourseId");
             """,
             cancellationToken);
     }
@@ -238,11 +291,8 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
-                    TeacherIds = ["t1", "t2", "u1"],
-                    RegentId = "t1",
-                    TheoreticalTeacherId = "t1",
-                    PracticalTeacherId = "u1",
-                    Component = UnitComponentType.All,
+                    ResponsibleTeacherId = "t1",
+                    ResponsibleTeacherEmail = "dercio.domingos@ipcbcampus.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -253,11 +303,8 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
-                    TeacherIds = ["t3", "u1"],
-                    RegentId = "t3",
-                    TheoreticalTeacherId = "t3",
-                    PracticalTeacherId = "u1",
-                    Component = UnitComponentType.All,
+                    ResponsibleTeacherId = "t3",
+                    ResponsibleTeacherEmail = "monicac@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -268,11 +315,8 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 2,
                     Semester = 1,
                     Ects = 6,
-                    TeacherIds = ["t1"],
-                    RegentId = "t1",
-                    TheoreticalTeacherId = "t1",
-                    PracticalTeacherId = "t1",
-                    Component = UnitComponentType.All,
+                    ResponsibleTeacherId = "t1",
+                    ResponsibleTeacherEmail = "dercio.domingos@ipcbcampus.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -283,11 +327,8 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 2,
                     Semester = 2,
                     Ects = 6,
-                    TeacherIds = ["t1", "t4"],
-                    RegentId = "t4",
-                    TheoreticalTeacherId = "t4",
-                    PracticalTeacherId = "t1",
-                    Component = UnitComponentType.All,
+                    ResponsibleTeacherId = "t4",
+                    ResponsibleTeacherEmail = "matias@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -298,11 +339,8 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 3,
                     Semester = 2,
                     Ects = 15,
-                    TeacherIds = ["t1", "t2", "t5"],
-                    RegentId = "t5",
-                    TheoreticalTeacherId = "t5",
-                    PracticalTeacherId = "t2",
-                    Component = UnitComponentType.All,
+                    ResponsibleTeacherId = "t5",
+                    ResponsibleTeacherEmail = "matias@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -313,17 +351,66 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
-                    TeacherIds = ["t5"],
-                    RegentId = "t5",
-                    TheoreticalTeacherId = "t5",
-                    PracticalTeacherId = "t5",
-                    Component = UnitComponentType.All,
+                    ResponsibleTeacherId = "t5",
+                    ResponsibleTeacherEmail = "matias@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 });
 
             await context.SaveChangesAsync(cancellationToken);
         }
+
+        var units = await context.CurricularUnits
+            .Where(unit => unit.CourseId == lei.Id || unit.CourseId == ld.Id)
+            .ToArrayAsync(cancellationToken);
+
+        foreach (var unit in units.Where(unit => string.IsNullOrWhiteSpace(unit.ResponsibleTeacherId)))
+        {
+            var (responsibleId, responsibleEmail) = unit.Name switch
+            {
+                "Mathematics I" => ("t3", "monicac@ipcb.pt"),
+                "Web Development" => ("t4", "matias@ipcb.pt"),
+                "Final Project" => ("t5", "matias@ipcb.pt"),
+                "Design Principles" => ("t5", "matias@ipcb.pt"),
+                _ => ("t1", "dercio.domingos@ipcbcampus.pt")
+            };
+
+            unit.ResponsibleTeacherId = responsibleId;
+            unit.ResponsibleTeacherEmail = responsibleEmail;
+            unit.UpdatedAt = now;
+        }
+
+        if (!await context.CurricularUnitComponents.AnyAsync(cancellationToken))
+        {
+            foreach (var unit in units)
+            {
+                context.CurricularUnitComponents.AddRange(
+                    new CurricularUnitComponent
+                    {
+                        CourseId = unit.CourseId,
+                        CurricularUnitId = unit.Id,
+                        Name = "Theoretical",
+                        Type = UnitComponentType.Theoretical,
+                        ResponsibleTeacherId = unit.ResponsibleTeacherId,
+                        ResponsibleTeacherEmail = unit.ResponsibleTeacherEmail,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    },
+                    new CurricularUnitComponent
+                    {
+                        CourseId = unit.CourseId,
+                        CurricularUnitId = unit.Id,
+                        Name = "Practical",
+                        Type = UnitComponentType.Practical,
+                        ResponsibleTeacherId = unit.ResponsibleTeacherId,
+                        ResponsibleTeacherEmail = unit.ResponsibleTeacherEmail,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+            }
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
 
         if (await context.ClassGroups.AnyAsync(cancellationToken))
             return;
