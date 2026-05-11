@@ -52,7 +52,7 @@ async def handle_request_created(data: dict, db):
     if not coordinator_id: return
     
     title = "New Compensation Request"
-    msg = f"Teacher {teacher_name} has requested a compensation class for course {data.get('courseId')}."
+    msg = f"{teacher_name or 'A teacher'} submitted a new compensation request."
     
     notification = Notification(
         user_id=coordinator_id,
@@ -72,8 +72,7 @@ async def handle_request_status_updated(data: dict, db):
     status = data.get("status")
     comment = data.get("decisionComment") or "No comments provided."
     
-    # Determine the target user (the one who DID NOT make the update)
-    target_user_id = teacher_id if updated_by == coordinator_id else coordinator_id
+    target_user_id = coordinator_id if updated_by == teacher_id else teacher_id
     
     if not target_user_id: return
     

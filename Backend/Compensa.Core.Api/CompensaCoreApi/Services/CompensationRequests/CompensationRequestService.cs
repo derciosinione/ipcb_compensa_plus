@@ -121,15 +121,19 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         await _repository.AddAsync(compensationRequest, cancellationToken);
 
-        await _publishEndpoint.Publish(new RequestCreatedEvent
+        var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
+        foreach (var coordinatorUserId in coordinatorUserIds)
         {
-            RequestId = compensationRequest.Id,
-            TeacherUserId = compensationRequest.TeacherUserId,
-            TeacherName = compensationRequest.TeacherName,
-            CourseId = compensationRequest.CourseId.ToString() ?? string.Empty,
-            CoordinatorUserId = course.CoordinatorUserId ?? string.Empty,
-            SubmittedAt = compensationRequest.SubmittedAt.UtcDateTime
-        }, cancellationToken);
+            await _publishEndpoint.Publish(new RequestCreatedEvent
+            {
+                RequestId = compensationRequest.Id,
+                TeacherUserId = compensationRequest.TeacherUserId,
+                TeacherName = compensationRequest.TeacherName,
+                CourseId = compensationRequest.CourseId?.ToString() ?? string.Empty,
+                CoordinatorUserId = coordinatorUserId,
+                SubmittedAt = compensationRequest.SubmittedAt.UtcDateTime
+            }, cancellationToken);
+        }
 
         return ToResponse(compensationRequest);
     }
@@ -161,15 +165,19 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         await _repository.SaveChangesAsync(cancellationToken);
 
-        await _publishEndpoint.Publish(new RequestStatusUpdatedEvent
+        var decisionCoordinatorIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
+        foreach (var coordinatorUserId in decisionCoordinatorIds.DefaultIfEmpty(actorUserId))
         {
-            RequestId = compensationRequest.Id,
-            TeacherUserId = compensationRequest.TeacherUserId,
-            CoordinatorUserId = course.CoordinatorUserId ?? string.Empty,
-            UpdatedByUserId = actorUserId,
-            Status = compensationRequest.Status.ToString(),
-            DecisionComment = compensationRequest.DecisionComment
-        }, cancellationToken);
+            await _publishEndpoint.Publish(new RequestStatusUpdatedEvent
+            {
+                RequestId = compensationRequest.Id,
+                TeacherUserId = compensationRequest.TeacherUserId,
+                CoordinatorUserId = coordinatorUserId,
+                UpdatedByUserId = actorUserId,
+                Status = compensationRequest.Status.ToString(),
+                DecisionComment = compensationRequest.DecisionComment
+            }, cancellationToken);
+        }
 
         return ToResponse(compensationRequest);
     }
@@ -313,6 +321,21 @@ public sealed class CompensationRequestService : ICompensationRequestService
             return;
 
         throw new InvalidOperationException("Coordinator is not responsible for this course.");
+    }
+
+    private async Task<string[]> GetCourseCoordinatorUserIdsAsync(
+        Course course,
+        CancellationToken cancellationToken)
+    {
+        var assignmentCoordinatorIds = (await _courseRepository.ListCourseAssignmentsAsync(course.Id, cancellationToken))
+            .Where(assignment => assignment.IsCoordinator)
+            .Select(assignment => assignment.UserId)
+            .Where(userId => !string.IsNullOrWhiteSpace(userId));
+
+        return assignmentCoordinatorIds
+            .Concat(string.IsNullOrWhiteSpace(course.CoordinatorUserId) ? [] : [course.CoordinatorUserId])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static TeachingComponentType ToTeachingComponentType(UnitComponentType type)

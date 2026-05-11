@@ -1,40 +1,41 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import React, { useEffect, useState } from 'react';
+import { Card, CardContent } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { 
   Bell, 
   Check, 
-  Trash2, 
   Info, 
   CheckCircle2, 
   AlertTriangle, 
   XCircle, 
-  Filter
 } from 'lucide-react';
 import { cn } from '../../components/ui/utils';
 import { notificationsApi, NotificationDto } from '../../services/api/notificationsApi';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner@2.0.3';
+import { getErrorMessage } from '../../utils/errors';
 
 export const NotificationsPage = () => {
-  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: response, isLoading } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: notificationsApi.getNotifications,
-  });
-  
-  const notifications = response?.data || [];
-
-  const markAsReadMutation = useMutation({
-    mutationFn: (id: number) => notificationsApi.markAsRead(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+  const loadNotifications = async () => {
+    try {
+      setIsLoading(true);
+      const response = await notificationsApi.getNotifications();
+      setNotifications(response.data ?? []);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to load notifications.'));
+    } finally {
+      setIsLoading(false);
     }
-  });
+  };
+
+  useEffect(() => {
+    void loadNotifications();
+  }, []);
 
   const filteredNotifications = notifications.filter(n => {
     if (filter === 'unread') return !n.isRead;
@@ -42,13 +43,31 @@ export const NotificationsPage = () => {
     return true;
   });
 
-  const markAsRead = (id: number) => {
-    markAsReadMutation.mutate(id);
+  const markAsRead = async (id: number) => {
+    try {
+      await notificationsApi.markAsRead(id);
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === id ? { ...notification, isRead: true } : notification,
+        ),
+      );
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to mark notification as read.'));
+    }
   };
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     const unread = notifications.filter(n => !n.isRead);
-    unread.forEach(n => markAsReadMutation.mutate(n.id));
+    if (unread.length === 0) {
+      return;
+    }
+
+    try {
+      await Promise.all(unread.map((notification) => notificationsApi.markAsRead(notification.id)));
+      setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to mark notifications as read.'));
+    }
   };
 
   const getIcon = (type: string) => {

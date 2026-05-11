@@ -64,6 +64,7 @@ services:
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
       Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-60}
+      RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
       IdentitySeed__AdminFullName: ${IDENTITY_SEED_ADMIN_FULL_NAME:-Compensa Admin}
     ports:
@@ -96,6 +97,7 @@ services:
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
     ports:
       - "${CORE_API_PORT:-5001}:8080"
@@ -158,6 +160,8 @@ services:
     ports:
       - "${NOTIFICATIONS_PORT:-8001}:8000"
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     healthcheck:
@@ -175,6 +179,7 @@ services:
       args:
         VITE_IDENTITY_API_URL: ${VITE_IDENTITY_API_URL:-http://localhost:5002}
         VITE_CORE_API_URL: ${VITE_CORE_API_URL:-http://localhost:5001}
+        VITE_NOTIFICATIONS_API_URL: ${VITE_NOTIFICATIONS_API_URL:-http://localhost:8001}
     container_name: compensa-frontend
     restart: unless-stopped
     ports:
@@ -185,6 +190,8 @@ services:
       identity-api:
         condition: service_healthy
       compensa-ai:
+        condition: service_healthy
+      notifications-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]

@@ -1,8 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
-import { useQuery } from '@tanstack/react-query';
-import { notificationsApi } from '../../services/api/notificationsApi';
+import { notificationsApi, type NotificationDto } from '../../services/api/notificationsApi';
 import { kpiData } from '../../mocks/data';
 import {
   FileText,
@@ -118,12 +117,22 @@ const WeeklyCalendar = () => {
 const QuickActions = () => {
    const { t } = useLanguage();
    const navigate = useNavigate();
-   const { data: response, isLoading } = useQuery({
-      queryKey: ['dashboard-notifications'],
-      queryFn: notificationsApi.getNotifications,
-   });
-   
-   const notifications = response?.data?.slice(0, 3) || [];
+   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
+   const [isLoading, setIsLoading] = useState(true);
+
+   useEffect(() => {
+      const loadNotifications = async () => {
+         try {
+            setIsLoading(true);
+            const response = await notificationsApi.getNotifications();
+            setNotifications((response.data ?? []).slice(0, 3));
+         } finally {
+            setIsLoading(false);
+         }
+      };
+
+      void loadNotifications();
+   }, []);
    
    return (
     <Card className="h-full border-none shadow-md bg-slate-900 dark:bg-black text-white relative overflow-hidden ring-1 ring-slate-900 dark:ring-slate-800">
