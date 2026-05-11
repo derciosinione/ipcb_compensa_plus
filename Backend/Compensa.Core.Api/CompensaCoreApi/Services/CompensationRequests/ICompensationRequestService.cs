@@ -14,10 +14,15 @@ public interface ICompensationRequestService
 
     Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,
+        string actorUserId,
+        bool canCreateForOthers,
         CancellationToken cancellationToken = default);
 
     Task<CompensationRequestResponse> UpdateStatusAsync(
         Guid id,
         UpdateCompensationRequestStatusRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default);
 }

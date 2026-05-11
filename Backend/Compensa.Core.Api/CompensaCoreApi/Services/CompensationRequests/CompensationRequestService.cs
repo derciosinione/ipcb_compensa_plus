@@ -2,6 +2,7 @@ using CompensaCoreApi.Domain.CompensationRequests;
 using CompensaCoreApi.Domain.Courses;
 using CompensaCoreApi.Dtos.CompensationRequests;
 using CompensaCoreApi.Exceptions;
+using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Classrooms;
 using CompensaCoreApi.Repositories.CompensationRequests;
@@ -15,17 +16,20 @@ public sealed class CompensationRequestService : ICompensationRequestService
     private readonly ICourseRepository _courseRepository;
     private readonly IClassroomRepository _classroomRepository;
     private readonly IAcademicYearRepository _academicYearRepository;
+    private readonly IUserUnitAssignmentRepository _assignmentRepository;
 
     public CompensationRequestService(
         ICompensationRequestRepository repository,
         ICourseRepository courseRepository,
         IClassroomRepository classroomRepository,
-        IAcademicYearRepository academicYearRepository)
+        IAcademicYearRepository academicYearRepository,
+        IUserUnitAssignmentRepository assignmentRepository)
     {
         _repository = repository;
         _courseRepository = courseRepository;
         _classroomRepository = classroomRepository;
         _academicYearRepository = academicYearRepository;
+        _assignmentRepository = assignmentRepository;
     }
 
     public async Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
@@ -45,9 +49,12 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
     public async Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,
+        string actorUserId,
+        bool canCreateForOthers,
         CancellationToken cancellationToken = default)
     {
         ValidateSchedule(request.NewStartTime, request.NewEndTime, "new");
+        EnsureCanCreateRequestForUser(request, actorUserId, canCreateForOthers);
 
         var academicYear = await _academicYearRepository.GetByIdAsync(request.AcademicYearId, cancellationToken)
             ?? throw new NotFoundException($"Academic year '{request.AcademicYearId}' was not found.");
@@ -71,6 +78,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             ?? throw new NotFoundException($"New classroom '{request.NewClassroomId}' was not found.");
 
         ValidateOriginalSchedule(request, academicYear.Id, course.Id, unit.Id, classGroup.Id, originalSchedule);
+        await EnsureTeacherCanUseClassAsync(request, classGroup, canCreateForOthers, cancellationToken);
         await EnsureNewScheduleHasNoConflictsAsync(request, classGroup, originalSchedule, cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
@@ -113,9 +121,13 @@ public sealed class CompensationRequestService : ICompensationRequestService
     public async Task<CompensationRequestResponse> UpdateStatusAsync(
         Guid id,
         UpdateCompensationRequestStatusRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default)
     {
         var compensationRequest = await GetRequiredRequestAsync(id, cancellationToken);
+        await EnsureCanDecideRequestAsync(compensationRequest, actorUserId, isCoordinator, isAdmin, cancellationToken);
 
         if (compensationRequest.Status is CompensationRequestStatus.Cancelled)
             throw new InvalidOperationException("Cancelled requests cannot be changed.");
@@ -141,6 +153,18 @@ public sealed class CompensationRequestService : ICompensationRequestService
     {
         if (startTime >= endTime)
             throw new InvalidOperationException($"The {label} start time must be before the end time.");
+    }
+
+    private static void EnsureCanCreateRequestForUser(
+        CreateCompensationRequestRequest request,
+        string actorUserId,
+        bool canCreateForOthers)
+    {
+        if (string.IsNullOrWhiteSpace(actorUserId))
+            throw new InvalidOperationException("Authenticated user id is required.");
+
+        if (!canCreateForOthers && request.TeacherUserId != actorUserId)
+            throw new InvalidOperationException("Teachers can only create compensation requests for themselves.");
     }
 
     private static void ValidateOriginalSchedule(
@@ -189,6 +213,75 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var teacherConflict = overlaps.FirstOrDefault(item => item.ClassGroup.TeacherId == classGroup.TeacherId);
         if (teacherConflict.Schedule != null)
             throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a class in the proposed time interval.");
+
+        var requestOverlaps = await _repository.ListOverlappingActiveAsync(
+            originalSchedule.AcademicYearId,
+            originalSchedule.Semester,
+            request.NewDate,
+            request.NewStartTime,
+            request.NewEndTime,
+            excludedRequestId: null,
+            cancellationToken);
+
+        var requestedClassConflict = requestOverlaps.FirstOrDefault(item => item.ClassGroupId == classGroup.Id);
+        if (requestedClassConflict != null)
+            throw new InvalidOperationException($"Class group '{classGroup.Name}' already has a compensation request in the proposed time interval.");
+
+        var requestedRoomConflict = requestOverlaps.FirstOrDefault(item => item.NewClassroomId == request.NewClassroomId);
+        if (requestedRoomConflict != null)
+            throw new InvalidOperationException("The selected classroom already has a compensation request in the proposed time interval.");
+
+        var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item => item.TeacherUserId == classGroup.TeacherId);
+        if (requestedTeacherConflict != null)
+            throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a compensation request in the proposed time interval.");
+    }
+
+    private async Task EnsureTeacherCanUseClassAsync(
+        CreateCompensationRequestRequest request,
+        ClassGroup classGroup,
+        bool canCreateForOthers,
+        CancellationToken cancellationToken)
+    {
+        if (canCreateForOthers)
+            return;
+
+        if (classGroup.TeacherId == request.TeacherUserId)
+            return;
+
+        var assignments = await _assignmentRepository.ListByUserAsync(request.TeacherUserId, cancellationToken);
+        if (assignments.Any(assignment => assignment.CurricularUnitId == classGroup.CurricularUnitId))
+            return;
+
+        throw new InvalidOperationException("Teacher is not assigned to the selected curricular unit or class group.");
+    }
+
+    private async Task EnsureCanDecideRequestAsync(
+        CompensationRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (isAdmin && !isCoordinator)
+            throw new InvalidOperationException("Administrators can monitor requests but cannot approve or reject them as coordinators.");
+
+        if (!isCoordinator)
+            throw new InvalidOperationException("Only coordinators can approve or reject compensation requests.");
+
+        if (!request.CourseId.HasValue)
+            throw new InvalidOperationException("Request is not linked to a course.");
+
+        var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken)
+            ?? throw new NotFoundException($"Course '{request.CourseId}' was not found.");
+
+        if (course.CoordinatorUserId == actorUserId)
+            return;
+
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        if (courseAssignments.Any(assignment => assignment.CourseId == request.CourseId && assignment.IsCoordinator))
+            return;
+
+        throw new InvalidOperationException("Coordinator is not responsible for this course.");
     }
 
     private static TeachingComponentType ToTeachingComponentType(UnitComponentType type)

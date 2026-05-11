@@ -19,6 +19,7 @@ import { listClassrooms } from '../../../services/classrooms/classroomsApi';
 import type { Classroom } from '../../../services/classrooms/classroomTypes';
 import { getActiveAcademicYear } from '../../../services/academicYears/academicYearsApi';
 import type { AcademicYear } from '../../../services/academicYears/academicYearTypes';
+import { checkScheduleAvailability } from '../../../services/schedules/schedulesApi';
 
 interface RequestFormProps {
   open: boolean;
@@ -64,6 +65,7 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [activeAcademicYear, setActiveAcademicYear] = useState<AcademicYear | null>(null);
   const [conflictWarning, setConflictWarning] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState('');
   const [openCombobox, setOpenCombobox] = useState(false);
   const { t } = useLanguage();
 
@@ -136,12 +138,17 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
     }
   }, [initialData, open]);
 
-  const checkConflict = (date: string, time: string, room: string) => {
-    if (date && time && room === 'Lab 3') {
-      setConflictWarning(true);
-    } else {
-      setConflictWarning(false);
-    }
+  const addDuration = (startTime: string, durationSource: string) => {
+    const [sourceStart, sourceEnd] = durationSource.split('-').map(value => value.trim());
+    const [sourceStartHour, sourceStartMinute] = sourceStart.split(':').map(Number);
+    const [sourceEndHour, sourceEndMinute] = sourceEnd.split(':').map(Number);
+    const durationMinutes = (sourceEndHour * 60 + sourceEndMinute) - (sourceStartHour * 60 + sourceStartMinute);
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const totalMinutes = startHour * 60 + startMinute + Math.max(durationMinutes, 60);
+    const endHour = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+    const endMinute = (totalMinutes % 60).toString().padStart(2, '0');
+
+    return `${endHour}:${endMinute}`;
   };
 
   const handleChange = (field: keyof typeof initialFormState, value: any) => {
@@ -163,14 +170,6 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
 
       return next;
     });
-    
-    if (field === 'newDate' || field === 'newTime' || field === 'newRoom') {
-      checkConflict(
-        field === 'newDate' ? value : currentData.newDate,
-        field === 'newTime' ? value : currentData.newTime,
-        field === 'newRoom' ? value : currentData.newRoom
-      );
-    }
   };
 
   const availableClasses = courseDetails?.classes.filter(group => group.curricularUnitId === currentData.unit) ?? [];
@@ -179,6 +178,55 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
     schedule => schedule.classGroupId === selectedClassGroupId,
   );
   const selectedSchedule = availableSchedules.find(schedule => schedule.id === currentData.originalRoom);
+
+  useEffect(() => {
+    const canCheck =
+      activeAcademicYear &&
+      selectedSchedule &&
+      selectedClassGroupId &&
+      currentData.newDate &&
+      currentData.newTime &&
+      currentData.newRoom &&
+      currentData.originalTime;
+
+    if (!canCheck) {
+      setConflictWarning(false);
+      setConflictMessage('');
+      return;
+    }
+
+    const checkAvailability = async () => {
+      try {
+        const availability = await checkScheduleAvailability({
+          academicYearId: activeAcademicYear.id,
+          semester: selectedSchedule.semester,
+          date: currentData.newDate,
+          startTime: currentData.newTime,
+          endTime: addDuration(currentData.newTime, currentData.originalTime),
+          classGroupId: selectedClassGroupId,
+          classroomId: currentData.newRoom,
+          excludedScheduleId: selectedSchedule.id,
+        });
+
+        const conflicts = availability?.conflicts ?? [];
+        setConflictWarning(conflicts.length > 0);
+        setConflictMessage(conflicts[0]?.message ?? '');
+      } catch {
+        setConflictWarning(false);
+        setConflictMessage('');
+      }
+    };
+
+    void checkAvailability();
+  }, [
+    activeAcademicYear,
+    currentData.newDate,
+    currentData.newRoom,
+    currentData.newTime,
+    currentData.originalTime,
+    selectedClassGroupId,
+    selectedSchedule,
+  ]);
 
   const getScheduleLabel = (schedule: ClassSchedule) => {
     const room = classrooms.find(item => item.id === schedule.classroomId);
@@ -558,7 +606,7 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                             {conflictWarning && (
                                 <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-700 text-xs flex items-center gap-2 animate-in slide-in-from-top-1">
                                     <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-                                    <span className="font-medium">{t('form.conflict_detected').replace('{room}', 'Lab 3')}</span>
+                                    <span className="font-medium">{conflictMessage || t('form.conflict_detected').replace('{room}', 'selected room')}</span>
                                 </div>
                             )}
 
