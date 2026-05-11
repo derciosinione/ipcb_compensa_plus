@@ -29,7 +29,7 @@ const staffRoles: UserRole[] = ['teacher', 'coordinator', 'admin'];
 export const getProtectedRouteDefinitions = (user: AuthenticatedUser): AppRouteDefinition[] => [
   { path: appPaths.dashboard, element: <DashboardPage /> },
   { path: appPaths.requests, element: <RequestsPage userRole={user.role} user={user} />, allowedRoles: staffRoles },
-  { path: appPaths.calendar, element: <CalendarPage userRole={user.role} />, allowedRoles: staffRoles },
+  { path: appPaths.calendar, element: <CalendarPage userRole={user.role} user={user} />, allowedRoles: staffRoles },
   { path: appPaths.notifications, element: <NotificationsPage /> },
   { path: appPaths.courses, element: <CoursesPage user={user} />, allowedRoles: staffRoles },
   { path: appPaths.classrooms, element: <ClassroomsPage user={user} />, allowedRoles: staffRoles },

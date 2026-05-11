@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -33,21 +33,106 @@ import {
   TabsTrigger,
 } from "../../components/ui/tabs";
 import { cn } from '../../components/ui/utils';
-import { mockRequests, ClassRequest, holidays, mockTimetable, mockRooms } from '../../mocks/data';
+import { ClassRequest, holidays } from '../../mocks/data';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { RequestDetailsPage } from '../../components/domain/requests/RequestDetailsPage';
-import { CreateRequestSheet } from '../../components/domain/requests/CreateRequestSheet';
+import { RequestForm } from '../../components/domain/requests/RequestForm';
 import { toast } from 'sonner@2.0.3';
 import { useLanguage } from '../../providers/LanguageContext';
+import { listCompensationRequests, createCompensationRequest } from '../../services/compensationRequests/compensationRequestsApi';
+import type { CompensationRequest } from '../../services/compensationRequests/compensationRequestTypes';
+import { listCourses, getCourseDetails } from '../../services/courses/coursesApi';
+import type { Course, CourseDetails, ClassSchedule } from '../../services/courses/courseTypes';
+import { listClassrooms } from '../../services/classrooms/classroomsApi';
+import type { Classroom } from '../../services/classrooms/classroomTypes';
+import type { AuthenticatedUser } from '../../types/user';
+import { getErrorMessage } from '../../utils/errors';
 
 type CalendarMode = 'requests' | 'timetable' | 'occupancy';
 type ViewType = 'month' | 'week' | 'day';
 
 interface CalendarPageProps {
   userRole?: 'teacher' | 'coordinator' | 'admin';
+  user: AuthenticatedUser;
 }
 
-export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
+type CalendarTimetableEvent = {
+  id: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  unit: string;
+  room: string;
+  roomId: string;
+  roomType?: string;
+  course: string;
+  yearGroup: string;
+  classGroup: string;
+};
+
+const toClassRequest = (request: CompensationRequest): ClassRequest => ({
+  id: request.id,
+  course: request.course,
+  unit: request.curricularUnit,
+  yearGroups: request.yearGroups,
+  componentType: request.componentType.toLowerCase() as ClassRequest['componentType'],
+  originalDate: request.originalDate,
+  originalTime: `${request.originalStartTime.slice(0, 5)} - ${request.originalEndTime.slice(0, 5)}`,
+  originalRoom: request.originalRoom,
+  newDate: request.newDate,
+  newTime: `${request.newStartTime.slice(0, 5)} - ${request.newEndTime.slice(0, 5)}`,
+  newRoom: request.newRoom,
+  reason: request.justification,
+  status: request.status.toLowerCase() as ClassRequest['status'],
+  teacherName: request.teacherName,
+  submittedAt: request.submittedAt.split('T')[0],
+  hasConflict: request.hasConflict,
+  rejectionReason: request.decisionComment ?? undefined,
+  comments: [],
+});
+
+const toTimetableEvents = (
+  course: Course,
+  details: CourseDetails,
+  classrooms: Classroom[],
+): CalendarTimetableEvent[] => {
+  const toEvent = (schedule: ClassSchedule): CalendarTimetableEvent => {
+    const unit = details.units.find(item => item.id === schedule.curricularUnitId);
+    const classGroup = details.classes.find(item => item.id === schedule.classGroupId);
+    const room = classrooms.find(item => item.id === schedule.classroomId);
+
+    return {
+      id: schedule.id,
+      dayOfWeek: schedule.dayOfWeek,
+      startTime: schedule.startTime.slice(0, 5),
+      endTime: schedule.endTime.slice(0, 5),
+      unit: unit?.name ?? schedule.curricularUnitId,
+      room: room?.name ?? schedule.classroomId,
+      roomId: schedule.classroomId,
+      roomType: room?.type,
+      course: course.name,
+      yearGroup: unit ? `Year ${unit.year}` : 'Year',
+      classGroup: classGroup?.name ?? schedule.classGroupId,
+    };
+  };
+
+  return details.schedules.map(toEvent);
+};
+
+const addDuration = (startTime: string, durationSource: string) => {
+  const [sourceStart, sourceEnd] = durationSource.split('-').map(value => value.trim());
+  const [sourceStartHour, sourceStartMinute] = sourceStart.split(':').map(Number);
+  const [sourceEndHour, sourceEndMinute] = sourceEnd.split(':').map(Number);
+  const durationMinutes = (sourceEndHour * 60 + sourceEndMinute) - (sourceStartHour * 60 + sourceStartMinute);
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const totalMinutes = startHour * 60 + startMinute + Math.max(durationMinutes, 60);
+  const endHour = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+  const endMinute = (totalMinutes % 60).toString().padStart(2, '0');
+
+  return `${endHour}:${endMinute}`;
+};
+
+export const CalendarPage = ({ userRole = 'teacher', user }: CalendarPageProps) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState<ViewType>('month');
   const [calendarMode, setCalendarMode] = useState<CalendarMode>('requests');
@@ -67,11 +152,39 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | undefined>(undefined);
   const [selectedEvent, setSelectedEvent] = useState<ClassRequest | null>(null);
+  const [requests, setRequests] = useState<ClassRequest[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [timetableEvents, setTimetableEvents] = useState<CalendarTimetableEvent[]>([]);
   
   // Navigation State for Details
   const [showFullDetails, setShowFullDetails] = useState(false);
 
   const isAdmin = userRole === 'admin';
+
+  const loadCalendarData = useCallback(async () => {
+    try {
+      const [loadedClassrooms, loadedCourses, loadedRequests] = await Promise.all([
+        listClassrooms(),
+        listCourses(),
+        listCompensationRequests(undefined, userRole === 'teacher' ? user.id : undefined),
+      ]);
+
+      const activeCourses = loadedCourses.filter(course => course.isActive);
+      const details = await Promise.all(activeCourses.map(course => getCourseDetails(course.id)));
+
+      setClassrooms(loadedClassrooms.filter(room => room.isActive));
+      setCourses(activeCourses);
+      setRequests(loadedRequests.map(toClassRequest));
+      setTimetableEvents(details.flatMap((detail, index) => detail ? toTimetableEvents(activeCourses[index], detail, loadedClassrooms) : []));
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Unable to load calendar data.'));
+    }
+  }, [user.id, userRole]);
+
+  useEffect(() => {
+    void loadCalendarData();
+  }, [loadCalendarData]);
 
   // --- Helpers ---
 
@@ -114,7 +227,7 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
     const dateStr = formatDate(date);
     
     if (calendarMode === 'requests') {
-        return mockRequests.filter(req => {
+        return requests.filter(req => {
             const matchesDate = req.newDate === dateStr;
             const matchesCourse = filterCourse === 'all' || req.course === filterCourse;
             const matchesStatus = filterStatus === 'all' || req.status === filterStatus;
@@ -123,7 +236,7 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
     } else if (calendarMode === 'timetable') {
         // Mock logic: repeat weekly events
         const dayOfWeek = date.getDay();
-        return mockTimetable.filter(slot => {
+        return timetableEvents.filter(slot => {
             const matchesDay = slot.dayOfWeek === dayOfWeek;
             
             // Strict filtering for Timetables as requested
@@ -151,11 +264,10 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
         const dayOfWeek = date.getDay();
         
         // 1. Get Timetable Events for this room(s)
-        const timetableEvents = mockTimetable.filter(slot => {
-            const roomMatches = filterRoom === 'all' || slot.room === filterRoom;
+        const occupiedTimetableEvents = timetableEvents.filter(slot => {
+            const roomMatches = filterRoom === 'all' || slot.roomId === filterRoom;
             // Find room details to check type
-            const roomDetails = mockRooms.find(r => r.id === slot.room);
-            const typeMatches = filterRoomType === 'all' || (roomDetails && roomDetails.type === filterRoomType);
+            const typeMatches = filterRoomType === 'all' || slot.roomType === filterRoomType;
             
             return slot.dayOfWeek === dayOfWeek && roomMatches && typeMatches;
         }).map(slot => ({
@@ -169,9 +281,9 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
         }));
 
         // 2. Get Requests for this room(s)
-        const requestEvents = mockRequests.filter(req => {
-            const roomMatches = filterRoom === 'all' || req.newRoom === filterRoom;
-            const roomDetails = mockRooms.find(r => r.id === req.newRoom);
+        const requestEvents = requests.filter(req => {
+            const roomDetails = classrooms.find(room => room.name === req.newRoom || room.id === req.newRoom);
+            const roomMatches = filterRoom === 'all' || roomDetails?.id === filterRoom;
             const typeMatches = filterRoomType === 'all' || (roomDetails && roomDetails.type === filterRoomType);
             
             const isApproved = req.status === 'approved'; // Only show approved requests as "Occupied"
@@ -184,7 +296,7 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
              isOccupancy: true
         }));
 
-        return [...timetableEvents, ...requestEvents];
+        return [...occupiedTimetableEvents, ...requestEvents];
     }
     return [];
   };
@@ -235,10 +347,29 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
     setIsEventModalOpen(true);
   };
 
-  const handleCreateRequest = (data: any) => {
-      console.log("Creating request:", data);
-      toast.success("Compensation request created successfully!");
-      // Here you would add the request to state/backend
+  const handleCreateRequest = async (dataArray: any[]) => {
+      try {
+        const createdRequests = await Promise.all(dataArray.map((data: any) => createCompensationRequest({
+          teacherUserId: user.id,
+          teacherName: user.name,
+          academicYearId: data.academicYearId,
+          courseId: data.course,
+          curricularUnitId: data.unit,
+          classGroupId: data.yearGroups[0],
+          originalClassScheduleId: data.originalRoom,
+          newClassroomId: data.newRoom,
+          originalDate: data.originalDate,
+          newDate: data.newDate,
+          newStartTime: data.newTime,
+          newEndTime: addDuration(data.newTime, data.originalTime),
+          justification: data.reason,
+        })));
+
+        setRequests(prev => [...createdRequests.filter(Boolean).map(request => toClassRequest(request!)), ...prev]);
+        toast.success("Compensation request created successfully!");
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Unable to create compensation request.'));
+      }
   };
 
   const navigateToDetails = () => {
@@ -573,9 +704,9 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">{t('requests.all_courses')}</SelectItem>
-                    <SelectItem value="Computer Science">Computer Science</SelectItem>
-                    <SelectItem value="Design">Design</SelectItem>
-                    <SelectItem value="Management">Management</SelectItem>
+                    {courses.map(course => (
+                        <SelectItem key={course.id} value={course.name}>{course.name}</SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
 
@@ -601,9 +732,9 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Years</SelectItem>
-                        <SelectItem value="Year 1">Year 1</SelectItem>
-                        <SelectItem value="Year 2">Year 2</SelectItem>
-                        <SelectItem value="Year 3">Year 3</SelectItem>
+                         {Array.from(new Set(timetableEvents.map(event => event.yearGroup))).map(yearGroup => (
+                             <SelectItem key={yearGroup} value={yearGroup}>{yearGroup}</SelectItem>
+                         ))}
                     </SelectContent>
                 </Select>
                  <Select value={filterClassGroup} onValueChange={setFilterClassGroup}>
@@ -612,9 +743,9 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
                      </SelectTrigger>
                      <SelectContent>
                          <SelectItem value="all">All Classes</SelectItem>
-                         <SelectItem value="A">Class A</SelectItem>
-                         <SelectItem value="B">Class B</SelectItem>
-                         <SelectItem value="C">Class C</SelectItem>
+                         {Array.from(new Set(timetableEvents.map(event => event.classGroup))).map(classGroup => (
+                             <SelectItem key={classGroup} value={classGroup}>{classGroup}</SelectItem>
+                         ))}
                      </SelectContent>
                  </Select>
              </>
@@ -628,9 +759,9 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
                      </SelectTrigger>
                      <SelectContent>
                          <SelectItem value="all">All Types</SelectItem>
-                         <SelectItem value="classroom">Classroom</SelectItem>
-                         <SelectItem value="lab">Laboratory</SelectItem>
-                         <SelectItem value="auditorium">Auditorium</SelectItem>
+                         {Array.from(new Set(classrooms.map(room => room.type))).map(type => (
+                             <SelectItem key={type} value={type}>{type}</SelectItem>
+                         ))}
                      </SelectContent>
                  </Select>
 
@@ -640,7 +771,7 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
                      </SelectTrigger>
                      <SelectContent>
                          <SelectItem value="all">All Rooms</SelectItem>
-                         {mockRooms.map(room => (
+                         {classrooms.map(room => (
                              <SelectItem key={room.id} value={room.id}>{room.name} ({room.capacity})</SelectItem>
                          ))}
                      </SelectContent>
@@ -671,12 +802,10 @@ export const CalendarPage = ({ userRole = 'teacher' }: CalendarPageProps) => {
         )}
       </div>
       
-      <CreateRequestSheet 
-        isOpen={isSheetOpen}
-        onClose={() => setIsSheetOpen(false)}
-        selectedDate={selectedDate}
-        selectedTime={selectedTime}
-        onCreateRequest={handleCreateRequest}
+      <RequestForm
+        open={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
+        onSubmit={handleCreateRequest}
       />
 
     </div>
