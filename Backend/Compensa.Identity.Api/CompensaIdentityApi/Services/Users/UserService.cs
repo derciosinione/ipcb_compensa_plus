@@ -3,6 +3,8 @@ using CompensaIdentityApi.Models;
 using CompensaIdentityApi.Repositories.Users;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using MassTransit;
+using CompensaIdentityApi.IntegrationEvents;
 
 namespace CompensaIdentityApi.Services.Users;
 
@@ -11,15 +13,18 @@ public sealed class UserService : IUserService
     private readonly IUserRepository _repository;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IPublishEndpoint _publishEndpoint;
 
     public UserService(
         IUserRepository repository,
         UserManager<ApplicationUser> userManager,
-        RoleManager<IdentityRole> roleManager)
+        RoleManager<IdentityRole> roleManager,
+        IPublishEndpoint publishEndpoint)
     {
         _repository = repository;
         _userManager = userManager;
         _roleManager = roleManager;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<IReadOnlyCollection<UserResponse>> ListAsync(
@@ -75,6 +80,14 @@ public sealed class UserService : IUserService
         var roleResult = await _userManager.AddToRolesAsync(user, roles);
         if (!roleResult.Succeeded)
             throw new InvalidOperationException($"Failed to assign user roles: {FormatErrors(roleResult)}");
+
+        await _publishEndpoint.Publish(new UserRegisteredEvent
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            FullName = user.FullName,
+            RegisteredAt = user.CreatedAt
+        }, cancellationToken);
 
         return await ToResponseAsync(user);
     }

@@ -15,28 +15,40 @@ import {
   Filter
 } from 'lucide-react';
 import { cn } from '../../components/ui/utils';
-import { mockNotifications, Notification } from '../../mocks/data';
+import { notificationsApi, NotificationDto } from '../../services/api/notificationsApi';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export const NotificationsPage = () => {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
 
+  const { data: response, isLoading } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: notificationsApi.getNotifications,
+  });
+  
+  const notifications = response?.data || [];
+
+  const markAsReadMutation = useMutation({
+    mutationFn: (id: number) => notificationsApi.markAsRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+  });
+
   const filteredNotifications = notifications.filter(n => {
-    if (filter === 'unread') return !n.read;
-    if (filter === 'read') return n.read;
+    if (filter === 'unread') return !n.isRead;
+    if (filter === 'read') return n.isRead;
     return true;
   });
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAsRead = (id: number) => {
+    markAsReadMutation.mutate(id);
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const deleteNotification = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    const unread = notifications.filter(n => !n.isRead);
+    unread.forEach(n => markAsReadMutation.mutate(n.id));
   };
 
   const getIcon = (type: string) => {
@@ -68,7 +80,7 @@ export const NotificationsPage = () => {
             <TabsTrigger value="all" className="rounded-lg">All</TabsTrigger>
             <TabsTrigger value="unread" className="rounded-lg gap-2">
               Unread
-              {notifications.some(n => !n.read) && (
+              {notifications.some(n => !n.isRead) && (
                  <span className="w-2 h-2 rounded-full bg-blue-500" />
               )}
             </TabsTrigger>
@@ -78,7 +90,9 @@ export const NotificationsPage = () => {
       </div>
 
       <div className="grid gap-4">
-         {filteredNotifications.length === 0 ? (
+         {isLoading ? (
+            <div className="text-center py-10">Loading notifications...</div>
+         ) : filteredNotifications.length === 0 ? (
             <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
                <Bell className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-200">No notifications</h3>
@@ -88,26 +102,28 @@ export const NotificationsPage = () => {
             filteredNotifications.map((notification) => (
                <Card key={notification.id} className={cn(
                   "border-none shadow-sm transition-all hover:shadow-md ring-1 ring-slate-100 dark:ring-slate-800 bg-white dark:bg-slate-900",
-                  !notification.read && "bg-blue-50/30 dark:bg-blue-900/10 ring-blue-100 dark:ring-blue-900/30"
+                  !notification.isRead && "bg-blue-50/30 dark:bg-blue-900/10 ring-blue-100 dark:ring-blue-900/30"
                )}>
                   <CardContent className="p-4 sm:p-6 flex gap-4 items-start">
                      <div className={cn("p-2 rounded-full shrink-0", 
-                        !notification.read ? "bg-white dark:bg-slate-800 shadow-sm" : "bg-slate-50 dark:bg-slate-800/50"
+                        !notification.isRead ? "bg-white dark:bg-slate-800 shadow-sm" : "bg-slate-50 dark:bg-slate-800/50"
                      )}>
                         {getIcon(notification.type)}
                      </div>
                      <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start gap-4">
-                           <h4 className={cn("text-sm font-semibold truncate pr-4", !notification.read ? "text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400")}>
+                           <h4 className={cn("text-sm font-semibold truncate pr-4", !notification.isRead ? "text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400")}>
                               {notification.title}
                            </h4>
-                           <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">{notification.date}</span>
+                           <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+                             {new Date(notification.createdAt).toLocaleString()}
+                           </span>
                         </div>
-                        <p className={cn("text-sm mt-1 leading-relaxed", !notification.read ? "text-slate-600 dark:text-slate-300" : "text-slate-500 dark:text-slate-500")}>
+                        <p className={cn("text-sm mt-1 leading-relaxed", !notification.isRead ? "text-slate-600 dark:text-slate-300" : "text-slate-500 dark:text-slate-500")}>
                            {notification.message}
                         </p>
                         <div className="flex gap-3 mt-4">
-                           {!notification.read && (
+                           {!notification.isRead && (
                               <button 
                                  onClick={() => markAsRead(notification.id)}
                                  className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
@@ -115,12 +131,7 @@ export const NotificationsPage = () => {
                                  Mark as read
                               </button>
                            )}
-                           <button 
-                              onClick={() => deleteNotification(notification.id)}
-                              className="text-xs font-medium text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                           >
-                              Remove
-                           </button>
+                           {/* Remove functionality requires an endpoint which we didn't add yet, so we just omit or disable it */}
                         </div>
                      </div>
                   </CardContent>

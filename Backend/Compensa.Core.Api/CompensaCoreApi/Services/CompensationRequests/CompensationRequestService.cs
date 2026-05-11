@@ -7,6 +7,8 @@ using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Classrooms;
 using CompensaCoreApi.Repositories.CompensationRequests;
 using CompensaCoreApi.Repositories.Courses;
+using MassTransit;
+using CompensaCoreApi.IntegrationEvents;
 
 namespace CompensaCoreApi.Services.CompensationRequests;
 
@@ -17,19 +19,22 @@ public sealed class CompensationRequestService : ICompensationRequestService
     private readonly IClassroomRepository _classroomRepository;
     private readonly IAcademicYearRepository _academicYearRepository;
     private readonly IUserUnitAssignmentRepository _assignmentRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
 
     public CompensationRequestService(
         ICompensationRequestRepository repository,
         ICourseRepository courseRepository,
         IClassroomRepository classroomRepository,
         IAcademicYearRepository academicYearRepository,
-        IUserUnitAssignmentRepository assignmentRepository)
+        IUserUnitAssignmentRepository assignmentRepository,
+        IPublishEndpoint publishEndpoint)
     {
         _repository = repository;
         _courseRepository = courseRepository;
         _classroomRepository = classroomRepository;
         _academicYearRepository = academicYearRepository;
         _assignmentRepository = assignmentRepository;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
@@ -115,6 +120,17 @@ public sealed class CompensationRequestService : ICompensationRequestService
         };
 
         await _repository.AddAsync(compensationRequest, cancellationToken);
+
+        await _publishEndpoint.Publish(new RequestCreatedEvent
+        {
+            RequestId = compensationRequest.Id,
+            TeacherUserId = compensationRequest.TeacherUserId,
+            TeacherName = compensationRequest.TeacherName,
+            CourseId = compensationRequest.CourseId.ToString() ?? string.Empty,
+            CoordinatorUserId = course.CoordinatorUserId ?? string.Empty,
+            SubmittedAt = compensationRequest.SubmittedAt.UtcDateTime
+        }, cancellationToken);
+
         return ToResponse(compensationRequest);
     }
 
@@ -128,6 +144,10 @@ public sealed class CompensationRequestService : ICompensationRequestService
     {
         var compensationRequest = await GetRequiredRequestAsync(id, cancellationToken);
         await EnsureCanDecideRequestAsync(compensationRequest, actorUserId, isCoordinator, isAdmin, cancellationToken);
+        
+        if (compensationRequest.CourseId == null) throw new InvalidOperationException("Request has no associated course.");
+        var course = await _courseRepository.GetByIdAsync(compensationRequest.CourseId.Value, cancellationToken);
+        if (course is null) throw new InvalidOperationException("Course not found.");
 
         if (compensationRequest.Status is CompensationRequestStatus.Cancelled)
             throw new InvalidOperationException("Cancelled requests cannot be changed.");
@@ -140,6 +160,17 @@ public sealed class CompensationRequestService : ICompensationRequestService
         compensationRequest.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+
+        await _publishEndpoint.Publish(new RequestStatusUpdatedEvent
+        {
+            RequestId = compensationRequest.Id,
+            TeacherUserId = compensationRequest.TeacherUserId,
+            CoordinatorUserId = course.CoordinatorUserId ?? string.Empty,
+            UpdatedByUserId = actorUserId,
+            Status = compensationRequest.Status.ToString(),
+            DecisionComment = compensationRequest.DecisionComment
+        }, cancellationToken);
+
         return ToResponse(compensationRequest);
     }
 

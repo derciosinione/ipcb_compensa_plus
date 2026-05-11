@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { useQuery } from '@tanstack/react-query';
+import { notificationsApi } from '../../services/api/notificationsApi';
 import { kpiData } from '../../mocks/data';
 import {
   FileText,
@@ -116,6 +118,12 @@ const WeeklyCalendar = () => {
 const QuickActions = () => {
    const { t } = useLanguage();
    const navigate = useNavigate();
+   const { data: response, isLoading } = useQuery({
+      queryKey: ['dashboard-notifications'],
+      queryFn: notificationsApi.getNotifications,
+   });
+   
+   const notifications = response?.data?.slice(0, 3) || [];
    
    return (
     <Card className="h-full border-none shadow-md bg-slate-900 dark:bg-black text-white relative overflow-hidden ring-1 ring-slate-900 dark:ring-slate-800">
@@ -132,33 +140,32 @@ const QuickActions = () => {
          </CardDescription>
        </CardHeader>
       <CardContent className="space-y-4 relative z-10">
-         <div 
-           className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
-           onClick={() => navigate('/requests')}
-         >
-            <div className="flex justify-between items-start mb-2">
-               <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">{t('dashboard.pending_status')}</span>
-               <span className="text-[10px] text-slate-400">2h ago</span>
-            </div>
-            <h4 className="font-semibold text-sm mb-1 group-hover:text-blue-200 transition-colors">Software Engineering</h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-               Request for substitute class on Nov 25th is awaiting approval.
-            </p>
-         </div>
-
-         <div 
-           className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
-           onClick={() => navigate('/calendar')}
-         >
-            <div className="flex justify-between items-start mb-2">
-               <span className="text-xs font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">{t('dashboard.upcoming_status')}</span>
-               <span className="text-[10px] text-slate-400">Tomorrow</span>
-            </div>
-            <h4 className="font-semibold text-sm mb-1 group-hover:text-blue-200 transition-colors">Compensated Class</h4>
-            <p className="text-xs text-slate-400 leading-relaxed">
-               Scheduled for Room 304 at 14:00.
-            </p>
-         </div>
+         {isLoading ? (
+            <div className="text-center text-sm text-slate-400 py-4">Loading...</div>
+         ) : notifications.length === 0 ? (
+            <div className="text-center text-sm text-slate-400 py-4">No recent notifications.</div>
+         ) : (
+            notifications.map(notification => (
+               <div 
+                 key={notification.id}
+                 className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
+                 onClick={() => navigate('/notifications')}
+               >
+                  <div className="flex justify-between items-start mb-2">
+                     <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                        {notification.isRead ? 'Read' : 'New'}
+                     </span>
+                     <span className="text-[10px] text-slate-400">
+                        {new Date(notification.createdAt).toLocaleDateString()}
+                     </span>
+                  </div>
+                  <h4 className="font-semibold text-sm mb-1 group-hover:text-blue-200 transition-colors">{notification.title}</h4>
+                  <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
+                     {notification.message}
+                  </p>
+               </div>
+            ))
+         )}
          
          <Button 
            className="w-full bg-blue-600 hover:bg-blue-500 text-white border-none mt-4"

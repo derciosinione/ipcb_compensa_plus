@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -90,6 +91,17 @@ builder.Services.AddScoped<IUserUnitAssignmentService, UserUnitAssignmentService
 builder.Services.AddScoped<ICompensationRequestRepository, CompensationRequestRepository>();
 builder.Services.AddScoped<ICompensationRequestService, CompensationRequestService>();
 builder.Services.AddScoped<IScheduleAvailabilityService, ScheduleAvailabilityService>();
+
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var rabbitMqUrl = builder.Configuration.GetValue<string>("RabbitMq:Url") ?? "amqp://guest:guest@localhost:5672/";
+        cfg.Host(new Uri(rabbitMqUrl));
+        cfg.ConfigureEndpoints(context);
+    });
+});
+
 builder.Services.AddHostedService<DatabaseStartupService>();
 
 builder.Services
