@@ -12,30 +12,30 @@ import {
   XCircle, 
 } from 'lucide-react';
 import { cn } from '../../components/ui/utils';
-import { notificationsApi, NotificationDto } from '../../services/api/notificationsApi';
 import { toast } from 'sonner@2.0.3';
 import { getErrorMessage } from '../../utils/errors';
+import {
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+  useNotificationsQuery,
+} from '../../services/notifications/notificationQueries';
 
 export const NotificationsPage = () => {
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
-  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const loadNotifications = async () => {
-    try {
-      setIsLoading(true);
-      const response = await notificationsApi.getNotifications();
-      setNotifications(response.data ?? []);
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to load notifications.'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    data: notifications = [],
+    isLoading,
+    isError,
+    error,
+  } = useNotificationsQuery();
+  const markNotificationRead = useMarkNotificationReadMutation();
+  const markAllNotificationsRead = useMarkAllNotificationsReadMutation();
 
   useEffect(() => {
-    void loadNotifications();
-  }, []);
+    if (isError) {
+      toast.error(getErrorMessage(error, 'Failed to load notifications.'));
+    }
+  }, [error, isError]);
 
   const filteredNotifications = notifications.filter(n => {
     if (filter === 'unread') return !n.isRead;
@@ -44,16 +44,11 @@ export const NotificationsPage = () => {
   });
 
   const markAsRead = async (id: number) => {
-    try {
-      await notificationsApi.markAsRead(id);
-      setNotifications((current) =>
-        current.map((notification) =>
-          notification.id === id ? { ...notification, isRead: true } : notification,
-        ),
-      );
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to mark notification as read.'));
-    }
+    markNotificationRead.mutate(id, {
+      onError: (error) => {
+        toast.error(getErrorMessage(error, 'Failed to mark notification as read.'));
+      },
+    });
   };
 
   const markAllAsRead = async () => {
@@ -62,12 +57,11 @@ export const NotificationsPage = () => {
       return;
     }
 
-    try {
-      await Promise.all(unread.map((notification) => notificationsApi.markAsRead(notification.id)));
-      setNotifications((current) => current.map((notification) => ({ ...notification, isRead: true })));
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to mark notifications as read.'));
-    }
+    markAllNotificationsRead.mutate(unread.map((notification) => notification.id), {
+      onError: (error) => {
+        toast.error(getErrorMessage(error, 'Failed to mark notifications as read.'));
+      },
+    });
   };
 
   const getIcon = (type: string) => {

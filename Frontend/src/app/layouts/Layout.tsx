@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import {
   Settings,
@@ -38,7 +38,8 @@ import { useLanguage } from '../providers/LanguageContext';
 import { Check } from 'lucide-react';
 import { getAdminNavigationItems, getMainNavigationItems } from '../config/navigation';
 import { appPaths, resolveAppPath } from '../routes/paths';
-import { notificationsApi, type NotificationDto } from '../services/api/notificationsApi';
+import { type NotificationDto } from '../services/api/notificationsApi';
+import { useMarkNotificationReadMutation, useNotificationsQuery } from '../services/notifications/notificationQueries';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -53,10 +54,11 @@ export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) 
   const navigate = useNavigate();
   const currentPath = location.pathname;
   
-  const [notifications, setNotifications] = useState<NotificationDto[]>([]);
   const [selectedNotification, setSelectedNotification] = useState<NotificationDto | null>(null);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const [showHelp, setShowHelp] = useState(false);
+  const { data: notifications = [] } = useNotificationsQuery();
+  const markNotificationRead = useMarkNotificationReadMutation();
 
   const sidebarItems = getMainNavigationItems({ t, user });
   const adminItems = getAdminNavigationItems({ t, user });
@@ -65,30 +67,12 @@ export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) 
     notifFilter === 'all' ? true : !n.isRead
   );
 
-  useEffect(() => {
-    const loadNotifications = async () => {
-      try {
-        const response = await notificationsApi.getNotifications();
-        setNotifications(response.data ?? []);
-      } catch {
-        setNotifications([]);
-      }
-    };
-
-    void loadNotifications();
-  }, []);
-
   const unreadCount = notifications.filter(n => !n.isRead).length;
-
-  const markAsRead = async (id: number) => {
-    await notificationsApi.markAsRead(id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  };
 
   const handleNotificationClick = (notification: NotificationDto) => {
     setSelectedNotification(notification);
     if (!notification.isRead) {
-      void markAsRead(notification.id);
+      markNotificationRead.mutate(notification.id);
     }
   };
 

@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
-import { notificationsApi, type NotificationDto } from '../../services/api/notificationsApi';
 import { kpiData } from '../../mocks/data';
 import {
   FileText,
@@ -20,6 +19,7 @@ import { format, addDays, startOfWeek } from 'date-fns';
 import { CompensationChart } from './components/CompensationChart';
 import { StatCard } from '../../components/common/StatCard';
 import { useLanguage } from '../../providers/LanguageContext';
+import { useNotificationsQuery } from '../../services/notifications/notificationQueries';
 
 const EventCard = ({ title, time, room, type, isCompact = false }: { title: string, time: string, room?: string, type: 'class' | 'blocked' | 'holiday', isCompact?: boolean }) => {
    const variants = {
@@ -117,22 +117,8 @@ const WeeklyCalendar = () => {
 const QuickActions = () => {
    const { t } = useLanguage();
    const navigate = useNavigate();
-   const [notifications, setNotifications] = useState<NotificationDto[]>([]);
-   const [isLoading, setIsLoading] = useState(true);
-
-   useEffect(() => {
-      const loadNotifications = async () => {
-         try {
-            setIsLoading(true);
-            const response = await notificationsApi.getNotifications();
-            setNotifications((response.data ?? []).slice(0, 3));
-         } finally {
-            setIsLoading(false);
-         }
-      };
-
-      void loadNotifications();
-   }, []);
+   const { data: allNotifications = [], isLoading } = useNotificationsQuery();
+   const notifications = allNotifications.slice(0, 3);
    
    return (
     <Card className="h-full border-none shadow-md bg-slate-900 dark:bg-black text-white relative overflow-hidden ring-1 ring-slate-900 dark:ring-slate-800">
