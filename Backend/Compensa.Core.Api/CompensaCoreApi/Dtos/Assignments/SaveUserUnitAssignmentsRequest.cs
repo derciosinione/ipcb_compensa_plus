@@ -9,5 +9,11 @@ public sealed class SaveUserUnitAssignmentsRequest
     [MaxLength(256)]
     public string UserEmail { get; init; } = string.Empty;
 
+    public IReadOnlyCollection<CourseAssignmentRequest> Courses { get; init; } = [];
+
     public IReadOnlyCollection<Guid> CurricularUnitIds { get; init; } = [];
 }
+
+public sealed record CourseAssignmentRequest(
+    Guid CourseId,
+    bool IsCoordinator);

@@ -23,3 +23,8 @@ export interface UserAcademicAssignments {
   courses: CourseTeacherAssignment[];
   units: UserUnitAssignment[];
 }
+
+export interface CourseAssignmentInput {
+  courseId: string;
+  isCoordinator: boolean;
+}

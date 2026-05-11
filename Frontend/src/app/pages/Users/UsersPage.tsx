@@ -13,6 +13,7 @@ import type { CreateUserRequest, PlatformUser, UserRole } from '../../services/u
 import { getCourseDetails, listCourses } from '../../services/courses/coursesApi';
 import type { Course, CurricularUnit } from '../../services/courses/courseTypes';
 import { listUserUnitAssignments, saveUserUnitAssignments } from '../../services/assignments/assignmentsApi';
+import type { CourseAssignmentInput } from '../../services/assignments/assignmentTypes';
 import type { User as ImportedUser } from '../../mocks/data';
 import { toIdentityRole } from './userPresentation';
 import { getErrorMessage } from '../../utils/errors';
@@ -25,6 +26,7 @@ export const UsersPage = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [units, setUnits] = useState<CurricularUnit[]>([]);
   const [assignedUnitIds, setAssignedUnitIds] = useState<string[]>([]);
+  const [assignedCourses, setAssignedCourses] = useState<CourseAssignmentInput[]>([]);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingUser, setIsSavingUser] = useState(false);
@@ -126,24 +128,34 @@ export const UsersPage = () => {
   const handleOpenAssignUnits = async (user: PlatformUser) => {
     setSelectedUser(user);
     setAssignedUnitIds([]);
+    setAssignedCourses([]);
     setIsAssignUnitsOpen(true);
 
     try {
       const assignments = await listUserUnitAssignments(user.id);
       setAssignedUnitIds(assignments.units.map((assignment) => assignment.curricularUnitId));
+      setAssignedCourses(assignments.courses.map((assignment) => ({
+        courseId: assignment.courseId,
+        isCoordinator: assignment.isCoordinator,
+      })));
     } catch (error) {
       setAssignedUnitIds([]);
+      setAssignedCourses([]);
       toast.error(getErrorMessage(error, 'Failed to load assignments.'));
     }
   };
 
-  const handleSaveUnitAssignments = async (curricularUnitIds: string[]) => {
+  const handleSaveUnitAssignments = async (
+    curricularUnitIds: string[],
+    courseAssignments: CourseAssignmentInput[],
+  ) => {
     if (!selectedUser) return;
 
     try {
       setIsSavingAssignments(true);
-      await saveUserUnitAssignments(selectedUser.id, selectedUser.email, curricularUnitIds);
+      await saveUserUnitAssignments(selectedUser.id, selectedUser.email, curricularUnitIds, courseAssignments);
       setAssignedUnitIds(curricularUnitIds);
+      setAssignedCourses(courseAssignments);
       setUnits((currentUnits) =>
         currentUnits.map((unit) => {
           const teacherIds = new Set(unit.teacherIds);
@@ -197,6 +209,7 @@ export const UsersPage = () => {
         courses={courses}
         units={units}
         assignedUnitIds={assignedUnitIds}
+        assignedCourses={assignedCourses}
       />
 
       <BulkImportUsersSheet

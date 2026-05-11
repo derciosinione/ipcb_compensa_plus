@@ -21,16 +21,18 @@ import { ScrollArea } from '../../../components/ui/scroll-area';
 import { Badge } from '../../../components/ui/badge';
 import type { Course, CurricularUnit } from '../../../services/courses/courseTypes';
 import type { PlatformUser } from '../../../services/users/userTypes';
+import type { CourseAssignmentInput } from '../../../services/assignments/assignmentTypes';
 
 interface TeacherUnitsModalProps {
   isOpen: boolean;
   isSaving?: boolean;
   onClose: () => void;
-  onSave: (curricularUnitIds: string[]) => Promise<void> | void;
+  onSave: (curricularUnitIds: string[], courses: CourseAssignmentInput[]) => Promise<void> | void;
   user?: PlatformUser;
   courses: Course[];
   units: CurricularUnit[];
   assignedUnitIds: string[];
+  assignedCourses: CourseAssignmentInput[];
 }
 
 export const TeacherUnitsModal = ({
@@ -42,16 +44,19 @@ export const TeacherUnitsModal = ({
   courses,
   units,
   assignedUnitIds,
+  assignedCourses,
 }: TeacherUnitsModalProps) => {
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
+  const [selectedCourses, setSelectedCourses] = useState<Map<string, boolean>>(new Map());
 
   useEffect(() => {
     if (isOpen) {
       setSelectedCourseId(courses[0]?.id ?? '');
       setSelectedUnitIds(new Set(assignedUnitIds));
+      setSelectedCourses(new Map(assignedCourses.map((course) => [course.courseId, course.isCoordinator])));
     }
-  }, [assignedUnitIds, courses, isOpen]);
+  }, [assignedCourses, assignedUnitIds, courses, isOpen]);
 
   const currentCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId),
@@ -64,6 +69,8 @@ export const TeacherUnitsModal = ({
   );
 
   const handleToggleUnit = (unitId: string, checked: boolean) => {
+    const unit = units.find((item) => item.id === unitId);
+
     setSelectedUnitIds((currentIds) => {
       const nextIds = new Set(currentIds);
 
@@ -75,10 +82,49 @@ export const TeacherUnitsModal = ({
 
       return nextIds;
     });
+
+    if (checked && unit) {
+      setSelectedCourses((currentCourses) => {
+        if (currentCourses.has(unit.courseId)) {
+          return currentCourses;
+        }
+
+        const nextCourses = new Map(currentCourses);
+        nextCourses.set(unit.courseId, false);
+        return nextCourses;
+      });
+    }
+  };
+
+  const handleToggleCourse = (courseId: string, checked: boolean) => {
+    setSelectedCourses((currentCourses) => {
+      const nextCourses = new Map(currentCourses);
+
+      if (checked) {
+        nextCourses.set(courseId, nextCourses.get(courseId) ?? false);
+      } else {
+        nextCourses.delete(courseId);
+      }
+
+      return nextCourses;
+    });
+  };
+
+  const handleToggleCoordinator = (courseId: string, checked: boolean) => {
+    setSelectedCourses((currentCourses) => {
+      const nextCourses = new Map(currentCourses);
+      nextCourses.set(courseId, checked);
+      return nextCourses;
+    });
   };
 
   const handleSave = async () => {
-    await onSave(Array.from(selectedUnitIds));
+    const courseAssignments = Array.from(selectedCourses.entries()).map(([courseId, isCoordinator]) => ({
+      courseId,
+      isCoordinator,
+    }));
+
+    await onSave(Array.from(selectedUnitIds), courseAssignments);
   };
 
   if (!user) return null;
@@ -94,6 +140,43 @@ export const TeacherUnitsModal = ({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+            <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 font-medium text-sm text-slate-500">
+              Course access
+            </div>
+            <div className="grid gap-2 p-4 bg-white dark:bg-slate-900">
+              {courses.map((course) => {
+                const isAssigned = selectedCourses.has(course.id);
+                const isCoordinator = selectedCourses.get(course.id) ?? false;
+
+                return (
+                  <div
+                    key={course.id}
+                    className="grid grid-cols-[1fr_auto] gap-3 rounded-lg border border-slate-100 dark:border-slate-800 p-3"
+                  >
+                    <label className="flex items-center gap-3">
+                      <Checkbox
+                        checked={isAssigned}
+                        onCheckedChange={(checked) => handleToggleCourse(course.id, Boolean(checked))}
+                      />
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-200">
+                        {course.name} ({course.abbreviation})
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
+                      <Checkbox
+                        checked={isCoordinator}
+                        disabled={!isAssigned}
+                        onCheckedChange={(checked) => handleToggleCoordinator(course.id, Boolean(checked))}
+                      />
+                      Coordinator
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Select Course</Label>
             <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
@@ -160,7 +243,7 @@ export const TeacherUnitsModal = ({
           </div>
 
           <div className="text-sm text-slate-500">
-            Total units assigned: {selectedUnitIds.size}
+            Total courses assigned: {selectedCourses.size} · Total units assigned: {selectedUnitIds.size}
           </div>
         </div>
 

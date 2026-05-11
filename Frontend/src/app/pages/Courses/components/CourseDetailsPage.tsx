@@ -155,6 +155,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   const [localUnits, setLocalUnits] = useState<CourseUnit[]>([]);
   const [localClasses, setLocalClasses] = useState<ClassGroup[]>([]);
   const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>([]);
+  const [courseAssignmentTeacherIds, setCourseAssignmentTeacherIds] = useState<string[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [activeAcademicYear, setActiveAcademicYear] = useState<AcademicYear | undefined>(undefined);
   const [teachers, setTeachers] = useState<PlatformUser[]>([]);
@@ -196,6 +197,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       setLocalUnits(mappedUnits);
       setLocalClasses(mappedClasses);
       setLocalTimetable(details.schedules.map(schedule => toTimeSlot(schedule, mappedClasses, mappedUnits, loadedClassrooms)));
+      setCourseAssignmentTeacherIds((details.courseAssignments ?? []).map(assignment => assignment.userId));
       setTeachers(loadedUsers.filter(user => user.roles.includes('Teacher')));
       setClassrooms(loadedClassrooms);
       setActiveAcademicYear(loadedAcademicYear ?? undefined);
@@ -260,7 +262,9 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
 
   // 4. Get Teachers involved in this course
   const courseTeacherIds = Array.from(new Set(courseUnits.flatMap(u => u.teacherIds)));
-  const courseTeachers = teachers.filter(teacher => courseTeacherIds.includes(teacher.id));
+  const courseTeachers = teachers.filter(teacher =>
+      courseTeacherIds.includes(teacher.id) || courseAssignmentTeacherIds.includes(teacher.id)
+  );
 
   const getTeacher = (teacherId?: string) => {
       if (!teacherId) return undefined;

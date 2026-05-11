@@ -240,6 +240,11 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
       return;
     }
 
+    if (conflictWarning) {
+      toast.error(conflictMessage || 'Resolve the schedule conflict before adding this request.');
+      return;
+    }
+
     const newRequest: RequestFormData = {
       ...currentData,
       id: Math.random().toString(36).substr(2, 9),
@@ -268,6 +273,11 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
 
   const handleSubmit = () => {
     if (isEditMode) {
+        if (conflictWarning) {
+            toast.error(conflictMessage || 'Resolve the schedule conflict before submitting this request.');
+            return;
+        }
+
         // Submit single updated object
         onSubmit({ ...currentData, academicYearId: activeAcademicYear?.id, id: initialData.id });
         onOpenChange(false);
@@ -290,6 +300,11 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
     const isFormDirty = currentData.course && currentData.newDate && currentData.yearGroups.length > 0;
     
     if (isFormDirty) {
+        if (conflictWarning) {
+            toast.error(conflictMessage || 'Resolve the schedule conflict before submitting this request.');
+            return;
+        }
+
         finalQueue.push({ ...currentData, id: Math.random().toString(36).substr(2, 9) });
     }
 

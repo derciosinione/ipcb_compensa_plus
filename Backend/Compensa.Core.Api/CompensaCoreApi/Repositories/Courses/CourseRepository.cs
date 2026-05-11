@@ -201,6 +201,17 @@ public sealed class CourseRepository : ICourseRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCourseAssignmentsAsync(
+        Guid courseId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CourseTeacherAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.CourseId == courseId)
+            .OrderBy(assignment => assignment.UserEmail)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(Course course, CancellationToken cancellationToken = default)
     {
         _context.Courses.Add(course);

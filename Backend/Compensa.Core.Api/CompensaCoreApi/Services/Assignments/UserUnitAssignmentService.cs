@@ -33,29 +33,58 @@ public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
         if (string.IsNullOrWhiteSpace(userId))
             throw new InvalidOperationException("User id is required.");
 
+        var normalizedUserId = userId.Trim();
+        var normalizedEmail = request.UserEmail.Trim().ToLowerInvariant();
         var unitIds = request.CurricularUnitIds.Distinct().ToArray();
         var units = await _repository.ListUnitsByIdsAsync(unitIds, cancellationToken);
 
         if (units.Count != unitIds.Length)
             throw new InvalidOperationException("One or more curricular units do not exist.");
 
+        var requestedCourseIds = request.Courses
+            .Select(assignment => assignment.CourseId)
+            .Concat(units.Select(unit => unit.CourseId))
+            .Distinct()
+            .ToArray();
+        var courses = await _repository.ListCoursesByIdsAsync(requestedCourseIds, cancellationToken);
+
+        if (courses.Count != requestedCourseIds.Length)
+            throw new InvalidOperationException("One or more courses do not exist.");
+
         var now = DateTimeOffset.UtcNow;
-        var assignments = units
+        var unitAssignments = units
             .Select(unit => new UserUnitAssignment
             {
-                UserId = userId.Trim(),
-                UserEmail = request.UserEmail.Trim(),
+                UserId = normalizedUserId,
+                UserEmail = normalizedEmail,
                 CourseId = unit.CourseId,
                 CurricularUnitId = unit.Id,
-                IsResponsible = unit.ResponsibleTeacherId == userId.Trim(),
+                IsResponsible = unit.ResponsibleTeacherId == normalizedUserId,
                 CreatedAt = now,
                 UpdatedAt = now
             })
             .ToArray();
 
-        await _repository.ReplaceUserAssignmentsAsync(userId.Trim(), assignments, cancellationToken);
+        var coordinatorCourseIds = request.Courses
+            .Where(assignment => assignment.IsCoordinator)
+            .Select(assignment => assignment.CourseId)
+            .ToHashSet();
 
-        return await ListByUserAsync(userId.Trim(), cancellationToken);
+        var courseAssignments = requestedCourseIds
+            .Select(courseId => new CourseTeacherAssignment
+            {
+                UserId = normalizedUserId,
+                UserEmail = normalizedEmail,
+                CourseId = courseId,
+                IsCoordinator = coordinatorCourseIds.Contains(courseId),
+                CreatedAt = now,
+                UpdatedAt = now
+            })
+            .ToArray();
+
+        await _repository.ReplaceUserAssignmentsAsync(normalizedUserId, unitAssignments, courseAssignments, cancellationToken);
+
+        return await ListByUserAsync(normalizedUserId, cancellationToken);
     }
 
     private static UserUnitAssignmentResponse ToUnitResponse(UserUnitAssignment assignment)

@@ -120,4 +120,13 @@ export interface CourseDetails {
   components: CurricularUnitComponent[];
   classes: ClassGroup[];
   schedules: ClassSchedule[];
+  courseAssignments: {
+    id: string;
+    userId: string;
+    userEmail: string;
+    courseId: string;
+    isCoordinator: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }[];
 }

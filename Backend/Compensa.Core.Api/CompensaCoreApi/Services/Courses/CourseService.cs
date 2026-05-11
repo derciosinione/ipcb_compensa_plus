@@ -1,6 +1,9 @@
+using CompensaCoreApi.Domain.Assignments;
 using CompensaCoreApi.Domain.Courses;
+using CompensaCoreApi.Dtos.Assignments;
 using CompensaCoreApi.Dtos.Courses;
 using CompensaCoreApi.Exceptions;
+using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Courses;
 
@@ -12,11 +15,16 @@ public sealed class CourseService : ICourseService
 
     private readonly ICourseRepository _repository;
     private readonly IAcademicYearRepository _academicYearRepository;
+    private readonly IUserUnitAssignmentRepository _assignmentRepository;
 
-    public CourseService(ICourseRepository repository, IAcademicYearRepository academicYearRepository)
+    public CourseService(
+        ICourseRepository repository,
+        IAcademicYearRepository academicYearRepository,
+        IUserUnitAssignmentRepository assignmentRepository)
     {
         _repository = repository;
         _academicYearRepository = academicYearRepository;
+        _assignmentRepository = assignmentRepository;
     }
 
     public async Task<IReadOnlyCollection<CourseResponse>> ListAsync(
@@ -39,6 +47,7 @@ public sealed class CourseService : ICourseService
         var units = await _repository.ListUnitsAsync(id, cancellationToken);
         var components = await _repository.ListComponentsAsync(id, cancellationToken);
         var unitAssignments = await _repository.ListUnitAssignmentsAsync(id, cancellationToken);
+        var courseAssignments = await _repository.ListCourseAssignmentsAsync(id, cancellationToken);
         var classes = await _repository.ListClassGroupsAsync(id, cancellationToken);
         var schedules = await _repository.ListClassSchedulesAsync(id, cancellationToken);
 
@@ -52,12 +61,18 @@ public sealed class CourseService : ICourseService
                     unitAssignments
                         .Where(assignment => assignment.CurricularUnitId == unit.Id)
                         .Select(assignment => assignment.UserId)
+                        .Concat(new[] { unit.ResponsibleTeacherId })
+                        .Concat(components
+                            .Where(component => component.CurricularUnitId == unit.Id)
+                            .Select(component => component.ResponsibleTeacherId))
+                        .Where(userId => !string.IsNullOrWhiteSpace(userId))
                         .Distinct()
                         .ToArray()))
                 .ToArray(),
             componentResponses,
             classes.Select(ToClassGroupResponse).ToArray(),
-            schedules.Select(ToClassScheduleResponse).ToArray());
+            schedules.Select(ToClassScheduleResponse).ToArray(),
+            courseAssignments.Select(ToCourseAssignmentResponse).ToArray());
     }
 
     public async Task<CourseResponse> CreateAsync(
@@ -133,7 +148,14 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddUnitAsync(unit, cancellationToken);
-        return ToUnitResponse(unit, Array.Empty<CurricularUnitComponentResponse>(), Array.Empty<string>());
+        await _assignmentRepository.EnsureUserUnitAssignmentAsync(
+            unit.ResponsibleTeacherId,
+            unit.ResponsibleTeacherEmail,
+            unit,
+            isResponsible: true,
+            cancellationToken);
+
+        return ToUnitResponse(unit, Array.Empty<CurricularUnitComponentResponse>(), [unit.ResponsibleTeacherId]);
     }
 
     public async Task<CurricularUnitResponse> UpdateUnitAsync(
@@ -156,6 +178,12 @@ public sealed class CourseService : ICourseService
         unit.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        await _assignmentRepository.EnsureUserUnitAssignmentAsync(
+            unit.ResponsibleTeacherId,
+            unit.ResponsibleTeacherEmail,
+            unit,
+            isResponsible: true,
+            cancellationToken);
 
         var components = await _repository.ListComponentsAsync(courseId, cancellationToken);
         var assignments = await _repository.ListUnitAssignmentsAsync(courseId, cancellationToken);
@@ -198,6 +226,13 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddComponentAsync(component, cancellationToken);
+        await _assignmentRepository.EnsureUserUnitAssignmentAsync(
+            component.ResponsibleTeacherId,
+            component.ResponsibleTeacherEmail,
+            unit,
+            isResponsible: false,
+            cancellationToken);
+
         return ToComponentResponse(component);
     }
 
@@ -219,6 +254,14 @@ public sealed class CourseService : ICourseService
         component.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        var unit = await GetRequiredUnitAsync(courseId, unitId, cancellationToken);
+        await _assignmentRepository.EnsureUserUnitAssignmentAsync(
+            component.ResponsibleTeacherId,
+            component.ResponsibleTeacherEmail,
+            unit,
+            isResponsible: false,
+            cancellationToken);
+
         return ToComponentResponse(component);
     }
 
@@ -594,5 +637,17 @@ public sealed class CourseService : ICourseService
             schedule.EndTime,
             schedule.ClassroomId,
             schedule.IsActive);
+    }
+
+    private static CourseTeacherAssignmentResponse ToCourseAssignmentResponse(CourseTeacherAssignment assignment)
+    {
+        return new CourseTeacherAssignmentResponse(
+            assignment.Id,
+            assignment.UserId,
+            assignment.UserEmail,
+            assignment.CourseId,
+            assignment.IsCoordinator,
+            assignment.CreatedAt,
+            assignment.UpdatedAt);
     }
 }
