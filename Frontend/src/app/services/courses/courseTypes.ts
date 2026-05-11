@@ -81,9 +81,43 @@ export interface ClassGroup {
   isActive: boolean;
 }
 
+export interface ClassSchedule {
+  id: string;
+  courseId: string;
+  curricularUnitId: string;
+  classGroupId: string;
+  academicYearId: string;
+  semester: 1 | 2;
+  componentType: UnitComponentType;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  classroomId: string;
+  isActive: boolean;
+}
+
+export interface UpsertClassGroupRequest {
+  curricularUnitId: string;
+  name: string;
+  teacherId: string;
+  isActive: boolean;
+}
+
+export interface UpsertClassScheduleRequest {
+  academicYearId: string;
+  semester: 1 | 2;
+  componentType: UnitComponentType;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  classroomId: string;
+  isActive: boolean;
+}
+
 export interface CourseDetails {
   course: Course;
   units: CurricularUnit[];
   components: CurricularUnitComponent[];
   classes: ClassGroup[];
+  schedules: ClassSchedule[];
 }

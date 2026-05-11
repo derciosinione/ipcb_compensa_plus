@@ -12,29 +12,29 @@ public sealed class CreateCompensationRequestRequest
     public string TeacherName { get; init; } = string.Empty;
 
     [Required]
-    public string Course { get; init; } = string.Empty;
+    public Guid AcademicYearId { get; init; }
 
     [Required]
-    public string CurricularUnit { get; init; } = string.Empty;
-
-    public string[] YearGroups { get; init; } = [];
+    public Guid CourseId { get; init; }
 
     [Required]
-    public TeachingComponentType ComponentType { get; init; }
+    public Guid CurricularUnitId { get; init; }
 
+    [Required]
+    public Guid ClassGroupId { get; init; }
+
+    [Required]
+    public Guid OriginalClassScheduleId { get; init; }
+
+    [Required]
+    public Guid NewClassroomId { get; init; }
+
+    [Required]
     public DateOnly OriginalDate { get; init; }
-    public TimeOnly OriginalStartTime { get; init; }
-    public TimeOnly OriginalEndTime { get; init; }
-
-    [Required]
-    public string OriginalRoom { get; init; } = string.Empty;
 
     public DateOnly NewDate { get; init; }
     public TimeOnly NewStartTime { get; init; }
     public TimeOnly NewEndTime { get; init; }
-
-    [Required]
-    public string NewRoom { get; init; } = string.Empty;
 
     [Required]
     [MaxLength(2000)]

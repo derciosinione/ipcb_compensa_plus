@@ -2,8 +2,12 @@ import { authenticatedApiRequest, buildApiPath, coreApiBaseUrl } from '../api/ht
 import type {
   Course,
   CourseDetails,
+  ClassGroup,
+  ClassSchedule,
   CurricularUnit,
   CurricularUnitComponent,
+  UpsertClassGroupRequest,
+  UpsertClassScheduleRequest,
   UpsertCourseRequest,
   UpsertCurricularUnitComponentRequest,
   UpsertCurricularUnitRequest,
@@ -127,6 +131,91 @@ export const deleteCurricularUnitComponent = async (
   await authenticatedApiRequest<void>(
     coreApiBaseUrl,
     `/api/courses/${courseId}/units/${unitId}/components/${componentId}`,
+    {
+      method: 'DELETE',
+    },
+  );
+};
+
+export const createClassGroup = async (courseId: string, request: UpsertClassGroupRequest) => {
+  const response = await authenticatedApiRequest<ClassGroup>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/classes`,
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const updateClassGroup = async (
+  courseId: string,
+  classGroupId: string,
+  request: UpsertClassGroupRequest,
+) => {
+  const response = await authenticatedApiRequest<ClassGroup>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/classes/${classGroupId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const deleteClassGroup = async (courseId: string, classGroupId: string) => {
+  await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/courses/${courseId}/classes/${classGroupId}`, {
+    method: 'DELETE',
+  });
+};
+
+export const createClassSchedule = async (
+  courseId: string,
+  classGroupId: string,
+  request: UpsertClassScheduleRequest,
+) => {
+  const response = await authenticatedApiRequest<ClassSchedule>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/classes/${classGroupId}/schedules`,
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const updateClassSchedule = async (
+  courseId: string,
+  classGroupId: string,
+  scheduleId: string,
+  request: UpsertClassScheduleRequest,
+) => {
+  const response = await authenticatedApiRequest<ClassSchedule>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/classes/${classGroupId}/schedules/${scheduleId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    },
+  );
+
+  return response.data;
+};
+
+export const deleteClassSchedule = async (
+  courseId: string,
+  classGroupId: string,
+  scheduleId: string,
+) => {
+  await authenticatedApiRequest<void>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/classes/${classGroupId}/schedules/${scheduleId}`,
     {
       method: 'DELETE',
     },

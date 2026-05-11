@@ -1,6 +1,7 @@
 using CompensaCoreApi.Domain.Courses;
 using CompensaCoreApi.Dtos.Courses;
 using CompensaCoreApi.Exceptions;
+using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Courses;
 
 namespace CompensaCoreApi.Services.Courses;
@@ -10,10 +11,12 @@ public sealed class CourseService : ICourseService
     private const string DefaultCourseImageUrl = "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=1000&auto=format&fit=crop";
 
     private readonly ICourseRepository _repository;
+    private readonly IAcademicYearRepository _academicYearRepository;
 
-    public CourseService(ICourseRepository repository)
+    public CourseService(ICourseRepository repository, IAcademicYearRepository academicYearRepository)
     {
         _repository = repository;
+        _academicYearRepository = academicYearRepository;
     }
 
     public async Task<IReadOnlyCollection<CourseResponse>> ListAsync(
@@ -37,6 +40,7 @@ public sealed class CourseService : ICourseService
         var components = await _repository.ListComponentsAsync(id, cancellationToken);
         var unitAssignments = await _repository.ListUnitAssignmentsAsync(id, cancellationToken);
         var classes = await _repository.ListClassGroupsAsync(id, cancellationToken);
+        var schedules = await _repository.ListClassSchedulesAsync(id, cancellationToken);
 
         var componentResponses = components.Select(ToComponentResponse).ToArray();
 
@@ -52,7 +56,8 @@ public sealed class CourseService : ICourseService
                         .ToArray()))
                 .ToArray(),
             componentResponses,
-            classes.Select(ToClassGroupResponse).ToArray());
+            classes.Select(ToClassGroupResponse).ToArray(),
+            schedules.Select(ToClassScheduleResponse).ToArray());
     }
 
     public async Task<CourseResponse> CreateAsync(
@@ -229,6 +234,147 @@ public sealed class CourseService : ICourseService
         await _repository.DeleteComponentAsync(component, cancellationToken);
     }
 
+    public async Task<ClassGroupResponse> CreateClassGroupAsync(
+        Guid courseId,
+        UpsertClassGroupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var unit = await GetRequiredUnitAsync(courseId, request.CurricularUnitId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var classGroup = new ClassGroup
+        {
+            CourseId = courseId,
+            CurricularUnitId = unit.Id,
+            Name = request.Name.Trim(),
+            TeacherId = request.TeacherId.Trim(),
+            IsActive = request.IsActive,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        await _repository.AddClassGroupAsync(classGroup, cancellationToken);
+        return ToClassGroupResponse(classGroup);
+    }
+
+    public async Task<ClassGroupResponse> UpdateClassGroupAsync(
+        Guid courseId,
+        Guid classGroupId,
+        UpsertClassGroupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var classGroup = await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
+        var unit = await GetRequiredUnitAsync(courseId, request.CurricularUnitId, cancellationToken);
+
+        classGroup.CurricularUnitId = unit.Id;
+        classGroup.Name = request.Name.Trim();
+        classGroup.TeacherId = request.TeacherId.Trim();
+        classGroup.IsActive = request.IsActive;
+        classGroup.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+        return ToClassGroupResponse(classGroup);
+    }
+
+    public async Task DeleteClassGroupAsync(
+        Guid courseId,
+        Guid classGroupId,
+        CancellationToken cancellationToken = default)
+    {
+        var classGroup = await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
+        await _repository.DeleteClassGroupAsync(classGroup, cancellationToken);
+    }
+
+    public async Task<ClassScheduleResponse> CreateScheduleAsync(
+        Guid courseId,
+        Guid classGroupId,
+        UpsertClassScheduleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var classGroup = await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
+        ValidateSchedule(request.StartTime, request.EndTime);
+        await EnsureAcademicYearExistsAsync(request.AcademicYearId, cancellationToken);
+        await EnsureScheduleSemesterMatchesUnitAsync(classGroup, request.Semester, cancellationToken);
+        await EnsureScheduleHasNoConflictsAsync(
+            classGroup,
+            request.AcademicYearId,
+            request.Semester,
+            request.DayOfWeek,
+            request.StartTime,
+            request.EndTime,
+            request.ClassroomId,
+            excludedScheduleId: null,
+            cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        var schedule = new ClassSchedule
+        {
+            CourseId = courseId,
+            CurricularUnitId = classGroup.CurricularUnitId,
+            ClassGroupId = classGroup.Id,
+            AcademicYearId = request.AcademicYearId,
+            Semester = request.Semester,
+            ComponentType = request.ComponentType,
+            DayOfWeek = request.DayOfWeek,
+            StartTime = request.StartTime,
+            EndTime = request.EndTime,
+            ClassroomId = request.ClassroomId,
+            IsActive = request.IsActive,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        await _repository.AddClassScheduleAsync(schedule, cancellationToken);
+        return ToClassScheduleResponse(schedule);
+    }
+
+    public async Task<ClassScheduleResponse> UpdateScheduleAsync(
+        Guid courseId,
+        Guid classGroupId,
+        Guid scheduleId,
+        UpsertClassScheduleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var classGroup = await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
+        var schedule = await GetRequiredClassScheduleAsync(courseId, classGroupId, scheduleId, cancellationToken);
+        ValidateSchedule(request.StartTime, request.EndTime);
+        await EnsureAcademicYearExistsAsync(request.AcademicYearId, cancellationToken);
+        await EnsureScheduleSemesterMatchesUnitAsync(classGroup, request.Semester, cancellationToken);
+        await EnsureScheduleHasNoConflictsAsync(
+            classGroup,
+            request.AcademicYearId,
+            request.Semester,
+            request.DayOfWeek,
+            request.StartTime,
+            request.EndTime,
+            request.ClassroomId,
+            excludedScheduleId: schedule.Id,
+            cancellationToken);
+
+        schedule.ComponentType = request.ComponentType;
+        schedule.AcademicYearId = request.AcademicYearId;
+        schedule.Semester = request.Semester;
+        schedule.DayOfWeek = request.DayOfWeek;
+        schedule.StartTime = request.StartTime;
+        schedule.EndTime = request.EndTime;
+        schedule.ClassroomId = request.ClassroomId;
+        schedule.IsActive = request.IsActive;
+        schedule.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+        return ToClassScheduleResponse(schedule);
+    }
+
+    public async Task DeleteScheduleAsync(
+        Guid courseId,
+        Guid classGroupId,
+        Guid scheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
+        var schedule = await GetRequiredClassScheduleAsync(courseId, classGroupId, scheduleId, cancellationToken);
+        await _repository.DeleteClassScheduleAsync(schedule, cancellationToken);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var course = await GetRequiredCourseAsync(id, cancellationToken);
@@ -260,10 +406,88 @@ public sealed class CourseService : ICourseService
             ?? throw new NotFoundException($"Curricular unit component '{componentId}' was not found.");
     }
 
+    private async Task<ClassGroup> GetRequiredClassGroupAsync(
+        Guid courseId,
+        Guid classGroupId,
+        CancellationToken cancellationToken)
+    {
+        return await _repository.GetClassGroupByIdAsync(courseId, classGroupId, cancellationToken)
+            ?? throw new NotFoundException($"Class group '{classGroupId}' was not found in course '{courseId}'.");
+    }
+
+    private async Task<ClassSchedule> GetRequiredClassScheduleAsync(
+        Guid courseId,
+        Guid classGroupId,
+        Guid scheduleId,
+        CancellationToken cancellationToken)
+    {
+        return await _repository.GetClassScheduleByIdAsync(courseId, classGroupId, scheduleId, cancellationToken)
+            ?? throw new NotFoundException($"Schedule '{scheduleId}' was not found in class group '{classGroupId}'.");
+    }
+
     private static void ValidateUnitBelongsToCourseYear(Course course, int year)
     {
         if (year > course.DurationYears)
             throw new InvalidOperationException($"Year {year} is outside the {course.DurationYears}-year duration of course '{course.Name}'.");
+    }
+
+    private static void ValidateSchedule(TimeOnly startTime, TimeOnly endTime)
+    {
+        if (startTime >= endTime)
+            throw new InvalidOperationException("Schedule start time must be before end time.");
+    }
+
+    private async Task EnsureScheduleHasNoConflictsAsync(
+        ClassGroup classGroup,
+        Guid academicYearId,
+        int semester,
+        int dayOfWeek,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        Guid classroomId,
+        Guid? excludedScheduleId,
+        CancellationToken cancellationToken)
+    {
+        var overlaps = await _repository.ListOverlappingSchedulesAsync(
+            academicYearId,
+            semester,
+            dayOfWeek,
+            startTime,
+            endTime,
+            excludedScheduleId,
+            cancellationToken);
+
+        var classConflict = overlaps.FirstOrDefault(item => item.Schedule.ClassGroupId == classGroup.Id);
+        if (classConflict.Schedule != null)
+            throw new InvalidOperationException($"Class group '{classGroup.Name}' already has a schedule in this time interval.");
+
+        var roomConflict = overlaps.FirstOrDefault(item => item.Schedule.ClassroomId == classroomId);
+        if (roomConflict.Schedule != null)
+            throw new InvalidOperationException("The selected classroom is already occupied in this time interval.");
+
+        var teacherConflict = overlaps.FirstOrDefault(item => item.ClassGroup.TeacherId == classGroup.TeacherId);
+        if (teacherConflict.Schedule != null)
+            throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a class in this time interval.");
+    }
+
+    private async Task EnsureAcademicYearExistsAsync(Guid academicYearId, CancellationToken cancellationToken)
+    {
+        if (academicYearId == Guid.Empty)
+            throw new InvalidOperationException("Academic year is required.");
+
+        var academicYear = await _academicYearRepository.GetByIdAsync(academicYearId, cancellationToken);
+        if (academicYear is null)
+            throw new NotFoundException($"Academic year '{academicYearId}' was not found.");
+    }
+
+    private async Task EnsureScheduleSemesterMatchesUnitAsync(
+        ClassGroup classGroup,
+        int semester,
+        CancellationToken cancellationToken)
+    {
+        var unit = await GetRequiredUnitAsync(classGroup.CourseId, classGroup.CurricularUnitId, cancellationToken);
+        if (unit.Semester != semester)
+            throw new InvalidOperationException($"Schedule semester must match curricular unit semester {unit.Semester}.");
     }
 
     private async Task EnsureUniqueAbbreviationAsync(
@@ -353,5 +577,22 @@ public sealed class CourseService : ICourseService
             group.Name,
             group.TeacherId,
             group.IsActive);
+    }
+
+    private static ClassScheduleResponse ToClassScheduleResponse(ClassSchedule schedule)
+    {
+        return new ClassScheduleResponse(
+            schedule.Id,
+            schedule.CourseId,
+            schedule.CurricularUnitId,
+            schedule.ClassGroupId,
+            schedule.AcademicYearId,
+            schedule.Semester,
+            schedule.ComponentType,
+            schedule.DayOfWeek,
+            schedule.StartTime,
+            schedule.EndTime,
+            schedule.ClassroomId,
+            schedule.IsActive);
     }
 }

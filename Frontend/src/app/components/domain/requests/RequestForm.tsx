@@ -13,6 +13,12 @@ import { Separator } from '../../ui/separator';
 import { Badge } from '../../ui/badge';
 import { toast } from 'sonner@2.0.3';
 import { useLanguage } from '../../../providers/LanguageContext';
+import { listCourses, getCourseDetails } from '../../../services/courses/coursesApi';
+import type { Course, CourseDetails, ClassSchedule } from '../../../services/courses/courseTypes';
+import { listClassrooms } from '../../../services/classrooms/classroomsApi';
+import type { Classroom } from '../../../services/classrooms/classroomTypes';
+import { getActiveAcademicYear } from '../../../services/academicYears/academicYearsApi';
+import type { AcademicYear } from '../../../services/academicYears/academicYearTypes';
 
 interface RequestFormProps {
   open: boolean;
@@ -50,23 +56,59 @@ const initialFormState = {
   reason: ''
 };
 
-const groups = [
-  "2nd Year - Class A",
-  "2nd Year - Class B",
-  "3rd Year",
-  "1st Year - Class A",
-  "1st Year - Class B"
-];
-
 export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: RequestFormProps) => {
   const [queue, setQueue] = useState<RequestFormData[]>([]);
   const [currentData, setCurrentData] = useState<Omit<RequestFormData, 'id'>>(initialFormState);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [courseDetails, setCourseDetails] = useState<CourseDetails | null>(null);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [activeAcademicYear, setActiveAcademicYear] = useState<AcademicYear | null>(null);
   const [conflictWarning, setConflictWarning] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
   const { t } = useLanguage();
 
   // Edit Mode Flag
   const isEditMode = !!initialData;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadFormContext = async () => {
+      try {
+        const [loadedCourses, loadedClassrooms, loadedAcademicYear] = await Promise.all([
+          listCourses(),
+          listClassrooms(),
+          getActiveAcademicYear(),
+        ]);
+
+        setCourses(loadedCourses.filter(course => course.isActive));
+        setClassrooms(loadedClassrooms.filter(classroom => classroom.isActive));
+        setActiveAcademicYear(loadedAcademicYear ?? null);
+      } catch {
+        toast.error('Unable to load academic data for the request form.');
+      }
+    };
+
+    void loadFormContext();
+  }, [open]);
+
+  useEffect(() => {
+    if (!currentData.course) {
+      setCourseDetails(null);
+      return;
+    }
+
+    const loadSelectedCourse = async () => {
+      try {
+        const details = await getCourseDetails(currentData.course);
+        setCourseDetails(details ?? null);
+      } catch {
+        toast.error('Unable to load course details.');
+      }
+    };
+
+    void loadSelectedCourse();
+  }, [currentData.course]);
 
   useEffect(() => {
     if (initialData) {
@@ -103,7 +145,24 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
   };
 
   const handleChange = (field: keyof typeof initialFormState, value: any) => {
-    setCurrentData(prev => ({ ...prev, [field]: value }));
+    setCurrentData(prev => {
+      const next = { ...prev, [field]: value };
+
+      if (field === 'course') {
+        next.unit = '';
+        next.yearGroups = [];
+        next.originalRoom = '';
+        next.originalTime = '';
+      }
+
+      if (field === 'unit') {
+        next.yearGroups = [];
+        next.originalRoom = '';
+        next.originalTime = '';
+      }
+
+      return next;
+    });
     
     if (field === 'newDate' || field === 'newTime' || field === 'newRoom') {
       checkConflict(
@@ -114,19 +173,21 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
     }
   };
 
-  const handleGroupSelect = (group: string) => {
-    setCurrentData(prev => {
-        const currentGroups = prev.yearGroups || [];
-        if (currentGroups.includes(group)) {
-            return { ...prev, yearGroups: currentGroups.filter(g => g !== group) };
-        } else {
-            return { ...prev, yearGroups: [...currentGroups, group] };
-        }
-    });
+  const availableClasses = courseDetails?.classes.filter(group => group.curricularUnitId === currentData.unit) ?? [];
+  const selectedClassGroupId = currentData.yearGroups[0];
+  const availableSchedules = (courseDetails?.schedules ?? []).filter(
+    schedule => schedule.classGroupId === selectedClassGroupId,
+  );
+  const selectedSchedule = availableSchedules.find(schedule => schedule.id === currentData.originalRoom);
+
+  const getScheduleLabel = (schedule: ClassSchedule) => {
+    const room = classrooms.find(item => item.id === schedule.classroomId);
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return `${days[schedule.dayOfWeek] ?? 'Day'} ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)} · ${room?.name ?? 'Room'}`;
   };
 
   const handleAddToQueue = () => {
-    if (!currentData.course || !currentData.unit || !currentData.originalDate || !currentData.newDate || currentData.yearGroups.length === 0) {
+    if (!currentData.course || !currentData.unit || !currentData.originalRoom || !currentData.originalDate || !currentData.newDate || currentData.yearGroups.length === 0) {
       toast.error(t('form.fill_required'));
       return;
     }
@@ -160,13 +221,18 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
   const handleSubmit = () => {
     if (isEditMode) {
         // Submit single updated object
-        onSubmit({ ...currentData, id: initialData.id });
+        onSubmit({ ...currentData, academicYearId: activeAcademicYear?.id, id: initialData.id });
         onOpenChange(false);
         toast.success(t('form.updated_success'));
         return;
     }
 
     // Batch Mode
+    if (!activeAcademicYear) {
+        toast.error('Active academic year was not found.');
+        return;
+    }
+
     if (queue.length === 0 && (!currentData.course || !currentData.newDate)) {
         toast.error(t('form.no_submit'));
         return;
@@ -179,7 +245,7 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
         finalQueue.push({ ...currentData, id: Math.random().toString(36).substr(2, 9) });
     }
 
-    onSubmit(finalQueue);
+    onSubmit(finalQueue.map(item => ({ ...item, academicYearId: activeAcademicYear.id })));
     setQueue([]);
     setCurrentData(initialFormState);
     onOpenChange(false);
@@ -294,10 +360,12 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                             <SelectTrigger className="flex-1 bg-slate-50 border-slate-200 focus:bg-white transition-colors h-10">
                                                 <SelectValue placeholder={t('form.select_course')} />
                                             </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="cs">Computer Science</SelectItem>
-                                                <SelectItem value="is">Information Systems</SelectItem>
-                                                <SelectItem value="Design">Design</SelectItem>
+                                                <SelectContent>
+                                                {courses.map(course => (
+                                                    <SelectItem key={course.id} value={course.id}>
+                                                        {course.name}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         <Select value={currentData.unit} onValueChange={(v) => handleChange('unit', v)}>
@@ -305,10 +373,11 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                                 <SelectValue placeholder={t('form.select_unit')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Software Engineering">Software Engineering</SelectItem>
-                                                <SelectItem value="Databases I">Databases I</SelectItem>
-                                                <SelectItem value="Web Development">Web Development</SelectItem>
-                                                <SelectItem value="Algorithms">Algorithms</SelectItem>
+                                                {(courseDetails?.units ?? []).map(unit => (
+                                                    <SelectItem key={unit.id} value={unit.id}>
+                                                        {unit.name}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -338,21 +407,26 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                                         <CommandList>
                                                             <CommandEmpty>No group found.</CommandEmpty>
                                                             <CommandGroup>
-                                                                {groups.map((group) => (
+                                                                {availableClasses.map((group) => (
                                                                     <CommandItem
-                                                                        key={group}
-                                                                        value={group}
-                                                                        onSelect={() => handleGroupSelect(group)}
+                                                                        key={group.id}
+                                                                        value={group.name}
+                                                                        onSelect={() => setCurrentData(prev => ({
+                                                                            ...prev,
+                                                                            yearGroups: [group.id],
+                                                                            originalRoom: '',
+                                                                            originalTime: '',
+                                                                        }))}
                                                                     >
                                                                         <div className={cn(
                                                                             "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                                                            currentData.yearGroups.includes(group)
+                                                                            currentData.yearGroups.includes(group.id)
                                                                                 ? "bg-primary text-primary-foreground"
                                                                                 : "opacity-50 [&_svg]:invisible"
                                                                         )}>
                                                                             <Check className={cn("h-4 w-4")} />
                                                                         </div>
-                                                                        <span>{group}</span>
+                                                                        <span>{group.name}</span>
                                                                     </CommandItem>
                                                                 ))}
                                                             </CommandGroup>
@@ -364,20 +438,22 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                             {/* Selected Tags */}
                                             {currentData.yearGroups.length > 0 && (
                                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                                    {currentData.yearGroups.map(group => (
-                                                        <Badge key={group} variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200 font-normal text-[10px] pl-2 pr-1 h-5 flex items-center gap-1">
-                                                            {group}
+                                                    {currentData.yearGroups.map(groupId => {
+                                                        const group = availableClasses.find(item => item.id === groupId);
+                                                        return (
+                                                        <Badge key={groupId} variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200 font-normal text-[10px] pl-2 pr-1 h-5 flex items-center gap-1">
+                                                            {group?.name ?? groupId}
                                                             <span 
                                                                 className="cursor-pointer hover:bg-slate-200 rounded-full p-0.5"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleGroupSelect(group);
+                                                                    setCurrentData(prev => ({ ...prev, yearGroups: [] }));
                                                                 }}
                                                             >
                                                                 <X className="w-2.5 h-2.5" />
                                                             </span>
                                                         </Badge>
-                                                    ))}
+                                                    )})}
                                                 </div>
                                             )}
                                         </div>
@@ -388,12 +464,12 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                                 <SelectTrigger className="bg-slate-50 border-slate-200 focus:bg-white transition-colors h-10">
                                                     <SelectValue placeholder={t('form.select_type')} />
                                                 </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="all">All / Standard</SelectItem>
-                                                    <SelectItem value="theoretical">Theoretical</SelectItem>
-                                                    <SelectItem value="practical">Practical / Lab</SelectItem>
-                                                </SelectContent>
-                                            </Select>
+                                            <SelectContent>
+                                                <SelectItem value="all">All / Standard</SelectItem>
+                                                <SelectItem value="theoretical">Theoretical</SelectItem>
+                                                <SelectItem value="practical">Practical / Lab</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                         </div>
                                     </div>
                                 </div>
@@ -433,14 +509,24 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
                                             </div>
                                         </div>
-                                        <Input type="time" className="bg-white h-9" value={currentData.originalTime} onChange={(e) => handleChange('originalTime', e.target.value)} />
-                                        <Select value={currentData.originalRoom} onValueChange={(v) => handleChange('originalRoom', v)}>
+                                        <Input type="text" className="bg-white h-9" value={selectedSchedule ? `${selectedSchedule.startTime.slice(0, 5)} - ${selectedSchedule.endTime.slice(0, 5)}` : ''} readOnly />
+                                        <Select value={currentData.originalRoom} onValueChange={(v) => {
+                                            const schedule = availableSchedules.find(item => item.id === v);
+                                            setCurrentData(prev => ({
+                                                ...prev,
+                                                originalRoom: v,
+                                                originalTime: schedule ? `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}` : '',
+                                            }));
+                                        }}>
                                             <SelectTrigger className="bg-white h-9">
-                                                <SelectValue placeholder={t('form.room')} />
+                                                <SelectValue placeholder="Original schedule" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Lab 3">Lab 3</SelectItem>
-                                                <SelectItem value="Room 204">Room 204</SelectItem>
+                                                {availableSchedules.map(schedule => (
+                                                    <SelectItem key={schedule.id} value={schedule.id}>
+                                                        {getScheduleLabel(schedule)}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -457,9 +543,11 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
                                                 <SelectValue placeholder={t('form.new_room')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="Lab 3">Lab 3</SelectItem>
-                                                <SelectItem value="Lab 5">Lab 5</SelectItem>
-                                                <SelectItem value="Room 204">Room 204</SelectItem>
+                                                {classrooms.map(room => (
+                                                    <SelectItem key={room.id} value={room.id}>
+                                                        {room.name}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                     </div>

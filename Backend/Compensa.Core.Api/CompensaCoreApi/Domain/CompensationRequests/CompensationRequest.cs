@@ -7,6 +7,15 @@ public sealed class CompensationRequest
     public string TeacherUserId { get; set; } = string.Empty;
     public string TeacherName { get; set; } = string.Empty;
 
+    public Guid? AcademicYearId { get; set; }
+    public int Semester { get; set; }
+    public Guid? CourseId { get; set; }
+    public Guid? CurricularUnitId { get; set; }
+    public Guid? ClassGroupId { get; set; }
+    public Guid? OriginalClassScheduleId { get; set; }
+    public Guid? OriginalClassroomId { get; set; }
+    public Guid? NewClassroomId { get; set; }
+
     public string Course { get; set; } = string.Empty;
     public string CurricularUnit { get; set; } = string.Empty;
     public string[] YearGroups { get; set; } = [];

@@ -1,17 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { toast } from 'sonner@2.0.3';
-import { mockRequests, ClassRequest } from '../../mocks/data';
+import { ClassRequest } from '../../mocks/data';
 import { RequestDetailsPage } from '../../components/domain/requests/RequestDetailsPage';
 import { RejectionDialog } from '../../components/domain/requests/RejectionDialog';
 import { FilterBar, ViewMode, SortOrder, StatusFilter, CourseFilter } from '../../components/common/FilterBar';
 import { KanbanBoard } from '../../components/common/KanbanBoard';
 import { RequestsTable } from '../../components/common/RequestsTable';
+import { listCompensationRequests, updateCompensationRequestStatus } from '../../services/compensationRequests/compensationRequestsApi';
+import type { CompensationRequest } from '../../services/compensationRequests/compensationRequestTypes';
+import { getErrorMessage } from '../../utils/errors';
 
 interface CoordinatorRequestsPageProps {
   userRole?: 'coordinator' | 'admin' | 'teacher';
 }
+
+const toClassRequest = (request: CompensationRequest): ClassRequest => ({
+  id: request.id,
+  course: request.course,
+  unit: request.curricularUnit,
+  yearGroups: request.yearGroups,
+  componentType: request.componentType.toLowerCase() as ClassRequest['componentType'],
+  originalDate: request.originalDate,
+  originalTime: `${request.originalStartTime.slice(0, 5)} - ${request.originalEndTime.slice(0, 5)}`,
+  originalRoom: request.originalRoom,
+  newDate: request.newDate,
+  newTime: `${request.newStartTime.slice(0, 5)} - ${request.newEndTime.slice(0, 5)}`,
+  newRoom: request.newRoom,
+  reason: request.justification,
+  status: request.status.toLowerCase() as ClassRequest['status'],
+  teacherName: request.teacherName,
+  submittedAt: request.submittedAt.split('T')[0],
+  hasConflict: request.hasConflict,
+  rejectionReason: request.decisionComment ?? undefined,
+  comments: [],
+});
 
 export const CoordinatorRequestsPage = ({ userRole = 'coordinator' }: CoordinatorRequestsPageProps) => {
   // Filter States
@@ -24,13 +48,22 @@ export const CoordinatorRequestsPage = ({ userRole = 'coordinator' }: Coordinato
   const [currentPage, setCurrentPage] = useState(1);
   
   // Data State
-  const [requests, setRequests] = useState<ClassRequest[]>(mockRequests);
+  const [requests, setRequests] = useState<ClassRequest[]>([]);
   const [viewState, setViewState] = useState<'list' | 'details'>('list');
   const [selectedRequest, setSelectedRequest] = useState<ClassRequest | null>(null);
   const [requestToReject, setRequestToReject] = useState<string | null>(null);
 
   const isAdmin = userRole === 'admin';
   const itemsPerPage = viewMode === 'board' ? 6 : 10;
+
+  const loadRequests = useCallback(async () => {
+    try {
+      const loadedRequests = await listCompensationRequests();
+      setRequests(loadedRequests.map(toClassRequest));
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Unable to load compensation requests.'));
+    }
+  }, []);
 
   const isNearDate = (dateStr: string) => {
     const today = new Date();
@@ -44,7 +77,11 @@ export const CoordinatorRequestsPage = ({ userRole = 'coordinator' }: Coordinato
     setCurrentPage(1);
   }, [searchQuery, filterCourse, statusFilter, sortOrder, showHistory, viewMode]);
 
-  const handleStatusChange = (requestId: string, newStatus: 'approved' | 'rejected' | 'pending', reason?: string) => {
+  useEffect(() => {
+    void loadRequests();
+  }, [loadRequests]);
+
+  const handleStatusChange = async (requestId: string, newStatus: 'approved' | 'rejected' | 'pending', reason?: string) => {
       if (isAdmin) {
           toast.error("Administrators cannot change request status.");
           return;
@@ -55,15 +92,29 @@ export const CoordinatorRequestsPage = ({ userRole = 'coordinator' }: Coordinato
           return;
       }
 
-      setRequests(prev => prev.map(req => 
-          req.id === requestId ? { ...req, status: newStatus as any, rejectionReason: reason } : req
-      ));
+      try {
+          const updated = await updateCompensationRequestStatus(
+              requestId,
+              newStatus.charAt(0).toUpperCase() + newStatus.slice(1) as any,
+              reason,
+          );
 
-      if (selectedRequest?.id === requestId) {
-          setSelectedRequest(prev => prev ? { ...prev, status: newStatus as any, rejectionReason: reason } : null);
+          if (!updated) {
+              throw new Error('Status response was empty.');
+          }
+
+          const mapped = toClassRequest(updated);
+
+          setRequests(prev => prev.map(req => req.id === requestId ? mapped : req));
+
+          if (selectedRequest?.id === requestId) {
+              setSelectedRequest(mapped);
+          }
+          
+          toast.success(`Request ${newStatus} successfully.`);
+      } catch (error) {
+          toast.error(getErrorMessage(error, `Unable to ${newStatus} request.`));
       }
-      
-      toast.success(`Request ${newStatus} successfully.`);
   };
 
   const confirmRejection = (reason: string) => {

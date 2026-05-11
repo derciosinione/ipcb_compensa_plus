@@ -21,8 +21,9 @@ import {
 import { Textarea } from '../../ui/textarea';
 import { cn } from '../../ui/utils';
 import { Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
-import { mockRooms } from '../../../mocks/data';
 import { useLanguage } from '../../../providers/LanguageContext';
+import { listClassrooms } from '../../../services/classrooms/classroomsApi';
+import type { Classroom } from '../../../services/classrooms/classroomTypes';
 
 interface CreateRequestSheetProps {
   open: boolean;
@@ -40,6 +41,7 @@ export const CreateRequestSheet = ({
   onCreate 
 }: CreateRequestSheetProps) => {
   const { t } = useLanguage();
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [formData, setFormData] = useState({
     unit: '',
     date: '',
@@ -49,6 +51,17 @@ export const CreateRequestSheet = ({
     reason: '',
     type: 'theoretical'
   });
+
+  useEffect(() => {
+    if (!open) return;
+
+    const loadClassrooms = async () => {
+      const loadedClassrooms = await listClassrooms();
+      setClassrooms(loadedClassrooms.filter(room => room.isActive));
+    };
+
+    void loadClassrooms();
+  }, [open]);
 
   useEffect(() => {
     if (initialDate) {
@@ -172,7 +185,7 @@ export const CreateRequestSheet = ({
                     <SelectValue placeholder={t('sheet.select_room')} />
                 </SelectTrigger>
                 <SelectContent>
-                    {mockRooms.map(room => (
+                    {classrooms.map(room => (
                         <SelectItem key={room.id} value={room.id}>
                             <span className="flex items-center justify-between w-full gap-2">
                                 <span>{room.name} <span className="text-slate-400 text-xs">({room.type})</span></span>

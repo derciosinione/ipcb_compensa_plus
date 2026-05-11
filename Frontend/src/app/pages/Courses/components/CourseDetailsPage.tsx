@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 import { Separator } from '../../../components/ui/separator';
-import { mockTimetable, Course as MockCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../mocks/data';
+import { Course as MockCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../mocks/data';
 import { cn } from '../../../components/ui/utils';
 import { toast } from 'sonner@2.0.3';
 import { AddCurricularUnitModal } from './AddCurricularUnitModal';
@@ -50,17 +50,25 @@ import { AssignTeacherToCourseModal } from './AssignTeacherToCourseModal';
 import { ClassDetailsView } from '../../../components/domain/requests/ClassDetailsView';
 import { BulkImportSchedulesSheet } from './BulkImportSchedulesSheet';
 import {
+  createClassGroup,
+  createClassSchedule,
   createCurricularUnit,
   createCurricularUnitComponent,
+  deleteClassSchedule,
   deleteCurricularUnit,
   getCourseDetails,
+  updateClassSchedule,
   updateCurricularUnit,
   updateCurricularUnitComponent,
 } from '../../../services/courses/coursesApi';
 import { getErrorMessage } from '../../../utils/errors';
-import type { Course as ApiCourse, ClassGroup as ApiClassGroup, CurricularUnit as ApiCurricularUnit } from '../../../services/courses/courseTypes';
+import type { Course as ApiCourse, ClassGroup as ApiClassGroup, ClassSchedule as ApiClassSchedule, CurricularUnit as ApiCurricularUnit } from '../../../services/courses/courseTypes';
 import { listUsers } from '../../../services/users/usersApi';
 import type { PlatformUser } from '../../../services/users/userTypes';
+import { listClassrooms } from '../../../services/classrooms/classroomsApi';
+import type { Classroom } from '../../../services/classrooms/classroomTypes';
+import { getActiveAcademicYear } from '../../../services/academicYears/academicYearsApi';
+import type { AcademicYear } from '../../../services/academicYears/academicYearTypes';
 
 interface CourseDetailsPageProps {
   courseId: string;
@@ -115,6 +123,30 @@ const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
   teacherId: group.teacherId,
 });
 
+const toTimeSlot = (
+  schedule: ApiClassSchedule,
+  classes: ClassGroup[],
+  units: CourseUnit[],
+  classrooms: Classroom[],
+): TimeSlot => {
+  const classGroup = classes.find(group => group.id === schedule.classGroupId);
+  const unit = units.find(item => item.id === schedule.curricularUnitId);
+  const classroom = classrooms.find(room => room.id === schedule.classroomId);
+
+  return {
+    id: schedule.id,
+    dayOfWeek: schedule.dayOfWeek,
+    startTime: schedule.startTime.slice(0, 5),
+    endTime: schedule.endTime.slice(0, 5),
+    unit: unit?.name ?? schedule.curricularUnitId,
+    type: schedule.componentType === 'Practical' ? 'practical' : 'theoretical',
+    room: classroom?.name ?? schedule.classroomId,
+    course: schedule.courseId,
+    yearGroup: `Year ${unit?.year ?? '?'}`,
+    classGroup: classGroup?.name ?? schedule.classGroupId,
+  };
+};
+
 export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userId, userEmail, onBack }: CourseDetailsPageProps) => {
   const [course, setCourse] = useState<MockCourse | undefined>(
     apiCourse ? toDetailsCourse(apiCourse) : undefined
@@ -122,7 +154,9 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   
   const [localUnits, setLocalUnits] = useState<CourseUnit[]>([]);
   const [localClasses, setLocalClasses] = useState<ClassGroup[]>([]);
-  const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>(mockTimetable);
+  const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [activeAcademicYear, setActiveAcademicYear] = useState<AcademicYear | undefined>(undefined);
   const [teachers, setTeachers] = useState<PlatformUser[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
   
@@ -144,19 +178,27 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   const [selectedYear, setSelectedYear] = useState<number>(1);
 
   const loadCourseDetails = useCallback(async () => {
-      const [details, loadedUsers] = await Promise.all([
+      const [details, loadedUsers, loadedClassrooms, loadedAcademicYear] = await Promise.all([
           getCourseDetails(courseId),
           listUsers(),
+          listClassrooms(),
+          getActiveAcademicYear(),
       ]);
 
       if (!details) {
           return;
       }
 
+      const mappedUnits = details.units.map(toCourseUnit);
+      const mappedClasses = details.classes.map(toDetailsClassGroup);
+
       setCourse(toDetailsCourse(details.course));
-      setLocalUnits(details.units.map(toCourseUnit));
-      setLocalClasses(details.classes.map(toDetailsClassGroup));
+      setLocalUnits(mappedUnits);
+      setLocalClasses(mappedClasses);
+      setLocalTimetable(details.schedules.map(schedule => toTimeSlot(schedule, mappedClasses, mappedUnits, loadedClassrooms)));
       setTeachers(loadedUsers.filter(user => user.roles.includes('Teacher')));
+      setClassrooms(loadedClassrooms);
+      setActiveAcademicYear(loadedAcademicYear ?? undefined);
   }, [courseId]);
 
   useEffect(() => {
@@ -388,12 +430,25 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       setIsClassModalOpen(true);
   };
   
-  const handleSaveClass = (classData: Omit<ClassGroup, 'id'>) => {
-      const newClass: ClassGroup = {
-          ...classData,
-          id: `new_class_${Date.now()}`,
-      };
-      setLocalClasses(prev => [...prev, newClass]);
+  const handleSaveClass = async (classData: Omit<ClassGroup, 'id'>) => {
+      try {
+          const created = await createClassGroup(courseId, {
+              curricularUnitId: classData.unitId,
+              name: classData.name,
+              teacherId: classData.teacherId,
+              isActive: true,
+          });
+
+          if (!created) {
+              throw new Error("Class group response was empty.");
+          }
+
+          setLocalClasses(prev => [...prev, toDetailsClassGroup(created)]);
+          setIsClassModalOpen(false);
+          toast.success("Class created successfully");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to save class group."));
+      }
   };
 
   const handleBulkImportSchedules = (schedules: Omit<TimeSlot, 'id'>[]) => {
@@ -406,23 +461,106 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   };
 
   // Schedule CRUD Handlers passed to ClassDetailsView
-  const handleAddSchedule = (scheduleData: Omit<TimeSlot, 'id'>) => {
-      const newSlot: TimeSlot = {
-          ...scheduleData,
-          id: `slot_${Date.now()}`,
-      };
-      setLocalTimetable(prev => [...prev, newSlot]);
-      toast.success("Schedule added successfully!");
+  const handleAddSchedule = async (scheduleData: Omit<TimeSlot, 'id'>) => {
+      if (!selectedClass) return;
+
+      const room = classrooms.find(item => item.name === scheduleData.room || item.id === scheduleData.room);
+
+      if (!room) {
+          toast.error("Select a valid classroom.");
+          return;
+      }
+
+      if (!activeAcademicYear) {
+          toast.error("Active academic year was not found.");
+          return;
+      }
+
+      const unit = localUnits.find(item => item.id === selectedClass.unitId);
+
+      if (!unit) {
+          toast.error("Curricular unit not found for this class.");
+          return;
+      }
+
+      try {
+          const created = await createClassSchedule(courseId, selectedClass.id, {
+              academicYearId: activeAcademicYear.id,
+              semester: unit.semester,
+              componentType: scheduleData.type === 'practical' ? 'Practical' : 'Theoretical',
+              dayOfWeek: scheduleData.dayOfWeek,
+              startTime: scheduleData.startTime,
+              endTime: scheduleData.endTime,
+              classroomId: room.id,
+              isActive: true,
+          });
+
+          if (!created) {
+              throw new Error("Schedule response was empty.");
+          }
+
+          setLocalTimetable(prev => [...prev, toTimeSlot(created, localClasses, localUnits, classrooms)]);
+          toast.success("Schedule added successfully!");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to save schedule."));
+      }
   };
 
-  const handleUpdateSchedule = (id: string, scheduleData: Omit<TimeSlot, 'id'>) => {
-      setLocalTimetable(prev => prev.map(slot => slot.id === id ? { ...slot, ...scheduleData } : slot));
-      toast.success("Schedule updated successfully!");
+  const handleUpdateSchedule = async (id: string, scheduleData: Omit<TimeSlot, 'id'>) => {
+      if (!selectedClass) return;
+
+      const room = classrooms.find(item => item.name === scheduleData.room || item.id === scheduleData.room);
+
+      if (!room) {
+          toast.error("Select a valid classroom.");
+          return;
+      }
+
+      if (!activeAcademicYear) {
+          toast.error("Active academic year was not found.");
+          return;
+      }
+
+      const unit = localUnits.find(item => item.id === selectedClass.unitId);
+
+      if (!unit) {
+          toast.error("Curricular unit not found for this class.");
+          return;
+      }
+
+      try {
+          const updated = await updateClassSchedule(courseId, selectedClass.id, id, {
+              academicYearId: activeAcademicYear.id,
+              semester: unit.semester,
+              componentType: scheduleData.type === 'practical' ? 'Practical' : 'Theoretical',
+              dayOfWeek: scheduleData.dayOfWeek,
+              startTime: scheduleData.startTime,
+              endTime: scheduleData.endTime,
+              classroomId: room.id,
+              isActive: true,
+          });
+
+          if (!updated) {
+              throw new Error("Schedule response was empty.");
+          }
+
+          setLocalTimetable(prev => prev.map(slot => slot.id === id ? toTimeSlot(updated, localClasses, localUnits, classrooms) : slot));
+          toast.success("Schedule updated successfully!");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to update schedule."));
+      }
   };
 
-  const handleDeleteSchedule = (id: string) => {
-      setLocalTimetable(prev => prev.filter(slot => slot.id !== id));
-      toast.success("Schedule deleted successfully.");
+  const handleDeleteSchedule = async (id: string) => {
+      if (!selectedClass) return;
+
+      try {
+          await deleteClassSchedule(courseId, selectedClass.id, id);
+          setLocalTimetable(prev => prev.filter(slot => slot.id !== id));
+          toast.success("Schedule deleted successfully.");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to delete schedule."));
+      }
   };
 
   // --- Render Logic ---
@@ -440,6 +578,8 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
               teacher={teacher}
               schedules={localTimetable}
               allClasses={localClasses}
+              courseUnits={courseUnits}
+              classrooms={classrooms}
               onBack={() => setSelectedClass(null)}
               onAddSchedule={handleAddSchedule}
               onUpdateSchedule={handleUpdateSchedule}
@@ -602,6 +742,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
         onClose={() => setIsClassModalOpen(false)}
         onSave={handleSaveClass}
         units={courseUnits}
+        teachers={teachers}
       />
 
       <AssignTeachersModal 

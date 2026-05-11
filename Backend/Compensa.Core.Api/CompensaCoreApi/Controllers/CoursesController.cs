@@ -160,6 +160,99 @@ public sealed class CoursesController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{courseId:guid}/classes")]
+    [Authorize(Roles = "Admin,Coordinator")]
+    [ProducesResponseType(typeof(ApiResponse<ClassGroupResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ClassGroupResponse>>> CreateClassGroup(
+        Guid courseId,
+        [FromBody] UpsertClassGroupRequest request,
+        CancellationToken cancellationToken)
+    {
+        var created = await _service.CreateClassGroupAsync(courseId, request, cancellationToken);
+        return CreatedAtAction(
+            nameof(GetDetails),
+            new { id = courseId },
+            ApiResponse<ClassGroupResponse>.Ok("Class group created.", created));
+    }
+
+    [HttpPut("{courseId:guid}/classes/{classGroupId:guid}")]
+    [Authorize(Roles = "Admin,Coordinator")]
+    [ProducesResponseType(typeof(ApiResponse<ClassGroupResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ClassGroupResponse>>> UpdateClassGroup(
+        Guid courseId,
+        Guid classGroupId,
+        [FromBody] UpsertClassGroupRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _service.UpdateClassGroupAsync(courseId, classGroupId, request, cancellationToken);
+        return Ok(ApiResponse<ClassGroupResponse>.Ok("Class group updated.", updated));
+    }
+
+    [HttpDelete("{courseId:guid}/classes/{classGroupId:guid}")]
+    [Authorize(Roles = "Admin,Coordinator")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteClassGroup(
+        Guid courseId,
+        Guid classGroupId,
+        CancellationToken cancellationToken)
+    {
+        await _service.DeleteClassGroupAsync(courseId, classGroupId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{courseId:guid}/classes/{classGroupId:guid}/schedules")]
+    [Authorize(Roles = "Admin,Coordinator")]
+    [ProducesResponseType(typeof(ApiResponse<ClassScheduleResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ClassScheduleResponse>>> CreateSchedule(
+        Guid courseId,
+        Guid classGroupId,
+        [FromBody] UpsertClassScheduleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var created = await _service.CreateScheduleAsync(courseId, classGroupId, request, cancellationToken);
+        return CreatedAtAction(
+            nameof(GetDetails),
+            new { id = courseId },
+            ApiResponse<ClassScheduleResponse>.Ok("Class schedule created.", created));
+    }
+
+    [HttpPut("{courseId:guid}/classes/{classGroupId:guid}/schedules/{scheduleId:guid}")]
+    [Authorize(Roles = "Admin,Coordinator")]
+    [ProducesResponseType(typeof(ApiResponse<ClassScheduleResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<ClassScheduleResponse>>> UpdateSchedule(
+        Guid courseId,
+        Guid classGroupId,
+        Guid scheduleId,
+        [FromBody] UpsertClassScheduleRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _service.UpdateScheduleAsync(courseId, classGroupId, scheduleId, request, cancellationToken);
+        return Ok(ApiResponse<ClassScheduleResponse>.Ok("Class schedule updated.", updated));
+    }
+
+    [HttpDelete("{courseId:guid}/classes/{classGroupId:guid}/schedules/{scheduleId:guid}")]
+    [Authorize(Roles = "Admin,Coordinator")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteSchedule(
+        Guid courseId,
+        Guid classGroupId,
+        Guid scheduleId,
+        CancellationToken cancellationToken)
+    {
+        await _service.DeleteScheduleAsync(courseId, classGroupId, scheduleId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(ApiResponse<CourseResponse>), StatusCodes.Status200OK)]

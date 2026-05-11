@@ -19,18 +19,20 @@ import {
 } from '../../../components/ui/select';
 import { Badge } from '../../../components/ui/badge';
 import { toast } from 'sonner@2.0.3';
-import { TimeSlot, Room, mockRooms, mockTimetable, ClassGroup, CurricularUnit } from '../../../mocks/data';
+import { TimeSlot, ClassGroup, CurricularUnit } from '../../../mocks/data';
+import type { Classroom } from '../../../services/classrooms/classroomTypes';
 
 interface AddScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (scheduleData: Omit<TimeSlot, 'id'>) => void;
+  onSave: (scheduleData: Omit<TimeSlot, 'id'>) => void | Promise<void>;
   classGroup: ClassGroup;
   unit: CurricularUnit;
   existingTimetable: TimeSlot[];
   allClasses: ClassGroup[];
   initialData?: TimeSlot;
   courseUnits: CurricularUnit[]; // Pass available units
+  classrooms: Classroom[];
 }
 
 export const AddScheduleModal = ({ 
@@ -42,7 +44,8 @@ export const AddScheduleModal = ({
   existingTimetable,
   allClasses,
   initialData,
-  courseUnits
+  courseUnits,
+  classrooms,
 }: AddScheduleModalProps) => {
   const [dayOfWeek, setDayOfWeek] = useState<string>('1');
   const [startTime, setStartTime] = useState('09:00');
@@ -178,13 +181,13 @@ export const AddScheduleModal = ({
       return (start1 < end2 && start2 < end1);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
       if (!room) {
           toast.error("Please select a classroom");
           return;
       }
       if (validateSchedule()) {
-          onSave({
+          await onSave({
               dayOfWeek: parseInt(dayOfWeek),
               startTime,
               endTime,
@@ -301,7 +304,7 @@ export const AddScheduleModal = ({
                 <SelectValue placeholder="Select classroom" />
               </SelectTrigger>
               <SelectContent>
-                {mockRooms.map((r) => (
+                {classrooms.map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                         {r.name} ({r.type}, Cap: {r.capacity})
                     </SelectItem>

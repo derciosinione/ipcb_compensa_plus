@@ -86,6 +86,82 @@ public sealed class CourseRepository : ICourseRepository
             .ToArrayAsync(cancellationToken);
     }
 
+    public Task<ClassGroup?> GetClassGroupByIdAsync(
+        Guid courseId,
+        Guid classGroupId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.ClassGroups.FirstOrDefaultAsync(
+            group => group.CourseId == courseId && group.Id == classGroupId,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(
+        Guid courseId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.ClassSchedules
+            .AsNoTracking()
+            .Where(schedule => schedule.CourseId == courseId)
+            .OrderBy(schedule => schedule.DayOfWeek)
+            .ThenBy(schedule => schedule.StartTime)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public Task<ClassSchedule?> GetClassScheduleByIdAsync(
+        Guid scheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.ClassSchedules.FirstOrDefaultAsync(
+            schedule => schedule.Id == scheduleId,
+            cancellationToken);
+    }
+
+    public Task<ClassSchedule?> GetClassScheduleByIdAsync(
+        Guid courseId,
+        Guid classGroupId,
+        Guid scheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        return _context.ClassSchedules.FirstOrDefaultAsync(
+            schedule =>
+                schedule.CourseId == courseId &&
+                schedule.ClassGroupId == classGroupId &&
+                schedule.Id == scheduleId,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<(ClassSchedule Schedule, ClassGroup ClassGroup)>> ListOverlappingSchedulesAsync(
+        Guid academicYearId,
+        int semester,
+        int dayOfWeek,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        Guid? excludedScheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        var query =
+            from schedule in _context.ClassSchedules.AsNoTracking()
+            join classGroup in _context.ClassGroups.AsNoTracking()
+                on schedule.ClassGroupId equals classGroup.Id
+            where schedule.IsActive &&
+                  classGroup.IsActive &&
+                  schedule.AcademicYearId == academicYearId &&
+                  schedule.Semester == semester &&
+                  schedule.DayOfWeek == dayOfWeek &&
+                  schedule.StartTime < endTime &&
+                  startTime < schedule.EndTime
+            select new { Schedule = schedule, ClassGroup = classGroup };
+
+        if (excludedScheduleId.HasValue)
+        {
+            query = query.Where(item => item.Schedule.Id != excludedScheduleId.Value);
+        }
+
+        var results = await query.ToArrayAsync(cancellationToken);
+        return results.Select(item => (item.Schedule, item.ClassGroup)).ToArray();
+    }
+
     public async Task<IReadOnlyCollection<CurricularUnitComponent>> ListComponentsAsync(
         Guid courseId,
         CancellationToken cancellationToken = default)
@@ -143,6 +219,18 @@ public sealed class CourseRepository : ICourseRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddClassGroupAsync(ClassGroup classGroup, CancellationToken cancellationToken = default)
+    {
+        _context.ClassGroups.Add(classGroup);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddClassScheduleAsync(ClassSchedule schedule, CancellationToken cancellationToken = default)
+    {
+        _context.ClassSchedules.Add(schedule);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return _context.SaveChangesAsync(cancellationToken);
@@ -163,6 +251,18 @@ public sealed class CourseRepository : ICourseRepository
     public async Task DeleteComponentAsync(CurricularUnitComponent component, CancellationToken cancellationToken = default)
     {
         _context.CurricularUnitComponents.Remove(component);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteClassGroupAsync(ClassGroup classGroup, CancellationToken cancellationToken = default)
+    {
+        _context.ClassGroups.Remove(classGroup);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteClassScheduleAsync(ClassSchedule schedule, CancellationToken cancellationToken = default)
+    {
+        _context.ClassSchedules.Remove(schedule);
         await _context.SaveChangesAsync(cancellationToken);
     }
 }

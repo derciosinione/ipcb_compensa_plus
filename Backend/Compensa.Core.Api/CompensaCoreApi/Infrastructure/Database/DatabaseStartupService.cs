@@ -1,4 +1,5 @@
 using CompensaCoreApi.Data;
+using CompensaCoreApi.Domain.AcademicYears;
 using CompensaCoreApi.Domain.Courses;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,9 +22,12 @@ public sealed class DatabaseStartupService : IHostedService
         var context = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
         await context.Database.EnsureCreatedAsync(cancellationToken);
+        await EnsureAcademicYearsTableAsync(context, cancellationToken);
         await EnsureClassroomsTableAsync(context, cancellationToken);
         await EnsureCoursesTableAsync(context, cancellationToken);
+        await SeedAcademicYearsAsync(context, cancellationToken);
         await EnsureCourseDetailsTablesAsync(context, cancellationToken);
+        await EnsureCompensationRequestsSchemaAsync(context, cancellationToken);
         await EnsureUserAssignmentsTableAsync(context, cancellationToken);
         await SeedClassroomsAsync(context, cancellationToken);
         await SeedCoursesAsync(context, cancellationToken);
@@ -32,6 +36,55 @@ public sealed class DatabaseStartupService : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private static async Task EnsureAcademicYearsTableAsync(CoreDbContext context, CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            create table if not exists academic_years (
+                "Id" uuid primary key,
+                "Name" varchar(20) not null,
+                "StartsOn" date not null,
+                "EndsOn" date not null,
+                "IsActive" boolean not null default false,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null
+            );
+            create unique index if not exists "IX_academic_years_Name" on academic_years ("Name");
+            create unique index if not exists "IX_academic_years_Active" on academic_years ("IsActive") where "IsActive" = true;
+            """,
+            cancellationToken);
+    }
+
+    private static async Task SeedAcademicYearsAsync(CoreDbContext context, CancellationToken cancellationToken)
+    {
+        if (await context.AcademicYears.AnyAsync(year => year.IsActive, cancellationToken))
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+        var defaultAcademicYear = await context.AcademicYears
+            .FirstOrDefaultAsync(year => year.Name == "2025/26", cancellationToken);
+
+        if (defaultAcademicYear is null)
+        {
+            context.AcademicYears.Add(new AcademicYear
+            {
+                Name = "2025/26",
+                StartsOn = new DateOnly(2025, 9, 1),
+                EndsOn = new DateOnly(2026, 8, 31),
+                IsActive = true,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+        else
+        {
+            defaultAcademicYear.IsActive = true;
+            defaultAcademicYear.UpdatedAt = now;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+    }
 
     private static async Task EnsureClassroomsTableAsync(CoreDbContext context, CancellationToken cancellationToken)
     {
@@ -231,6 +284,45 @@ public sealed class DatabaseStartupService : IHostedService
             );
             create unique index if not exists "IX_class_groups_CurricularUnitId_Name" on class_groups ("CurricularUnitId", "Name");
             create index if not exists "IX_class_groups_CourseId" on class_groups ("CourseId");
+
+            create table if not exists class_schedules (
+                "Id" uuid primary key,
+                "CourseId" uuid not null,
+                "CurricularUnitId" uuid not null,
+                "ClassGroupId" uuid not null,
+                "AcademicYearId" uuid not null,
+                "Semester" integer not null default 1,
+                "ComponentType" varchar(32) not null,
+                "DayOfWeek" integer not null,
+                "StartTime" time without time zone not null,
+                "EndTime" time without time zone not null,
+                "ClassroomId" uuid not null,
+                "IsActive" boolean not null default true,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null,
+                constraint "FK_class_schedules_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade,
+                constraint "FK_class_schedules_curricular_units_CurricularUnitId" foreign key ("CurricularUnitId") references curricular_units ("Id") on delete cascade,
+                constraint "FK_class_schedules_class_groups_ClassGroupId" foreign key ("ClassGroupId") references class_groups ("Id") on delete cascade,
+                constraint "FK_class_schedules_academic_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete restrict,
+                constraint "FK_class_schedules_classrooms_ClassroomId" foreign key ("ClassroomId") references classrooms ("Id") on delete restrict
+            );
+            alter table class_schedules add column if not exists "AcademicYearId" uuid null;
+            alter table class_schedules add column if not exists "Semester" integer not null default 1;
+            create index if not exists "IX_class_schedules_ClassGroupId" on class_schedules ("ClassGroupId");
+            create index if not exists "IX_class_schedules_AcademicYearId" on class_schedules ("AcademicYearId");
+            create index if not exists "IX_class_schedules_AcademicYearId_Semester_ClassroomId_DayOfWeek_StartTime_EndTime" on class_schedules ("AcademicYearId", "Semester", "ClassroomId", "DayOfWeek", "StartTime", "EndTime");
+            """,
+            cancellationToken);
+
+        var activeAcademicYearId = await context.AcademicYears
+            .Where(year => year.IsActive)
+            .Select(year => year.Id)
+            .FirstAsync(cancellationToken);
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            update class_schedules set "AcademicYearId" = {activeAcademicYearId} where "AcademicYearId" is null;
+            alter table class_schedules alter column "AcademicYearId" set not null;
             """,
             cancellationToken);
     }
@@ -267,6 +359,60 @@ public sealed class DatabaseStartupService : IHostedService
             );
             create index if not exists "IX_course_teacher_assignments_UserId" on course_teacher_assignments ("UserId");
             create unique index if not exists "IX_course_teacher_assignments_UserId_CourseId" on course_teacher_assignments ("UserId", "CourseId");
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureCompensationRequestsSchemaAsync(CoreDbContext context, CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            alter table compensation_requests add column if not exists "AcademicYearId" uuid null;
+            alter table compensation_requests add column if not exists "Semester" integer not null default 0;
+            alter table compensation_requests add column if not exists "CourseId" uuid null;
+            alter table compensation_requests add column if not exists "CurricularUnitId" uuid null;
+            alter table compensation_requests add column if not exists "ClassGroupId" uuid null;
+            alter table compensation_requests add column if not exists "OriginalClassScheduleId" uuid null;
+            alter table compensation_requests add column if not exists "OriginalClassroomId" uuid null;
+            alter table compensation_requests add column if not exists "NewClassroomId" uuid null;
+
+            create index if not exists "IX_compensation_requests_AcademicYearId" on compensation_requests ("AcademicYearId");
+            create index if not exists "IX_compensation_requests_CourseId" on compensation_requests ("CourseId");
+            create index if not exists "IX_compensation_requests_CurricularUnitId" on compensation_requests ("CurricularUnitId");
+            create index if not exists "IX_compensation_requests_ClassGroupId" on compensation_requests ("ClassGroupId");
+            create index if not exists "IX_compensation_requests_OriginalClassScheduleId" on compensation_requests ("OriginalClassScheduleId");
+            create index if not exists "IX_compensation_requests_NewClassroomId" on compensation_requests ("NewClassroomId");
+
+            do $$
+            begin
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_academic_years_AcademicYearId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_academic_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete restrict;
+                end if;
+
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_courses_CourseId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete restrict;
+                end if;
+
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_curricular_units_CurricularUnitId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_curricular_units_CurricularUnitId" foreign key ("CurricularUnitId") references curricular_units ("Id") on delete restrict;
+                end if;
+
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_class_groups_ClassGroupId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_class_groups_ClassGroupId" foreign key ("ClassGroupId") references class_groups ("Id") on delete restrict;
+                end if;
+
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_class_schedules_OriginalClassScheduleId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_class_schedules_OriginalClassScheduleId" foreign key ("OriginalClassScheduleId") references class_schedules ("Id") on delete restrict;
+                end if;
+
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_classrooms_OriginalClassroomId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_classrooms_OriginalClassroomId" foreign key ("OriginalClassroomId") references classrooms ("Id") on delete restrict;
+                end if;
+
+                if not exists (select 1 from pg_constraint where conname = 'FK_compensation_requests_classrooms_NewClassroomId') then
+                    alter table compensation_requests add constraint "FK_compensation_requests_classrooms_NewClassroomId" foreign key ("NewClassroomId") references classrooms ("Id") on delete restrict;
+                end if;
+            end $$;
             """,
             cancellationToken);
     }

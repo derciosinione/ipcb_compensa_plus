@@ -7,10 +7,12 @@ using CompensaCoreApi.Infrastructure.Database;
 using CompensaCoreApi.Infrastructure.OpenApi;
 using CompensaCoreApi.Middleware;
 using CompensaCoreApi.Repositories.Assignments;
+using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Classrooms;
 using CompensaCoreApi.Repositories.CompensationRequests;
 using CompensaCoreApi.Repositories.Courses;
 using CompensaCoreApi.Services.Assignments;
+using CompensaCoreApi.Services.AcademicYears;
 using CompensaCoreApi.Services.Classrooms;
 using CompensaCoreApi.Services.CompensationRequests;
 using CompensaCoreApi.Services.Courses;
@@ -78,6 +80,8 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<IClassroomRepository, ClassroomRepository>();
 builder.Services.AddScoped<IClassroomService, ClassroomService>();
+builder.Services.AddScoped<IAcademicYearRepository, AcademicYearRepository>();
+builder.Services.AddScoped<IAcademicYearService, AcademicYearService>();
 builder.Services.AddScoped<ICourseRepository, CourseRepository>();
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<IUserUnitAssignmentRepository, UserUnitAssignmentRepository>();

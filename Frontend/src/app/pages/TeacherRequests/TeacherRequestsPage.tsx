@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { DndProvider } from 'react-dnd';
@@ -15,14 +15,56 @@ import {
 } from "../../components/ui/alert-dialog";
 import { RequestForm } from '../../components/domain/requests/RequestForm';
 import { RequestDetailsPage } from '../../components/domain/requests/RequestDetailsPage';
-import { mockRequests, ClassRequest } from '../../mocks/data';
+import { ClassRequest } from '../../mocks/data';
 import { toast } from 'sonner@2.0.3';
 import { useLanguage } from '../../providers/LanguageContext';
 import { FilterBar, ViewMode, SortOrder, StatusFilter, CourseFilter } from '../../components/common/FilterBar';
 import { KanbanBoard } from '../../components/common/KanbanBoard';
 import { RequestsTable } from '../../components/common/RequestsTable';
+import { createCompensationRequest, listCompensationRequests } from '../../services/compensationRequests/compensationRequestsApi';
+import type { CompensationRequest } from '../../services/compensationRequests/compensationRequestTypes';
+import type { AuthenticatedUser } from '../../types/user';
+import { getErrorMessage } from '../../utils/errors';
 
-export const TeacherRequestsPage = () => {
+interface TeacherRequestsPageProps {
+  user: AuthenticatedUser;
+}
+
+const toClassRequest = (request: CompensationRequest): ClassRequest => ({
+  id: request.id,
+  course: request.course,
+  unit: request.curricularUnit,
+  yearGroups: request.yearGroups,
+  componentType: request.componentType.toLowerCase() as ClassRequest['componentType'],
+  originalDate: request.originalDate,
+  originalTime: `${request.originalStartTime.slice(0, 5)} - ${request.originalEndTime.slice(0, 5)}`,
+  originalRoom: request.originalRoom,
+  newDate: request.newDate,
+  newTime: `${request.newStartTime.slice(0, 5)} - ${request.newEndTime.slice(0, 5)}`,
+  newRoom: request.newRoom,
+  reason: request.justification,
+  status: request.status.toLowerCase() as ClassRequest['status'],
+  teacherName: request.teacherName,
+  submittedAt: request.submittedAt.split('T')[0],
+  hasConflict: request.hasConflict,
+  rejectionReason: request.decisionComment ?? undefined,
+  comments: [],
+});
+
+const addDuration = (startTime: string, durationSource: string) => {
+  const [sourceStart, sourceEnd] = durationSource.split('-').map(value => value.trim());
+  const [sourceStartHour, sourceStartMinute] = sourceStart.split(':').map(Number);
+  const [sourceEndHour, sourceEndMinute] = sourceEnd.split(':').map(Number);
+  const durationMinutes = (sourceEndHour * 60 + sourceEndMinute) - (sourceStartHour * 60 + sourceStartMinute);
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const totalMinutes = startHour * 60 + startMinute + Math.max(durationMinutes, 60);
+  const endHour = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+  const endMinute = (totalMinutes % 60).toString().padStart(2, '0');
+
+  return `${endHour}:${endMinute}`;
+};
+
+export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
   const { t } = useLanguage();
   
   // Dialog/Form State
@@ -40,11 +82,20 @@ export const TeacherRequestsPage = () => {
   const [courseFilter, setCourseFilter] = useState<CourseFilter>('all');
   
   // Data State
-  const [requests, setRequests] = useState<ClassRequest[]>(mockRequests);
+  const [requests, setRequests] = useState<ClassRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<ClassRequest | null>(null);
   const [viewState, setViewState] = useState<'list' | 'details'>('list');
   
   const itemsPerPage = viewMode === 'board' ? 6 : 10;
+
+  const loadRequests = useCallback(async () => {
+    try {
+      const loadedRequests = await listCompensationRequests(undefined, user.id);
+      setRequests(loadedRequests.map(toClassRequest));
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Unable to load compensation requests.'));
+    }
+  }, [user.id]);
 
   const isNearDate = (dateStr: string) => {
     const today = new Date();
@@ -58,16 +109,32 @@ export const TeacherRequestsPage = () => {
     setCurrentPage(1);
   }, [searchTerm, showHistory, viewMode, statusFilter, courseFilter]);
 
-  const handleCreateRequest = (dataArray: any[]) => {
-      const newRequests = dataArray.map((data: any) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        ...data,
-        status: 'pending',
-        teacherName: 'Dr. Ana Silva',
-        submittedAt: new Date().toISOString().split('T')[0],
-        comments: []
-      }));
-      setRequests(prev => [...prev, ...newRequests]);
+  useEffect(() => {
+    void loadRequests();
+  }, [loadRequests]);
+
+  const handleCreateRequest = async (dataArray: any[]) => {
+      try {
+        const createdRequests = await Promise.all(dataArray.map((data: any) => createCompensationRequest({
+          teacherUserId: user.id,
+          teacherName: user.name,
+          academicYearId: data.academicYearId,
+          courseId: data.course,
+          curricularUnitId: data.unit,
+          classGroupId: data.yearGroups[0],
+          originalClassScheduleId: data.originalRoom,
+          newClassroomId: data.newRoom,
+          originalDate: data.originalDate,
+          newDate: data.newDate,
+          newStartTime: data.newTime,
+          newEndTime: addDuration(data.newTime, data.originalTime),
+          justification: data.reason,
+        })));
+
+        setRequests(prev => [...createdRequests.filter(Boolean).map(request => toClassRequest(request!)), ...prev]);
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Unable to create compensation request.'));
+      }
   };
 
   const handleUpdateRequest = (data: any) => {
