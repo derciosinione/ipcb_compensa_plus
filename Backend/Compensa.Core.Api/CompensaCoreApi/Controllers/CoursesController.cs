@@ -3,6 +3,7 @@ using CompensaCoreApi.Dtos.Courses;
 using CompensaCoreApi.Services.Courses;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CompensaCoreApi.Controllers;
 
@@ -25,7 +26,12 @@ public sealed class CoursesController : ControllerBase
         [FromQuery] string? search,
         CancellationToken cancellationToken)
     {
-        var courses = await _service.ListAsync(search, cancellationToken);
+        var courses = await _service.ListAsync(
+            search,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<CourseResponse>>.Ok("Courses loaded.", courses));
     }
 
@@ -275,5 +281,12 @@ public sealed class CoursesController : ControllerBase
     {
         await _service.DeleteAsync(id, cancellationToken);
         return NoContent();
+    }
+    
+    private string GetCurrentUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub")
+            ?? throw new InvalidOperationException("Authenticated user id was not found.");
     }
 }

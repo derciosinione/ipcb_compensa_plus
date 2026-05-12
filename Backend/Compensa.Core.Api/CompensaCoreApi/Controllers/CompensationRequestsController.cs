@@ -28,7 +28,13 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromQuery] string? teacherUserId,
         CancellationToken cancellationToken)
     {
-        var requests = await _service.ListAsync(status, teacherUserId, cancellationToken);
+        var requests = await _service.ListAsync(
+            status,
+            teacherUserId,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<CompensationRequestResponse>>.Ok("Compensation requests loaded.", requests));
     }
 
@@ -40,7 +46,12 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var request = await _service.GetByIdAsync(id, cancellationToken);
+        var request = await _service.GetByIdAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request loaded.", request));
     }
 

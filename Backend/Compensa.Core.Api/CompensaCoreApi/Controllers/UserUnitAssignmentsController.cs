@@ -3,6 +3,7 @@ using CompensaCoreApi.Dtos.Assignments;
 using CompensaCoreApi.Services.Assignments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CompensaCoreApi.Controllers;
 
@@ -19,11 +20,19 @@ public sealed class UserUnitAssignmentsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
     [ProducesResponseType(typeof(ApiResponse<UserAcademicAssignmentsResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<UserAcademicAssignmentsResponse>>> List(
         string userId,
         CancellationToken cancellationToken)
     {
+        var currentUserId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        
+        if (userId != currentUserId && !User.IsInRole("Admin") && !User.IsInRole("Coordinator"))
+        {
+            return Forbid();
+        }
+
         var assignments = await _service.ListByUserAsync(userId, cancellationToken);
         return Ok(ApiResponse<UserAcademicAssignmentsResponse>.Ok("User assignments loaded.", assignments));
     }

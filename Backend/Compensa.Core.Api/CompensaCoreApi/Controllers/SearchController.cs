@@ -3,6 +3,7 @@ using CompensaCoreApi.Dtos.Search;
 using CompensaCoreApi.Services.Search;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CompensaCoreApi.Controllers;
 
@@ -24,7 +25,19 @@ public sealed class SearchController : ControllerBase
         [FromQuery] string query,
         CancellationToken cancellationToken)
     {
-        var results = await _service.SearchAsync(query ?? string.Empty, cancellationToken);
+        var results = await _service.SearchAsync(
+            query ?? string.Empty,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<GlobalSearchResultResponse>>.Ok("Search results loaded.", results));
+    }
+
+    private string GetCurrentUserId()
+    {
+        return User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub")
+            ?? throw new InvalidOperationException("Authenticated user id was not found.");
     }
 }

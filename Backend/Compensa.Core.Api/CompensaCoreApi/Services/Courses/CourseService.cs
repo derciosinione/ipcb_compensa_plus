@@ -30,10 +30,29 @@ public sealed class CourseService : ICourseService
 
     public async Task<IReadOnlyCollection<CourseResponse>> ListAsync(
         string? search,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default)
     {
-        var courses = await _repository.ListAsync(search, cancellationToken);
-        return courses.Select(ToResponse).ToArray();
+        // Security check: Teachers only see their assigned courses
+        if (!isAdmin && !isCoordinator)
+        {
+            var assignedCourseIds = (await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken))
+                .Select(a => a.CourseId)
+                .Distinct()
+                .ToHashSet();
+
+            var courses = await _repository.ListAsync(search, cancellationToken);
+            return courses
+                .Where(c => assignedCourseIds.Contains(c.Id))
+                .Select(ToResponse)
+                .ToArray();
+        }
+
+        // Coordinators/Admins see all for now (or we could filter coordinators too)
+        var allCourses = await _repository.ListAsync(search, cancellationToken);
+        return allCourses.Select(ToResponse).ToArray();
     }
 
     public async Task<CourseResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

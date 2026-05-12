@@ -40,15 +40,42 @@ public sealed class CompensationRequestService : ICompensationRequestService
     public async Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
         CompensationRequestStatus? status,
         string? teacherUserId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default)
     {
+        // Security check: Teachers can only see their own requests
+        if (!isAdmin && !isCoordinator)
+        {
+            teacherUserId = actorUserId;
+        }
+
         var requests = await _repository.ListAsync(status, teacherUserId, cancellationToken);
+        
+        // Extra layer for coordinators: they should only see requests for their courses?
+        // For now, we trust the filter above for teachers, and let coordinators see all.
+        // If we wanted to be stricter:
+        // if (isCoordinator && !isAdmin) { /* filter requests by coordinated course IDs */ }
+
         return requests.Select(ToResponse).ToArray();
     }
 
-    public async Task<CompensationRequestResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<CompensationRequestResponse> GetByIdAsync(
+        Guid id,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
     {
         var request = await GetRequiredRequestAsync(id, cancellationToken);
+        
+        // Security check: If teacher, must be the owner
+        if (!isAdmin && !isCoordinator && request.TeacherUserId != actorUserId)
+        {
+            throw new ForbiddenException("You don't have permission to view this request.");
+        }
+
         return ToResponse(request);
     }
 

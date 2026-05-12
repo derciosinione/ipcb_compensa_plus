@@ -8,9 +8,17 @@ public interface ICompensationRequestService
     Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
         CompensationRequestStatus? status,
         string? teacherUserId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default);
 
-    Task<CompensationRequestResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<CompensationRequestResponse> GetByIdAsync(
+        Guid id,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
 
     Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,

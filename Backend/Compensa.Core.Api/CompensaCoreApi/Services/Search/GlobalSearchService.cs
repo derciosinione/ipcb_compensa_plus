@@ -16,6 +16,9 @@ public sealed class GlobalSearchService : IGlobalSearchService
 
     public async Task<IReadOnlyCollection<GlobalSearchResultResponse>> SearchAsync(
         string query,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default)
     {
         var normalizedQuery = query.Trim();
@@ -25,11 +28,11 @@ public sealed class GlobalSearchService : IGlobalSearchService
         var likeQuery = $"%{normalizedQuery}%";
         var results = new List<GlobalSearchResultResponse>();
 
-        results.AddRange(await SearchCoursesAsync(likeQuery, cancellationToken));
+        results.AddRange(await SearchCoursesAsync(likeQuery, actorUserId, isCoordinator, isAdmin, cancellationToken));
         results.AddRange(await SearchUnitsAsync(likeQuery, cancellationToken));
         results.AddRange(await SearchClassGroupsAsync(likeQuery, cancellationToken));
         results.AddRange(await SearchClassroomsAsync(likeQuery, cancellationToken));
-        results.AddRange(await SearchRequestsAsync(likeQuery, cancellationToken));
+        results.AddRange(await SearchRequestsAsync(likeQuery, actorUserId, isCoordinator, isAdmin, cancellationToken));
 
         return results
             .OrderBy(result => GetTypeOrder(result.Type))
@@ -40,10 +43,27 @@ public sealed class GlobalSearchService : IGlobalSearchService
 
     private async Task<IReadOnlyCollection<GlobalSearchResultResponse>> SearchCoursesAsync(
         string likeQuery,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken)
     {
-        var courses = await _dbContext.Courses
-            .AsNoTracking()
+        var query = _dbContext.Courses.AsNoTracking();
+
+        // Security check: Teachers only see their assigned courses
+        if (!isAdmin && !isCoordinator)
+        {
+            var assignedCourseIds = await _dbContext.UserUnitAssignments
+                .AsNoTracking()
+                .Where(a => a.UserId == actorUserId)
+                .Select(a => a.CourseId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            query = query.Where(course => assignedCourseIds.Contains(course.Id));
+        }
+
+        var courses = await query
             .Where(course =>
                 EF.Functions.ILike(course.Name, likeQuery) ||
                 EF.Functions.ILike(course.Abbreviation, likeQuery))
@@ -160,10 +180,20 @@ public sealed class GlobalSearchService : IGlobalSearchService
 
     private async Task<IReadOnlyCollection<GlobalSearchResultResponse>> SearchRequestsAsync(
         string likeQuery,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken)
     {
-        var requests = await _dbContext.CompensationRequests
-            .AsNoTracking()
+        var query = _dbContext.CompensationRequests.AsNoTracking();
+
+        // Security check: Teachers only search their own requests
+        if (!isAdmin && !isCoordinator)
+        {
+            query = query.Where(request => request.TeacherUserId == actorUserId);
+        }
+
+        var requests = await query
             .Where(request =>
                 EF.Functions.ILike(request.Course, likeQuery) ||
                 EF.Functions.ILike(request.CurricularUnit, likeQuery) ||

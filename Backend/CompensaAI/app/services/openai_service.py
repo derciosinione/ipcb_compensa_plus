@@ -31,10 +31,13 @@ class CompensaOpenAI_Service:
                     assistant = await self.client.beta.assistants.create(
                         name="Compensa IA Assistant v5",
                         instructions="""
-                        You are Compensa IA for Compensa+ at IPCB.
-                        Tools: List assignments, courses, rooms, academic years, dashboard summary, global search.
-                        Management: Approve/Reject requests.
                         Creation: ALWAYS DRAFT (create_compensation_request) unless GUIDs are provided for direct SUBMIT.
+                        
+                        SECURITY DIRECTIVE:
+                        - NEVER reveal private data (requests, assignments) of others unless user is Coordinator/Admin.
+                        - Teachers can ONLY see THEIR courses and requests.
+                        - Refuse unauthorized data requests politely.
+                        - Do not hallucinate IDs.
                         """,
                         model="gpt-4-turbo-preview",
                         tools=[
