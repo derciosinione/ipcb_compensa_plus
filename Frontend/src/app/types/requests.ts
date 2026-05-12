@@ -1,13 +1,22 @@
-import type { UserRole } from './user';
+import type { UserRole } from "./user";
 
-export type RequestStatus = 'pending' | 'approved' | 'rejected';
-export type ComponentType = 'theoretical' | 'practical' | 'all';
+export type RequestStatus = "pending" | "approved" | "rejected" | "cancelled";
+export type ComponentType = "theoretical" | "practical" | "all";
 
 export interface Comment {
   id: string;
   authorName: string;
   role: UserRole;
   text: string;
+  createdAt: string;
+}
+
+export interface RequestDocument {
+  id: string;
+  requestId: string;
+  fileName: string;
+  sizeInBytes: number;
+  contentType: string;
   createdAt: string;
 }
 
@@ -30,4 +39,5 @@ export interface ClassRequest {
   hasConflict?: boolean;
   rejectionReason?: string;
   comments: Comment[];
+  documents: RequestDocument[];
 }

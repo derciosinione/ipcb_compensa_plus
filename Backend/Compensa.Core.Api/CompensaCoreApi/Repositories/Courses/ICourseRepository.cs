@@ -7,6 +7,7 @@ public interface ICourseRepository
 {
     Task<IReadOnlyCollection<Course>> ListAsync(string? search, CancellationToken cancellationToken = default);
     Task<Course?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<Course>> ListCoordinatedByAsync(string coordinatorUserId, CancellationToken cancellationToken = default);
     Task<Course?> GetByAbbreviationAsync(string abbreviation, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<CurricularUnit>> ListUnitsAsync(Guid courseId, CancellationToken cancellationToken = default);
     Task<CurricularUnit?> GetUnitByIdAsync(Guid courseId, Guid unitId, CancellationToken cancellationToken = default);

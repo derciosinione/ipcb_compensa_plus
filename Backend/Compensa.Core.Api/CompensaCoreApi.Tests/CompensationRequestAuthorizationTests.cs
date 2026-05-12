@@ -120,7 +120,8 @@ public sealed class CompensationRequestAuthorizationTests
             assignmentRepository: new FakeAssignmentRepository(courseAssignments ?? []),
             publishEndpoint: null!,
             auditService: null!,
-            cache: null!);
+            cache: null!,
+            documentStorageService: null!);
     }
 
     private static CompensationRequest CreateRequest(string teacherUserId, Guid? courseId = null)
@@ -171,9 +172,15 @@ public sealed class CompensationRequestAuthorizationTests
             return Task.FromResult(result);
         }
 
-        public Task<CompensationRequest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+        public Task<CompensationRequest?> GetByIdAsync(Guid id, bool includeDocuments = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_requests.FirstOrDefault(request => request.Id == id));
+        }
+
+        public Task DeleteAsync(CompensationRequest request, CancellationToken cancellationToken = default)
+        {
+            _requests.Remove(request);
+            return Task.CompletedTask;
         }
 
         public Task<IReadOnlyCollection<CompensationRequest>> ListOverlappingActiveAsync(
@@ -212,6 +219,14 @@ public sealed class CompensationRequestAuthorizationTests
         public Task<Course?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(_courses.FirstOrDefault(course => course.Id == id));
+        }
+
+        public Task<IReadOnlyCollection<Course>> ListCoordinatedByAsync(string coordinatorUserId, CancellationToken cancellationToken = default)
+        {
+            IReadOnlyCollection<Course> result = _courses
+                .Where(course => course.CoordinatorUserId == coordinatorUserId)
+                .ToArray();
+            return Task.FromResult(result);
         }
 
         public Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCourseAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default)

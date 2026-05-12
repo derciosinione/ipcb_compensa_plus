@@ -1,33 +1,57 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Search, Filter, UserPlus, Upload } from 'lucide-react';
-import { AddUserModal } from './components/AddUserModal';
-import { TeacherUnitsModal } from './components/TeacherUnitsModal';
-import { BulkImportUsersSheet } from './components/BulkImportUsersSheet';
-import { UsersTable } from './components/UsersTable';
-import { useLanguage } from '../../providers/LanguageContext';
-import { toast } from 'sonner@2.0.3';
-import { createUser, listRoles, listUsers } from '../../services/users/usersApi';
-import type { CreateUserRequest, PlatformUser, UserRole } from '../../services/users/userTypes';
-import { getCourseDetails, listCourses } from '../../services/courses/coursesApi';
-import type { Course, CurricularUnit } from '../../services/courses/courseTypes';
-import { listUserUnitAssignments, saveUserUnitAssignments } from '../../services/assignments/assignmentsApi';
-import type { CourseAssignmentInput } from '../../services/assignments/assignmentTypes';
-import type { ImportedUser } from '../../types/user';
-import { toIdentityRole } from './userPresentation';
-import { getErrorMessage } from '../../utils/errors';
+import React, { useEffect, useMemo, useState } from "react";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Search, Filter, UserPlus, Upload } from "lucide-react";
+import { AddUserModal } from "./components/AddUserModal";
+import { TeacherUnitsModal } from "./components/TeacherUnitsModal";
+import { BulkImportUsersSheet } from "./components/BulkImportUsersSheet";
+import { UsersTable } from "./components/UsersTable";
+import { useLanguage } from "../../providers/LanguageContext";
+import { toast } from "sonner";
+import {
+  createUser,
+  listRoles,
+  listUsers,
+} from "../../services/users/usersApi";
+import type {
+  CreateUserRequest,
+  PlatformUser,
+  UserRole,
+} from "../../services/users/userTypes";
+import {
+  getCourseDetails,
+  listCourses,
+} from "../../services/courses/coursesApi";
+import type {
+  Course,
+  CurricularUnit,
+} from "../../services/courses/courseTypes";
+import {
+  listUserUnitAssignments,
+  saveUserUnitAssignments,
+} from "../../services/assignments/assignmentsApi";
+import type { CourseAssignmentInput } from "../../services/assignments/assignmentTypes";
+import type { ImportedUser } from "../../types/user";
+import { toIdentityRole } from "./userPresentation";
+import { getErrorMessage } from "../../utils/errors";
 
 export const UsersPage = () => {
   const { t } = useLanguage();
 
   const [users, setUsers] = useState<PlatformUser[]>([]);
-  const [roles, setRoles] = useState<UserRole[]>(['Admin', 'Coordinator', 'Teacher', 'Student']);
+  const [roles, setRoles] = useState<UserRole[]>([
+    "Admin",
+    "Coordinator",
+    "Teacher",
+    "Student",
+  ]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [units, setUnits] = useState<CurricularUnit[]>([]);
   const [assignedUnitIds, setAssignedUnitIds] = useState<string[]>([]);
-  const [assignedCourses, setAssignedCourses] = useState<CourseAssignmentInput[]>([]);
-  const [search, setSearch] = useState('');
+  const [assignedCourses, setAssignedCourses] = useState<
+    CourseAssignmentInput[]
+  >([]);
+  const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isSavingAssignments, setIsSavingAssignments] = useState(false);
@@ -38,10 +62,15 @@ export const UsersPage = () => {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isAssignUnitsOpen, setIsAssignUnitsOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<PlatformUser | undefined>(undefined);
+  const [selectedUser, setSelectedUser] = useState<PlatformUser | undefined>(
+    undefined,
+  );
 
   const totalUserPages = Math.ceil(users.length / userPageSize);
-  const paginatedUsers = users.slice((userPage - 1) * userPageSize, userPage * userPageSize);
+  const paginatedUsers = users.slice(
+    (userPage - 1) * userPageSize,
+    userPage * userPageSize,
+  );
 
   const loadUsers = async (query = search) => {
     const loadedUsers = await listUsers(query);
@@ -69,7 +98,7 @@ export const UsersPage = () => {
 
         setUnits(details.flatMap((detail) => detail?.units ?? []));
       } catch (error) {
-        toast.error(getErrorMessage(error, 'Failed to load users.'));
+        toast.error(getErrorMessage(error, "Failed to load users."));
       } finally {
         setIsLoading(false);
       }
@@ -84,7 +113,7 @@ export const UsersPage = () => {
     try {
       await loadUsers(search);
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to search users.'));
+      toast.error(getErrorMessage(error, "Failed to search users."));
     }
   };
 
@@ -94,9 +123,9 @@ export const UsersPage = () => {
       await createUser(request);
       await loadUsers();
       setIsAddUserOpen(false);
-      toast.success('User created successfully.');
+      toast.success("User created successfully.");
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to create user.'));
+      toast.error(getErrorMessage(error, "Failed to create user."));
     } finally {
       setIsSavingUser(false);
     }
@@ -119,7 +148,7 @@ export const UsersPage = () => {
       await loadUsers();
       toast.success(`Successfully imported ${newUsers.length} users.`);
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to import users.'));
+      toast.error(getErrorMessage(error, "Failed to import users."));
     } finally {
       setIsSavingUser(false);
     }
@@ -133,15 +162,19 @@ export const UsersPage = () => {
 
     try {
       const assignments = await listUserUnitAssignments(user.id);
-      setAssignedUnitIds(assignments.units.map((assignment) => assignment.curricularUnitId));
-      setAssignedCourses(assignments.courses.map((assignment) => ({
-        courseId: assignment.courseId,
-        isCoordinator: assignment.isCoordinator,
-      })));
+      setAssignedUnitIds(
+        assignments.units.map((assignment) => assignment.curricularUnitId),
+      );
+      setAssignedCourses(
+        assignments.courses.map((assignment) => ({
+          courseId: assignment.courseId,
+          isCoordinator: assignment.isCoordinator,
+        })),
+      );
     } catch (error) {
       setAssignedUnitIds([]);
       setAssignedCourses([]);
-      toast.error(getErrorMessage(error, 'Failed to load assignments.'));
+      toast.error(getErrorMessage(error, "Failed to load assignments."));
     }
   };
 
@@ -153,7 +186,12 @@ export const UsersPage = () => {
 
     try {
       setIsSavingAssignments(true);
-      await saveUserUnitAssignments(selectedUser.id, selectedUser.email, curricularUnitIds, courseAssignments);
+      await saveUserUnitAssignments(
+        selectedUser.id,
+        selectedUser.email,
+        curricularUnitIds,
+        courseAssignments,
+      );
       setAssignedUnitIds(curricularUnitIds);
       setAssignedCourses(courseAssignments);
       setUnits((currentUnits) =>
@@ -170,9 +208,11 @@ export const UsersPage = () => {
         }),
       );
       setIsAssignUnitsOpen(false);
-      toast.success(`Updated unit assignments for ${selectedUser.fullName || selectedUser.email}.`);
+      toast.success(
+        `Updated unit assignments for ${selectedUser.fullName || selectedUser.email}.`,
+      );
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to save assignments.'));
+      toast.error(getErrorMessage(error, "Failed to save assignments."));
     } finally {
       setIsSavingAssignments(false);
     }
@@ -220,32 +260,50 @@ export const UsersPage = () => {
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('users.title')}</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t('users.subtitle')}</p>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            {t("users.title")}
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            {t("users.subtitle")}
+          </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsBulkImportOpen(true)} className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+          <Button
+            variant="outline"
+            onClick={() => setIsBulkImportOpen(true)}
+            className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
             <Upload className="w-4 h-4 mr-2" /> Bulk Import
           </Button>
-          <Button onClick={() => setIsAddUserOpen(true)} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20">
-            <UserPlus className="w-4 h-4 mr-2" /> {t('actions.add_user')}
+          <Button
+            onClick={() => setIsAddUserOpen(true)}
+            className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"
+          >
+            <UserPlus className="w-4 h-4 mr-2" /> {t("actions.add_user")}
           </Button>
         </div>
       </div>
 
-      <form onSubmit={handleSearch} className="flex flex-col sm:flex-row justify-between gap-4">
+      <form
+        onSubmit={handleSearch}
+        className="flex flex-col sm:flex-row justify-between gap-4"
+      >
         <div className="flex gap-2 w-full sm:w-auto">
           <div className="relative w-full sm:w-[300px]">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={t('users.search')}
+              placeholder={t("users.search")}
               className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl dark:text-slate-200 dark:placeholder:text-slate-500"
             />
           </div>
-          <Button type="submit" variant="outline" className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800">
-            <Filter className="w-4 h-4 mr-2" /> {t('actions.filter')}
+          <Button
+            type="submit"
+            variant="outline"
+            className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <Filter className="w-4 h-4 mr-2" /> {t("actions.filter")}
           </Button>
         </div>
       </form>
@@ -255,13 +313,13 @@ export const UsersPage = () => {
         currentPage={userPage}
         isLoading={isLoading}
         labels={{
-          actions: t('actions.actions'),
-          assignUnits: t('actions.assign_units'),
-          deactivate: t('actions.deactivate'),
-          editDetails: t('actions.edit_details'),
-          email: t('users.email'),
-          name: t('users.name'),
-          role: t('users.role'),
+          actions: t("actions.actions"),
+          assignUnits: t("actions.assign_units"),
+          deactivate: t("actions.deactivate"),
+          editDetails: t("actions.edit_details"),
+          email: t("users.email"),
+          name: t("users.name"),
+          role: t("users.role"),
         }}
         onAssignUnits={handleOpenAssignUnits}
         onPageChange={setUserPage}

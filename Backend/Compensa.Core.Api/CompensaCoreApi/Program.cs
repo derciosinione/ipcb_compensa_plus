@@ -23,6 +23,7 @@ using CompensaCoreApi.Services.Dashboard;
 using CompensaCoreApi.Services.Schedules;
 using CompensaCoreApi.Services.Search;
 using CompensaCoreApi.Services.Audit;
+using CompensaCoreApi.Services.Documents;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -135,6 +136,7 @@ builder.Services.AddScoped<IScheduleAvailabilityService, ScheduleAvailabilitySer
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IDocumentStorageService, LocalDocumentStorageService>();
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {

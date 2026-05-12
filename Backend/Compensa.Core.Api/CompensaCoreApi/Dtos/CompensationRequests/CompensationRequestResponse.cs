@@ -32,4 +32,5 @@ public sealed record CompensationRequestResponse(
     bool HasConflict,
     DateTimeOffset SubmittedAt,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    IReadOnlyCollection<CompensationRequestDocumentResponse> Documents);

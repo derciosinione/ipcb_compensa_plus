@@ -75,8 +75,28 @@ public sealed class CompensationRequestsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, response);
     }
 
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<CompensationRequestResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<CompensationRequestResponse>>> Update(
+        Guid id,
+        [FromBody] UpdateCompensationRequestRequest request,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _service.UpdateAsync(
+            id,
+            request,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
+        return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request updated.", updated));
+    }
+
     [HttpPatch("{id:guid}/status")]
-    [Authorize(Roles = "Coordinator,Admin")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
     [ProducesResponseType(typeof(ApiResponse<CompensationRequestResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -93,6 +113,105 @@ public sealed class CompensationRequestsController : ControllerBase
             User.IsInRole("Admin"),
             cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request status updated.", updated));
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Coordinator,Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> Delete(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        await _service.DeleteAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/documents")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<CompensationRequestDocumentResponse>), StatusCodes.Status201Created)]
+    public async Task<ActionResult<ApiResponse<CompensationRequestDocumentResponse>>> UploadDocument(
+        Guid id,
+        IFormFile file,
+        CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(ApiResponse<object>.Fail("No file uploaded."));
+
+        using var stream = file.OpenReadStream();
+        var uploaded = await _service.UploadDocumentAsync(
+            id,
+            stream,
+            file.FileName,
+            file.ContentType,
+            file.Length,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
+
+        return CreatedAtAction(nameof(GetDocumentFile), new { id, documentId = uploaded.Id }, ApiResponse<CompensationRequestDocumentResponse>.Ok("Document uploaded.", uploaded));
+    }
+
+    [HttpGet("{id:guid}/documents")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<CompensationRequestDocumentResponse>>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyCollection<CompensationRequestDocumentResponse>>>> ListDocuments(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var documents = await _service.ListDocumentsAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
+        return Ok(ApiResponse<IReadOnlyCollection<CompensationRequestDocumentResponse>>.Ok("Documents loaded.", documents));
+    }
+
+    [HttpGet("{id:guid}/documents/{documentId:guid}")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDocumentFile(
+        Guid id,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        var (stream, fileName, contentType) = await _service.GetDocumentFileAsync(
+            id,
+            documentId,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
+
+        return File(stream, contentType, fileName);
+    }
+
+    [HttpDelete("{id:guid}/documents/{documentId:guid}")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<ActionResult> DeleteDocument(
+        Guid id,
+        Guid documentId,
+        CancellationToken cancellationToken)
+    {
+        await _service.DeleteDocumentAsync(
+            id,
+            documentId,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
+
+        return NoContent();
     }
 
     private string GetCurrentUserId()

@@ -44,6 +44,14 @@ public sealed class CourseRepository : ICourseRepository
         return _context.Courses.FirstOrDefaultAsync(course => course.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<Course>> ListCoordinatedByAsync(string coordinatorUserId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Courses
+            .AsNoTracking()
+            .Where(course => course.CoordinatorUserId == coordinatorUserId)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public Task<Course?> GetByAbbreviationAsync(string abbreviation, CancellationToken cancellationToken = default)
     {
         var normalizedAbbreviation = abbreviation.Trim().ToLower();

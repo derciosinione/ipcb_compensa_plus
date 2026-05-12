@@ -1,6 +1,6 @@
-import type { AuthenticatedUser, UserRole } from '../../types/user';
-import { CoordinatorRequestsPage } from '../CoordinatorRequests/CoordinatorRequestsPage';
-import { TeacherRequestsPage } from '../TeacherRequests/TeacherRequestsPage';
+import type { AuthenticatedUser, UserRole } from "../../types/user";
+import { CoordinatorRequestsPage } from "../CoordinatorRequests/CoordinatorRequestsPage";
+import { TeacherRequestsPage } from "../TeacherRequests/TeacherRequestsPage";
 
 interface RequestsPageProps {
   userRole: UserRole;
@@ -8,7 +8,7 @@ interface RequestsPageProps {
 }
 
 export const RequestsPage = ({ userRole, user }: RequestsPageProps) => {
-  if (userRole === 'coordinator' || userRole === 'admin') {
+  if (userRole === "coordinator" || userRole === "admin") {
     return <CoordinatorRequestsPage userRole={userRole} />;
   }
 

@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { searchPlatform } from './searchApi';
+import { useQuery } from "@tanstack/react-query";
+import { searchPlatform } from "./searchApi";
 
 export const searchQueryKeys = {
-  all: ['search'] as const,
+  all: ["search"] as const,
   results: (query: string) => [...searchQueryKeys.all, query.trim()] as const,
 };
 

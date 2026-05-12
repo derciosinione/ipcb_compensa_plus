@@ -1,4 +1,4 @@
-export type ComponentType = 'theoretical' | 'practical' | 'all';
+export type ComponentType = "theoretical" | "practical" | "all";
 
 export interface TimeSlot {
   id: string;
@@ -6,7 +6,7 @@ export interface TimeSlot {
   startTime: string;
   endTime: string;
   unit: string;
-  type: 'theoretical' | 'practical';
+  type: "theoretical" | "practical";
   room: string;
   course: string;
   yearGroup: string;
@@ -16,7 +16,7 @@ export interface TimeSlot {
 export interface Room {
   id: string;
   name: string;
-  type: 'Amphitheater' | 'Standard' | 'PC Lab' | 'Mac Lab';
+  type: "Amphitheater" | "Standard" | "PC Lab" | "Mac Lab";
   capacity: number;
   features: string[];
 }
@@ -26,7 +26,7 @@ export interface Course {
   name: string;
   abbreviation: string;
   description: string;
-  type: 'Licenciatura' | 'Mestrado' | 'CTeSP';
+  type: "Licenciatura" | "Mestrado" | "CTeSP";
   durationYears: number;
   totalCredits: number;
   coordinatorId: string;
@@ -44,7 +44,7 @@ export interface CurricularUnit {
   regentId?: string;
   theoreticalTeacherId?: string;
   practicalTeacherId?: string;
-  component: 'Theoretical' | 'Practical' | 'All';
+  component: "Theoretical" | "Practical" | "All";
 }
 
 export interface ClassGroup {

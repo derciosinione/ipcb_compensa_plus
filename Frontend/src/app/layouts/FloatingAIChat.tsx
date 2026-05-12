@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
-import { Sparkles, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
-import { AIChatInterface } from './AIChatInterface';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState } from "react";
+import { Sparkles, X } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/dialog";
+import { AIChatInterface } from "./AIChatInterface";
+import { motion, AnimatePresence } from "motion/react";
 
 export function FloatingAIChat() {
   const [isOpen, setIsOpen] = useState(false);
@@ -45,7 +51,9 @@ export function FloatingAIChat() {
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold">AI Assistant</DialogTitle>
+                <DialogTitle className="text-xl font-bold">
+                  AI Assistant
+                </DialogTitle>
                 <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
                   Upload documents and extract structured data
                 </DialogDescription>

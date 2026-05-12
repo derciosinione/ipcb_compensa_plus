@@ -15,6 +15,7 @@ public sealed class CoreDbContext : DbContext
     }
 
     public DbSet<CompensationRequest> CompensationRequests => Set<CompensationRequest>();
+    public DbSet<CompensationRequestDocument> CompensationRequestDocuments => Set<CompensationRequestDocument>();
     public DbSet<AcademicYear> AcademicYears => Set<AcademicYear>();
     public DbSet<Classroom> Classrooms => Set<Classroom>();
     public DbSet<Course> Courses => Set<Course>();
@@ -144,6 +145,24 @@ public sealed class CoreDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(request => request.NewClassroomId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(request => request.Documents)
+                .WithOne(doc => doc.CompensationRequest)
+                .HasForeignKey(doc => doc.CompensationRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CompensationRequestDocument>(entity =>
+        {
+            entity.ToTable("compensation_request_documents");
+            entity.HasKey(doc => doc.Id);
+            
+            entity.Property(doc => doc.FileName).HasMaxLength(255).IsRequired();
+            entity.Property(doc => doc.StoredFileName).HasMaxLength(100).IsRequired();
+            entity.Property(doc => doc.FilePath).HasMaxLength(500).IsRequired();
+            entity.Property(doc => doc.ContentType).HasMaxLength(100).IsRequired();
+            
+            entity.HasIndex(doc => doc.CompensationRequestId);
         });
 
         modelBuilder.Entity<Classroom>(entity =>

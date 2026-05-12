@@ -1,5 +1,9 @@
-export type TeachingComponentType = 'Theoretical' | 'Practical' | 'All';
-export type CompensationRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled';
+export type TeachingComponentType = "Theoretical" | "Practical" | "All";
+export type CompensationRequestStatus =
+  | "Pending"
+  | "Approved"
+  | "Rejected"
+  | "Cancelled";
 
 export interface CreateCompensationRequestRequest {
   teacherUserId: string;
@@ -15,6 +19,23 @@ export interface CreateCompensationRequestRequest {
   newStartTime: string;
   newEndTime: string;
   justification: string;
+}
+
+export interface UpdateCompensationRequestRequest {
+  newClassroomId: string;
+  newDate: string;
+  newStartTime: string;
+  newEndTime: string;
+  justification: string;
+}
+
+export interface CompensationRequestDocument {
+  id: string;
+  compensationRequestId: string;
+  fileName: string;
+  sizeInBytes: number;
+  contentType: string;
+  createdAt: string;
 }
 
 export interface CompensationRequest {
@@ -48,4 +69,5 @@ export interface CompensationRequest {
   submittedAt: string;
   createdAt: string;
   updatedAt: string;
+  documents: CompensationRequestDocument[];
 }

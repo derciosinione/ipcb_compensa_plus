@@ -1,19 +1,19 @@
 export const appPaths = {
-  root: '/',
-  login: '/login',
-  authVerify: '/auth/verify',
-  dashboard: '/dashboard',
-  requests: '/requests',
-  calendar: '/calendar',
-  notifications: '/notifications',
-  courses: '/courses',
-  classrooms: '/classrooms',
-  users: '/users',
-  systemCalendar: '/system-calendar',
-  aiConverter: '/ai-converter',
-  profile: '/profile',
-  settings: '/settings',
-  preferences: '/preferences',
+  root: "/",
+  login: "/login",
+  authVerify: "/auth/verify",
+  dashboard: "/dashboard",
+  requests: "/requests",
+  calendar: "/calendar",
+  notifications: "/notifications",
+  courses: "/courses",
+  classrooms: "/classrooms",
+  users: "/users",
+  systemCalendar: "/system-calendar",
+  aiConverter: "/ai-converter",
+  profile: "/profile",
+  settings: "/settings",
+  preferences: "/preferences",
 } as const;
 
 export type AppPath = (typeof appPaths)[keyof typeof appPaths];
@@ -30,7 +30,7 @@ const searchTargetPaths: Record<string, AppPath> = {
 };
 
 export const resolveAppPath = (target: string): AppPath => {
-  if (target.startsWith('/')) {
+  if (target.startsWith("/")) {
     return target as AppPath;
   }
 

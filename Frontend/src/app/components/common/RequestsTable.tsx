@@ -1,5 +1,5 @@
-import React from 'react';
-import { Calendar, Clock, MoreHorizontal } from 'lucide-react';
+import React from "react";
+import { Calendar, Clock, MoreHorizontal } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -7,7 +7,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/table';
+} from "../ui/table";
 import {
   Pagination,
   PaginationContent,
@@ -16,16 +16,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "../ui/pagination";
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Card } from '../ui/card';
-import type { ClassRequest } from '../../types/requests';
-import { cn } from '../ui/utils';
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { Card } from "../ui/card";
+import type { ClassRequest } from "../../types/requests";
+import { cn } from "../ui/utils";
 
 export interface RequestsTableProps {
   requests: ClassRequest[];
-  userRole: 'teacher' | 'coordinator' | 'admin';
+  userRole: "teacher" | "coordinator" | "admin";
   showHistory: boolean;
   currentPage: number;
   totalPages: number;
@@ -36,17 +36,32 @@ export interface RequestsTableProps {
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles = {
-    approved: "bg-green-50 text-green-700 ring-1 ring-green-600/20 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-900",
-    pending: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-400 dark:ring-amber-900",
-    rejected: "bg-red-50 text-red-700 ring-1 ring-red-600/20 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-900",
+    approved:
+      "bg-green-50 text-green-700 ring-1 ring-green-600/20 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-900",
+    pending:
+      "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20 dark:bg-amber-900/30 dark:text-amber-400 dark:ring-amber-900",
+    rejected:
+      "bg-red-50 text-red-700 ring-1 ring-red-600/20 dark:bg-red-900/30 dark:text-red-400 dark:ring-red-900",
   };
-  
+
   return (
-    <Badge variant="secondary" className={cn("font-medium px-2.5 py-0.5 rounded-full capitalize", styles[status as keyof typeof styles])}>
-      <span className={cn("w-1.5 h-1.5 rounded-full mr-1.5 inline-block", 
-         status === 'approved' ? 'bg-green-500' : 
-         status === 'pending' ? 'bg-amber-500' : 'bg-red-500'
-      )} />
+    <Badge
+      variant="secondary"
+      className={cn(
+        "font-medium px-2.5 py-0.5 rounded-full capitalize",
+        styles[status as keyof typeof styles],
+      )}
+    >
+      <span
+        className={cn(
+          "w-1.5 h-1.5 rounded-full mr-1.5 inline-block",
+          status === "approved"
+            ? "bg-green-500"
+            : status === "pending"
+              ? "bg-amber-500"
+              : "bg-red-500",
+        )}
+      />
       {status}
     </Badge>
   );
@@ -62,7 +77,7 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
   onViewDetails,
   onEdit,
 }) => {
-  const isTeacher = userRole === 'teacher';
+  const isTeacher = userRole === "teacher";
 
   return (
     <Card className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm flex-1 flex flex-col min-h-0">
@@ -70,31 +85,61 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
         <Table>
           <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10">
             <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
-              <TableHead className="w-[300px] pl-6 text-slate-500 dark:text-slate-400">Class Unit & Course</TableHead>
-              {!isTeacher && <TableHead className="text-slate-500 dark:text-slate-400">Teacher</TableHead>}
-              {showHistory && <TableHead className="text-slate-500 dark:text-slate-400">Original Date</TableHead>}
-              <TableHead className="text-slate-500 dark:text-slate-400">{showHistory ? 'New Date' : 'Proposed Date & Time'}</TableHead>
-              <TableHead className="text-slate-500 dark:text-slate-400">Status</TableHead>
-              {!showHistory && <TableHead className="text-slate-500 dark:text-slate-400">Reason</TableHead>}
-              <TableHead className="text-right pr-6 text-slate-500 dark:text-slate-400">Actions</TableHead>
+              <TableHead className="w-[300px] pl-6 text-slate-500 dark:text-slate-400">
+                Class Unit & Course
+              </TableHead>
+              {!isTeacher && (
+                <TableHead className="text-slate-500 dark:text-slate-400">
+                  Teacher
+                </TableHead>
+              )}
+              {showHistory && (
+                <TableHead className="text-slate-500 dark:text-slate-400">
+                  Original Date
+                </TableHead>
+              )}
+              <TableHead className="text-slate-500 dark:text-slate-400">
+                {showHistory ? "New Date" : "Proposed Date & Time"}
+              </TableHead>
+              <TableHead className="text-slate-500 dark:text-slate-400">
+                Status
+              </TableHead>
+              {!showHistory && (
+                <TableHead className="text-slate-500 dark:text-slate-400">
+                  Reason
+                </TableHead>
+              )}
+              <TableHead className="text-right pr-6 text-slate-500 dark:text-slate-400">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {requests.map((request) => (
-              <TableRow 
-                key={request.id} 
-                className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-50 dark:border-slate-800 transition-colors cursor-pointer" 
+              <TableRow
+                key={request.id}
+                className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-50 dark:border-slate-800 transition-colors cursor-pointer"
                 onClick={() => onViewDetails(request)}
               >
                 <TableCell className="font-medium pl-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className={cn("w-1 h-12 rounded-full", 
-                      request.status === 'approved' ? "bg-emerald-500" : 
-                      request.status === 'rejected' ? "bg-red-500" : "bg-amber-500"
-                    )} />
+                    <div
+                      className={cn(
+                        "w-1 h-12 rounded-full",
+                        request.status === "approved"
+                          ? "bg-emerald-500"
+                          : request.status === "rejected"
+                            ? "bg-red-500"
+                            : "bg-amber-500",
+                      )}
+                    />
                     <div>
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{request.unit}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{request.course}</div>
+                      <div className="font-bold text-slate-900 dark:text-slate-100">
+                        {request.unit}
+                      </div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {request.course}
+                      </div>
                     </div>
                   </div>
                 </TableCell>
@@ -103,8 +148,12 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
-                        <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${request.teacherName}`} />
-                        <AvatarFallback>{request.teacherName.substring(0, 2)}</AvatarFallback>
+                        <AvatarImage
+                          src={`https://api.dicebear.com/7.x/initials/svg?seed=${request.teacherName}`}
+                        />
+                        <AvatarFallback>
+                          {request.teacherName.substring(0, 2)}
+                        </AvatarFallback>
                       </Avatar>
                       <span className="text-sm">{request.teacherName}</span>
                     </div>
@@ -124,10 +173,10 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
                       {request.newDate}
                     </div>
                     {!showHistory && (
-                       <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                         <Clock className="w-3.5 h-3.5 text-slate-400" />
-                         {request.newTime}
-                       </div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {request.newTime}
+                      </div>
                     )}
                   </div>
                 </TableCell>
@@ -138,7 +187,10 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
 
                 {!showHistory && (
                   <TableCell className="max-w-[200px]">
-                    <p className="truncate text-sm text-slate-600 dark:text-slate-400" title={request.reason}>
+                    <p
+                      className="truncate text-sm text-slate-600 dark:text-slate-400"
+                      title={request.reason}
+                    >
                       {request.reason}
                     </p>
                   </TableCell>
@@ -146,16 +198,26 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
 
                 <TableCell className="text-right pr-6">
                   {isTeacher && !showHistory && onEdit ? (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300" 
-                      onClick={(e) => { e.stopPropagation(); onEdit(request); }}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(request);
+                      }}
                     >
                       <MoreHorizontal className="w-4 h-4" />
                     </Button>
                   ) : (
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onViewDetails(request); }}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewDetails(request);
+                      }}
+                    >
                       Details
                     </Button>
                   )}
@@ -164,8 +226,15 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
             ))}
             {requests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={isTeacher ? (showHistory ? 5 : 6) : (showHistory ? 6 : 7)} className="h-24 text-center text-slate-500">
-                  {showHistory ? "No history records found." : "No requests found."}
+                <TableCell
+                  colSpan={
+                    isTeacher ? (showHistory ? 5 : 6) : showHistory ? 6 : 7
+                  }
+                  className="h-24 text-center text-slate-500"
+                >
+                  {showHistory
+                    ? "No history records found."
+                    : "No requests found."}
                 </TableCell>
               </TableRow>
             )}
@@ -178,38 +247,49 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
           <Pagination className="justify-end md:justify-center">
             <PaginationContent>
               <PaginationItem>
-                <PaginationPrevious 
+                <PaginationPrevious
                   onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-                  className={cn("cursor-pointer select-none", currentPage === 1 && "pointer-events-none opacity-50")}
+                  className={cn(
+                    "cursor-pointer select-none",
+                    currentPage === 1 && "pointer-events-none opacity-50",
+                  )}
                 />
               </PaginationItem>
-              
+
               {/* Responsive page numbers - hidden on small screens */}
               <div className="hidden md:flex flex-row items-center gap-1">
-                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (page) => (
                     <PaginationItem key={page}>
-                        <PaginationLink 
-                            isActive={currentPage === page}
-                            onClick={() => onPageChange(page)}
-                            className="cursor-pointer select-none"
-                        >
-                            {page}
-                        </PaginationLink>
+                      <PaginationLink
+                        isActive={currentPage === page}
+                        onClick={() => onPageChange(page)}
+                        className="cursor-pointer select-none"
+                      >
+                        {page}
+                      </PaginationLink>
                     </PaginationItem>
-                 ))}
+                  ),
+                )}
               </div>
-              
+
               {/* Mobile page indicator */}
               <div className="md:hidden flex items-center px-4">
-                 <span className="text-sm text-slate-500">
-                    Page {currentPage} of {totalPages}
-                 </span>
+                <span className="text-sm text-slate-500">
+                  Page {currentPage} of {totalPages}
+                </span>
               </div>
 
               <PaginationItem>
-                <PaginationNext 
-                  onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-                  className={cn("cursor-pointer select-none", currentPage === totalPages && "pointer-events-none opacity-50")}
+                <PaginationNext
+                  onClick={() =>
+                    onPageChange(Math.min(totalPages, currentPage + 1))
+                  }
+                  className={cn(
+                    "cursor-pointer select-none",
+                    currentPage === totalPages &&
+                      "pointer-events-none opacity-50",
+                  )}
                 />
               </PaginationItem>
             </PaginationContent>

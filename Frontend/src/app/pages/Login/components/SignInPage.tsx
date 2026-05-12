@@ -16,10 +16,10 @@ import {
   ArrowRight,
   BookOpen,
   Globe,
-  Check
+  Check,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
-import { useLanguage } from '../../../providers/LanguageContext';
+import { toast } from "sonner";
+import { useLanguage } from "../../../providers/LanguageContext";
 import { ModeToggle } from "../../../components/ui/theme-provider";
 import { requestMagicLink } from "../../../services/auth/authApi";
 import { getErrorMessage } from "../../../utils/errors";
@@ -37,9 +37,7 @@ interface SignInPageProps {
   onLogin: (user: AuthenticatedUser) => void;
 }
 
-export const SignInPage = ({
-  onNavigate,
-}: SignInPageProps) => {
+export const SignInPage = ({ onNavigate }: SignInPageProps) => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -49,7 +47,7 @@ export const SignInPage = ({
     e.preventDefault();
 
     if (!email) {
-      toast.error(t('auth.enter_email'));
+      toast.error(t("auth.enter_email"));
       return;
     }
 
@@ -59,10 +57,10 @@ export const SignInPage = ({
 
       setIsLoading(false);
       setEmailSent(true);
-      toast.success(t('auth.success_magic_link'));
+      toast.success(t("auth.success_magic_link"));
     } catch (error) {
       setIsLoading(false);
-      toast.error(getErrorMessage(error, 'Unable to send magic link.'));
+      toast.error(getErrorMessage(error, "Unable to send magic link."));
     }
   };
 
@@ -71,22 +69,28 @@ export const SignInPage = ({
       {/* Theme & Language Switcher */}
       <div className="absolute top-4 right-4 flex items-center gap-2">
         <ModeToggle />
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2">
               <Globe className="h-4 w-4" />
-              {language === 'en' ? 'English' : 'Português'}
+              {language === "en" ? "English" : "Português"}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setLanguage('en')} className="gap-2">
+            <DropdownMenuItem
+              onClick={() => setLanguage("en")}
+              className="gap-2"
+            >
               <span>English</span>
-              {language === 'en' && <Check className="h-4 w-4 ml-auto" />}
+              {language === "en" && <Check className="h-4 w-4 ml-auto" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setLanguage('pt')} className="gap-2">
+            <DropdownMenuItem
+              onClick={() => setLanguage("pt")}
+              className="gap-2"
+            >
               <span>Português</span>
-              {language === 'pt' && <Check className="h-4 w-4 ml-auto" />}
+              {language === "pt" && <Check className="h-4 w-4 ml-auto" />}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -98,40 +102,35 @@ export const SignInPage = ({
             <BookOpen className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            {t('auth.welcome')}
+            {t("auth.welcome")}
           </h1>
           <p className="text-slate-500 dark:text-slate-400">
-            {t('auth.subtitle')}
+            {t("auth.subtitle")}
           </p>
         </div>
 
         <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
           <CardHeader>
             <CardTitle>
-              {emailSent
-                ? t('auth.check_inbox')
-                : t('auth.sign_in')}
+              {emailSent ? t("auth.check_inbox") : t("auth.sign_in")}
             </CardTitle>
             <CardDescription>
               {emailSent
-                ? t('auth.email_sent').replace('{email}', email)
-                : t('auth.enter_email')}
+                ? t("auth.email_sent").replace("{email}", email)
+                : t("auth.enter_email")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {!emailSent ? (
-              <form
-                onSubmit={handleSubmit}
-                className="space-y-4"
-              >
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">{t('auth.email_label')}</Label>
+                  <Label htmlFor="email">{t("auth.email_label")}</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                     <Input
                       id="email"
                       type="email"
-                      placeholder={t('auth.email_placeholder')}
+                      placeholder={t("auth.email_placeholder")}
                       className="pl-9"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -146,11 +145,11 @@ export const SignInPage = ({
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t('auth.sending')}
+                      {t("auth.sending")}
                     </>
                   ) : (
                     <>
-                      {t('auth.send_link')}
+                      {t("auth.send_link")}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
@@ -162,12 +161,13 @@ export const SignInPage = ({
                   <Mail className="w-8 h-8" />
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {t('auth.cant_find')}{" "}
+                  {t("auth.cant_find")}
+                  {""}
                   <button
                     onClick={() => setEmailSent(false)}
                     className="text-blue-600 hover:underline"
                   >
-                    {t('auth.try_another')}
+                    {t("auth.try_another")}
                   </button>
                   .
                 </p>
@@ -176,12 +176,13 @@ export const SignInPage = ({
           </CardContent>
           <CardFooter className="flex justify-center border-t border-slate-100 dark:border-slate-800 pt-6">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {t('auth.no_account')}{" "}
+              {t("auth.no_account")}
+              {""}
               <button
                 onClick={() => onNavigate("signup")}
                 className="font-medium text-blue-600 hover:text-blue-500 hover:underline transition-colors"
               >
-                {t('auth.sign_up')}
+                {t("auth.sign_up")}
               </button>
             </p>
           </CardFooter>

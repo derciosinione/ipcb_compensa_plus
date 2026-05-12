@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   GraduationCap,
@@ -7,10 +7,10 @@ import {
   Plus,
   Search,
   Trash2,
-} from 'lucide-react';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Badge } from '../../components/ui/badge';
+} from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Badge } from "../../components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +18,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '../../components/ui/dropdown-menu';
+} from "../../components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -26,29 +26,33 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../../components/ui/dialog';
-import { Label } from '../../components/ui/label';
+} from "../../components/ui/dialog";
+import { Label } from "../../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../../components/ui/select';
-import { Textarea } from '../../components/ui/textarea';
-import { Switch } from '../../components/ui/switch';
-import { toast } from 'sonner@2.0.3';
-import type { User } from '../../types/user';
-import { useLanguage } from '../../providers/LanguageContext';
+} from "../../components/ui/select";
+import { Textarea } from "../../components/ui/textarea";
+import { Switch } from "../../components/ui/switch";
+import { toast } from "sonner";
+import type { User } from "../../types/user";
+import { useLanguage } from "../../providers/LanguageContext";
 import {
   createCourse,
   deleteCourse,
   listCourses,
   updateCourse,
-} from '../../services/courses/coursesApi';
-import type { Course, CourseDegreeType, UpsertCourseRequest } from '../../services/courses/courseTypes';
-import { CourseDetailsPage } from './components/CourseDetailsPage';
-import { getErrorMessage } from '../../utils/errors';
+} from "../../services/courses/coursesApi";
+import type {
+  Course,
+  CourseDegreeType,
+  UpsertCourseRequest,
+} from "../../services/courses/courseTypes";
+import { CourseDetailsPage } from "./components/CourseDetailsPage";
+import { getErrorMessage } from "../../utils/errors";
 
 interface CoursesPageProps {
   user: User;
@@ -67,26 +71,26 @@ interface CourseFormState {
 }
 
 const degreeTypeOptions: Array<{ value: CourseDegreeType; label: string }> = [
-  { value: 'Licenciatura', label: 'Licenciatura' },
-  { value: 'Mestrado', label: 'Mestrado' },
-  { value: 'CTeSP', label: 'CTeSP' },
+  { value: "Licenciatura", label: "Licenciatura" },
+  { value: "Mestrado", label: "Mestrado" },
+  { value: "CTeSP", label: "CTeSP" },
 ];
 
 const initialFormState: CourseFormState = {
-  name: '',
-  abbreviation: '',
-  type: 'Licenciatura',
-  description: '',
-  durationYears: '3',
-  totalCredits: '180',
-  coordinatorUserId: '',
-  imageUrl: '',
+  name: "",
+  abbreviation: "",
+  type: "Licenciatura",
+  description: "",
+  durationYears: "3",
+  totalCredits: "180",
+  coordinatorUserId: "",
+  imageUrl: "",
   isActive: true,
 };
 
 export const CoursesPage = ({ user }: CoursesPageProps) => {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -95,7 +99,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
   const [formState, setFormState] = useState<CourseFormState>(initialFormState);
   const { t } = useLanguage();
 
-  const isAdmin = user.role === 'admin';
+  const isAdmin = user.role === "admin";
 
   const loadCourses = async () => {
     try {
@@ -103,7 +107,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       const result = await listCourses();
       setCourses(result);
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Unable to load courses.'));
+      toast.error(getErrorMessage(error, "Unable to load courses."));
     } finally {
       setIsLoading(false);
     }
@@ -120,10 +124,11 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       return courses;
     }
 
-    return courses.filter((course) =>
-      course.name.toLowerCase().includes(normalizedSearch) ||
-      course.abbreviation.toLowerCase().includes(normalizedSearch) ||
-      course.type.toLowerCase().includes(normalizedSearch),
+    return courses.filter(
+      (course) =>
+        course.name.toLowerCase().includes(normalizedSearch) ||
+        course.abbreviation.toLowerCase().includes(normalizedSearch) ||
+        course.type.toLowerCase().includes(normalizedSearch),
     );
   }, [courses, searchTerm]);
 
@@ -142,7 +147,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       description: course.description,
       durationYears: course.durationYears.toString(),
       totalCredits: course.totalCredits.toString(),
-      coordinatorUserId: course.coordinatorUserId ?? '',
+      coordinatorUserId: course.coordinatorUserId ?? "",
       imageUrl: course.imageUrl,
       isActive: course.isActive,
     });
@@ -154,27 +159,27 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
     const totalCredits = Number(formState.totalCredits);
 
     if (!formState.name.trim()) {
-      toast.error('Course name is required.');
+      toast.error("Course name is required.");
       return null;
     }
 
     if (!formState.abbreviation.trim()) {
-      toast.error('Course abbreviation is required.');
+      toast.error("Course abbreviation is required.");
       return null;
     }
 
     if (!formState.description.trim()) {
-      toast.error('Course description is required.');
+      toast.error("Course description is required.");
       return null;
     }
 
     if (!Number.isInteger(durationYears) || durationYears <= 0) {
-      toast.error('Duration must be a positive whole number.');
+      toast.error("Duration must be a positive whole number.");
       return null;
     }
 
     if (!Number.isInteger(totalCredits) || totalCredits <= 0) {
-      toast.error('ECTS must be a positive whole number.');
+      toast.error("ECTS must be a positive whole number.");
       return null;
     }
 
@@ -207,21 +212,23 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
         : await createCourse(request);
 
       if (!saved) {
-        throw new Error('Course response was empty.');
+        throw new Error("Course response was empty.");
       }
 
       setCourses((current) => {
         if (editingCourse) {
-          return current.map((course) => (course.id === saved.id ? saved : course));
+          return current.map((course) =>
+            course.id === saved.id ? saved : course,
+          );
         }
 
         return [...current, saved].sort((a, b) => a.name.localeCompare(b.name));
       });
 
       setIsFormOpen(false);
-      toast.success(editingCourse ? 'Course updated.' : 'Course created.');
+      toast.success(editingCourse ? "Course updated." : "Course created.");
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Unable to save course.'));
+      toast.error(getErrorMessage(error, "Unable to save course."));
     } finally {
       setIsSaving(false);
     }
@@ -235,16 +242,16 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
     try {
       await deleteCourse(course.id);
       setCourses((current) => current.filter((item) => item.id !== course.id));
-      toast.success('Course deleted.');
+      toast.success("Course deleted.");
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Unable to delete course.'));
+      toast.error(getErrorMessage(error, "Unable to delete course."));
     }
   };
 
   const getSubtitle = () => {
-    if (user.role === 'admin') return t('courses.subtitle_admin');
-    if (user.role === 'coordinator') return t('courses.subtitle_coordinator');
-    return t('courses.subtitle_teacher');
+    if (user.role === "admin") return t("courses.subtitle_admin");
+    if (user.role === "coordinator") return t("courses.subtitle_coordinator");
+    return t("courses.subtitle_teacher");
   };
 
   if (selectedCourse) {
@@ -252,7 +259,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       <CourseDetailsPage
         courseId={selectedCourse.id}
         course={selectedCourse}
-        userRole={user.role as 'coordinator' | 'teacher' | 'admin'}
+        userRole={user.role as "coordinator" | "teacher" | "admin"}
         userId={user.id}
         userEmail={user.email}
         onBack={() => setSelectedCourse(null)}
@@ -266,7 +273,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            {t('courses.title')}
+            {t("courses.title")}
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">
             {getSubtitle()}
@@ -274,8 +281,11 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
         </div>
 
         {isAdmin && (
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20">
-            <Plus className="w-4 h-4 mr-2" /> {t('courses.new_course')}
+          <Button
+            onClick={openCreate}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20"
+          >
+            <Plus className="w-4 h-4 mr-2" /> {t("courses.new_course")}
           </Button>
         )}
       </div>
@@ -284,7 +294,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
-            placeholder={t('courses.search_placeholder')}
+            placeholder={t("courses.search_placeholder")}
             className="pl-9 bg-white dark:bg-slate-900"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
@@ -316,11 +326,17 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                   <Badge className="bg-white/90 text-slate-900 hover:bg-white border-none shadow-sm backdrop-blur-sm">
                     {course.abbreviation}
                   </Badge>
-                  <Badge variant="outline" className="text-white border-white/40 backdrop-blur-sm bg-black/20">
+                  <Badge
+                    variant="outline"
+                    className="text-white border-white/40 backdrop-blur-sm bg-black/20"
+                  >
                     {course.type}
                   </Badge>
                   {!course.isActive && (
-                    <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+                    <Badge
+                      variant="secondary"
+                      className="bg-slate-100 text-slate-700"
+                    >
                       Inactive
                     </Badge>
                   )}
@@ -345,20 +361,27 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>{t('actions.actions')}</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={(event) => {
-                          event.stopPropagation();
-                          openEdit(course);
-                        }}>
-                          {t('actions.edit_settings')}
+                        <DropdownMenuLabel>
+                          {t("actions.actions")}
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openEdit(course);
+                          }}
+                        >
+                          {t("actions.edit_settings")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600" onClick={(event) => {
-                          event.stopPropagation();
-                          handleDelete(course);
-                        }}>
+                        <DropdownMenuItem
+                          className="text-red-600"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleDelete(course);
+                          }}
+                        >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          {t('actions.archive')}
+                          {t("actions.archive")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -372,7 +395,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                 <div className="flex items-center gap-4 text-xs font-medium text-slate-500 pt-4 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-1.5">
                     <GraduationCap className="w-3.5 h-3.5" />
-                    {course.durationYears} {t('courses.years')}
+                    {course.durationYears} {t("courses.years")}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="w-3.5 h-3.5" />
@@ -392,8 +415,12 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                 <Plus className="w-7 h-7" />
               </div>
               <div className="text-center">
-                <span className="font-semibold text-lg block">{t('courses.add_new')}</span>
-                <span className="text-sm opacity-70">{t('courses.create_program')}</span>
+                <span className="font-semibold text-lg block">
+                  {t("courses.add_new")}
+                </span>
+                <span className="text-sm opacity-70">
+                  {t("courses.create_program")}
+                </span>
               </div>
             </button>
           )}
@@ -405,9 +432,11 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
           <div className="bg-white w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-slate-100">
             <BookOpen className="w-10 h-10 text-slate-300" />
           </div>
-          <h3 className="text-lg font-medium text-slate-900">{t('courses.no_assigned')}</h3>
+          <h3 className="text-lg font-medium text-slate-900">
+            {t("courses.no_assigned")}
+          </h3>
           <p className="text-slate-500 max-w-sm mx-auto mt-2">
-            {t('courses.no_assigned_desc')}
+            {t("courses.no_assigned_desc")}
           </p>
         </div>
       )}
@@ -416,42 +445,56 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
         <DialogContent className="sm:max-w-[620px]">
           <form onSubmit={handleSubmit} className="space-y-5">
             <DialogHeader>
-              <DialogTitle>{editingCourse ? 'Edit Course' : t('modal.add_course_title')}</DialogTitle>
+              <DialogTitle>
+                {editingCourse ? "Edit Course" : t("modal.add_course_title")}
+              </DialogTitle>
               <DialogDescription>
-                {t('modal.add_course_desc')}
+                {t("modal.add_course_desc")}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid grid-cols-4 gap-4">
               <div className="col-span-3 space-y-2">
-                <Label htmlFor="course-name">{t('modal.course_name')}</Label>
+                <Label htmlFor="course-name">{t("modal.course_name")}</Label>
                 <Input
                   id="course-name"
-                  placeholder={t('modal.course_name_placeholder')}
+                  placeholder={t("modal.course_name_placeholder")}
                   value={formState.name}
-                  onChange={(event) => setFormState((current) => ({ ...current, name: event.target.value }))}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
                 />
               </div>
               <div className="col-span-1 space-y-2">
-                <Label htmlFor="course-abbreviation">{t('modal.abbr')}</Label>
+                <Label htmlFor="course-abbreviation">{t("modal.abbr")}</Label>
                 <Input
                   id="course-abbreviation"
                   placeholder="LEI"
                   value={formState.abbreviation}
-                  onChange={(event) => setFormState((current) => ({ ...current, abbreviation: event.target.value }))}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      abbreviation: event.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label>{t('modal.degree_type')}</Label>
+                <Label>{t("modal.degree_type")}</Label>
                 <Select
                   value={formState.type}
-                  onValueChange={(value: CourseDegreeType) => setFormState((current) => ({ ...current, type: value }))}
+                  onValueChange={(value: CourseDegreeType) =>
+                    setFormState((current) => ({ ...current, type: value }))
+                  }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={t('modal.select_type')} />
+                    <SelectValue placeholder={t("modal.select_type")} />
                   </SelectTrigger>
                   <SelectContent>
                     {degreeTypeOptions.map((option) => (
@@ -463,34 +506,51 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="course-duration">{t('modal.duration')}</Label>
+                <Label htmlFor="course-duration">{t("modal.duration")}</Label>
                 <Input
                   id="course-duration"
                   min={1}
                   type="number"
                   value={formState.durationYears}
-                  onChange={(event) => setFormState((current) => ({ ...current, durationYears: event.target.value }))}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      durationYears: event.target.value,
+                    }))
+                  }
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="course-credits">{t('modal.total_ects')}</Label>
+                <Label htmlFor="course-credits">{t("modal.total_ects")}</Label>
                 <Input
                   id="course-credits"
                   min={1}
                   type="number"
                   value={formState.totalCredits}
-                  onChange={(event) => setFormState((current) => ({ ...current, totalCredits: event.target.value }))}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      totalCredits: event.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="course-description">{t('modal.description')}</Label>
+              <Label htmlFor="course-description">
+                {t("modal.description")}
+              </Label>
               <Textarea
                 id="course-description"
-                placeholder={t('modal.desc_placeholder')}
+                placeholder={t("modal.desc_placeholder")}
                 value={formState.description}
-                onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))}
+                onChange={(event) =>
+                  setFormState((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
                 className="min-h-[100px]"
               />
             </div>
@@ -502,7 +562,12 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                   id="course-image"
                   placeholder="https://..."
                   value={formState.imageUrl}
-                  onChange={(event) => setFormState((current) => ({ ...current, imageUrl: event.target.value }))}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      imageUrl: event.target.value,
+                    }))
+                  }
                 />
               </div>
               <div className="flex min-w-[180px] items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
@@ -513,18 +578,32 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                 <Switch
                   id="course-active"
                   checked={formState.isActive}
-                  onCheckedChange={(checked) => setFormState((current) => ({ ...current, isActive: checked }))}
+                  onCheckedChange={(checked) =>
+                    setFormState((current) => ({
+                      ...current,
+                      isActive: checked,
+                    }))
+                  }
                 />
               </div>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)} disabled={isSaving}>
-                {t('common.cancel')}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsFormOpen(false)}
+                disabled={isSaving}
+              >
+                {t("common.cancel")}
               </Button>
-              <Button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button
+                type="submit"
+                disabled={isSaving}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingCourse ? 'Save Course' : t('modal.create_course')}
+                {editingCourse ? "Save Course" : t("modal.create_course")}
               </Button>
             </DialogFooter>
           </form>

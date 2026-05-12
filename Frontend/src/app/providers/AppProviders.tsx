@@ -1,9 +1,9 @@
-import React from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router';
-import { Toaster } from 'sonner@2.0.3';
-import { LanguageProvider } from './LanguageContext';
-import { ThemeProvider } from '../components/ui/theme-provider';
+import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter } from "react-router";
+import { Toaster } from "sonner";
+import { LanguageProvider } from "./LanguageContext";
+import { ThemeProvider } from "../components/ui/theme-provider";
 
 interface AppProvidersProps {
   children: React.ReactNode;

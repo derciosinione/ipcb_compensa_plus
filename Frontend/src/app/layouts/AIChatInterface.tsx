@@ -1,20 +1,32 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Loader2, Send, Paperclip, X, CalendarCheck } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { Textarea } from '../components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import { toast } from 'sonner';
-import { ScrollArea } from '../components/ui/scroll-area';
-import { IAService } from '../services/api/ia.service';
-import { useMutation } from '@tanstack/react-query';
-import { createCompensationRequest } from '../services/compensationRequests/compensationRequestsApi';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  FileText,
+  Loader2,
+  Send,
+  Paperclip,
+  X,
+  CalendarCheck,
+} from "lucide-react";
+import { Button } from "../components/ui/button";
+import { Textarea } from "../components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { Avatar, AvatarFallback } from "../components/ui/avatar";
+import { toast } from "sonner";
+import { ScrollArea } from "../components/ui/scroll-area";
+import { IAService } from "../services/api/ia.service";
+import { useMutation } from "@tanstack/react-query";
+import { createCompensationRequest } from "../services/compensationRequests/compensationRequestsApi";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ChatMessage {
   id: string;
-  type: 'user' | 'assistant' | 'system';
+  type: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
   file?: File;
@@ -28,16 +40,20 @@ interface AIChatInterfaceProps {
   maxHeight?: string;
 }
 
-export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8rem)' }: AIChatInterfaceProps) {
+export function AIChatInterface({
+  compact = false,
+  maxHeight = "calc(100vh - 8rem)",
+}: AIChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: '1',
-      type: 'assistant',
-      content: 'Olá! Sou o Assistente IA do Compensa+. Como posso ajudar? Você pode fazer perguntas sobre o sistema ou anexar documentos para que eu analise e preencha formulários automaticamente.',
+      id: "1",
+      type: "assistant",
+      content:
+        "Olá! Sou o Assistente IA do Compensa+. Como posso ajudar? Você pode fazer perguntas sobre o sistema ou anexar documentos para que eu analise e preencha formulários automaticamente.",
       timestamp: new Date(),
-    }
+    },
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
@@ -47,21 +63,24 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
   const createRequestMutation = useMutation({
     mutationFn: createCompensationRequest,
     onSuccess: () => {
-      toast.success('Pedido de compensação criado com sucesso!');
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'system',
-        content: '✅ Pedido de compensação inserido no sistema com sucesso.',
-        timestamp: new Date(),
-      }]);
+      toast.success("Pedido de compensação criado com sucesso!");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          type: "system",
+          content: "✅ Pedido de compensação inserido no sistema com sucesso.",
+          timestamp: new Date(),
+        },
+      ]);
     },
     onError: (error) => {
-      toast.error('Erro ao criar pedido de compensação.');
-    }
+      toast.error("Erro ao criar pedido de compensação.");
+    },
   });
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,30 +94,30 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      type: 'user',
+      type: "user",
       content: input,
       timestamp: new Date(),
       file: file || undefined,
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
     const currentFile = file;
     setFile(null);
 
     setIsProcessing(true);
     const processingMessage: ChatMessage = {
       id: (Date.now() + 1).toString(),
-      type: 'assistant',
-      content: 'A processar a sua solicitação...',
+      type: "assistant",
+      content: "A processar a sua solicitação...",
       timestamp: new Date(),
       isProcessing: true,
     };
-    setMessages(prev => [...prev, processingMessage]);
+    setMessages((prev) => [...prev, processingMessage]);
 
     try {
       let fileIds: string[] = [];
-      
+
       if (currentFile) {
         const uploadRes = await IAService.uploadDocument(currentFile);
         fileIds.push(uploadRes.file_id);
@@ -106,7 +125,9 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
 
       const response = await IAService.sendMessage({
         thread_id: threadId,
-        message: input || "Processa este documento anexo e extrai as informações relevantes.",
+        message:
+          input ||
+          "Processa este documento anexo e extrai as informações relevantes.",
         file_ids: fileIds.length > 0 ? fileIds : undefined,
       });
 
@@ -114,67 +135,78 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
         setThreadId(response.thread_id);
       }
 
-      setMessages(prev => prev.filter(m => m.id !== processingMessage.id));
+      setMessages((prev) => prev.filter((m) => m.id !== processingMessage.id));
 
       const resultMessage: ChatMessage = {
         id: (Date.now() + 2).toString(),
-        type: 'assistant',
-        content: response.content || (response.action ? 'Encontrei as seguintes informações. Deseja prosseguir com a ação sugerida?' : ''),
+        type: "assistant",
+        content:
+          response.content ||
+          (response.action
+            ? "Encontrei as seguintes informações. Deseja prosseguir com a ação sugerida?"
+            : ""),
         timestamp: new Date(),
         action: response.action,
-        actionData: response.data
+        actionData: response.data,
       };
 
-      setMessages(prev => [...prev, resultMessage]);
+      setMessages((prev) => [...prev, resultMessage]);
     } catch (error) {
-      console.error('Error with AI:', error);
-      setMessages(prev => prev.filter(m => m.id !== processingMessage.id));
-      setMessages(prev => [...prev, {
-        id: (Date.now() + 2).toString(),
-        type: 'assistant',
-        content: 'Desculpe, ocorreu um erro de comunicação. Por favor tente novamente.',
-        timestamp: new Date(),
-      }]);
+      console.error("Error with AI:", error);
+      setMessages((prev) => prev.filter((m) => m.id !== processingMessage.id));
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 2).toString(),
+          type: "assistant",
+          content:
+            "Desculpe, ocorreu um erro de comunicação. Por favor tente novamente.",
+          timestamp: new Date(),
+        },
+      ]);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleAction = (action: string, data: any) => {
-    if (action === 'CreateCompensationRequest') {
+    if (action === "CreateCompensationRequest") {
       const payload = {
-         unitId: data.unitId,
-         courseId: data.courseId,
-         originalDate: data.originalDate,
-         proposedDate: data.proposedDate,
-         reason: data.reason || 'Sugerido pela Compensa IA',
-         classroom: 'Sala Gerada (AI)',
-         status: 'Pending',
-         type: 'Anticipation'
+        unitId: data.unitId,
+        courseId: data.courseId,
+        originalDate: data.originalDate,
+        proposedDate: data.proposedDate,
+        reason: data.reason || "Sugerido pela Compensa IA",
+        classroom: "Sala Gerada (AI)",
+        status: "Pending",
+        type: "Anticipation",
       };
-      
+
       createRequestMutation.mutate(payload as any);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: maxHeight }}>
+    <div
+      className="flex flex-col overflow-hidden"
+      style={{ height: maxHeight }}
+    >
       {/* Chat Messages */}
       <ScrollArea className="flex-1 min-h-0 w-full">
         <div className="space-y-6 px-4 py-6">
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}
             >
-              {message.type !== 'user' && (
+              {message.type !== "user" && (
                 <Avatar className="w-8 h-8 flex-shrink-0">
                   <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
                     IA
@@ -182,14 +214,16 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
                 </Avatar>
               )}
 
-              <div className={`flex flex-col gap-2 max-w-[80%] ${message.type === 'user' ? 'items-end' : 'items-start'}`}>
+              <div
+                className={`flex flex-col gap-2 max-w-[80%] ${message.type === "user" ? "items-end" : "items-start"}`}
+              >
                 <div
                   className={`rounded-2xl px-4 py-3 ${
-                    message.type === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : message.type === 'system'
-                      ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                    message.type === "user"
+                      ? "bg-blue-600 text-white"
+                      : message.type === "system"
+                        ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                   }`}
                 >
                   {message.isProcessing ? (
@@ -218,16 +252,20 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
                   )}
                 </div>
 
-                {message.action === 'CreateCompensationRequest' && message.actionData && (
-                  <Card className="w-full mt-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
-                    <CardHeader className="py-3 px-4 border-b border-blue-100 dark:border-blue-900">
-                       <CardTitle className="text-sm font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                          <CalendarCheck className="w-4 h-4"/> Rascunho de Pedido
-                       </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 space-y-2">
-                       <div className="text-sm grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300">
-                          <span className="font-medium">Unidade Curricular:</span>
+                {message.action === "CreateCompensationRequest" &&
+                  message.actionData && (
+                    <Card className="w-full mt-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
+                      <CardHeader className="py-3 px-4 border-b border-blue-100 dark:border-blue-900">
+                        <CardTitle className="text-sm font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                          <CalendarCheck className="w-4 h-4" /> Rascunho de
+                          Pedido
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-2">
+                        <div className="text-sm grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300">
+                          <span className="font-medium">
+                            Unidade Curricular:
+                          </span>
                           <span>{message.actionData.unitId}</span>
                           <span className="font-medium">Data Original:</span>
                           <span>{message.actionData.originalDate}</span>
@@ -235,28 +273,38 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
                           <span>{message.actionData.proposedDate}</span>
                           <span className="font-medium">Motivo:</span>
                           <span>{message.actionData.reason}</span>
-                       </div>
-                       <div className="pt-3">
-                         <Button 
-                            className="w-full" 
-                            size="sm" 
+                        </div>
+                        <div className="pt-3">
+                          <Button
+                            className="w-full"
+                            size="sm"
                             disabled={createRequestMutation.isPending}
-                            onClick={() => handleAction(message.action as string, message.actionData)}
-                         >
-                            {createRequestMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : null}
+                            onClick={() =>
+                              handleAction(
+                                message.action as string,
+                                message.actionData,
+                              )
+                            }
+                          >
+                            {createRequestMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            ) : null}
                             Submeter Pedido
-                         </Button>
-                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                 <span className="text-xs text-slate-400 px-2">
-                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {message.timestamp.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
               </div>
 
-              {message.type === 'user' && (
+              {message.type === "user" && (
                 <Avatar className="w-8 h-8 flex-shrink-0">
                   <AvatarFallback className="bg-blue-600 text-white text-xs">
                     EU
@@ -333,13 +381,17 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
         {!compact && (
           <div className="mt-2 flex flex-wrap gap-2">
             <button
-              onClick={() => setInput('Agendar compensação para a próxima terça')}
+              onClick={() =>
+                setInput("Agendar compensação para a próxima terça")
+              }
               className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               Agendar compensação
             </button>
             <button
-              onClick={() => setInput('Quais são as regras para submeter pedidos?')}
+              onClick={() =>
+                setInput("Quais são as regras para submeter pedidos?")
+              }
               className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               Regras do sistema

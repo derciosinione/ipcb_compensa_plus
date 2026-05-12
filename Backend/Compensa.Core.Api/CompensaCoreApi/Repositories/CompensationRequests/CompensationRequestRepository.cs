@@ -31,9 +31,16 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
             .ToArrayAsync(cancellationToken);
     }
 
-    public Task<CompensationRequest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<CompensationRequest?> GetByIdAsync(Guid id, bool includeDocuments = false, CancellationToken cancellationToken = default)
     {
-        return _context.CompensationRequests.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
+        var query = _context.CompensationRequests.AsQueryable();
+        
+        if (includeDocuments)
+        {
+            query = query.Include(request => request.Documents);
+        }
+        
+        return await query.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<CompensationRequest>> ListOverlappingActiveAsync(
@@ -66,6 +73,12 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
     {
         _context.CompensationRequests.Add(request);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task DeleteAsync(CompensationRequest request, CancellationToken cancellationToken = default)
+    {
+        _context.CompensationRequests.Remove(request);
+        return _context.SaveChangesAsync(cancellationToken);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import {
   Dialog,
   DialogContent,
@@ -7,13 +7,16 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '../../../components/ui/dialog';
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { Label } from '../../../components/ui/label';
-import { Checkbox } from '../../../components/ui/checkbox';
-import { Badge } from '../../../components/ui/badge';
-import type { CreateUserRequest, UserRole } from '../../../services/users/userTypes';
+} from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
+import { Checkbox } from "../../../components/ui/checkbox";
+import { Badge } from "../../../components/ui/badge";
+import type {
+  CreateUserRequest,
+  UserRole,
+} from "../../../services/users/userTypes";
 
 interface AddUserModalProps {
   isOpen: boolean;
@@ -36,12 +39,12 @@ export const AddUserModal = ({
   onSave,
 }: AddUserModalProps) => {
   const { register, handleSubmit, reset } = useForm<FormData>();
-  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>(['Teacher']);
+  const [selectedRoles, setSelectedRoles] = useState<UserRole[]>(["Teacher"]);
 
   useEffect(() => {
     if (isOpen) {
-      reset({ fullName: '', email: '' });
-      setSelectedRoles(['Teacher']);
+      reset({ fullName: "", email: "" });
+      setSelectedRoles(["Teacher"]);
     }
   }, [isOpen, reset]);
 
@@ -51,7 +54,9 @@ export const AddUserModal = ({
         return Array.from(new Set([...currentRoles, role]));
       }
 
-      const nextRoles = currentRoles.filter((currentRole) => currentRole !== role);
+      const nextRoles = currentRoles.filter(
+        (currentRole) => currentRole !== role,
+      );
       return nextRoles.length > 0 ? nextRoles : currentRoles;
     });
   };
@@ -80,7 +85,7 @@ export const AddUserModal = ({
             <Input
               id="fullName"
               placeholder="e.g. Dr. Jane Smith"
-              {...register('fullName', { required: true })}
+              {...register("fullName", { required: true })}
             />
           </div>
 
@@ -90,7 +95,7 @@ export const AddUserModal = ({
               id="email"
               type="email"
               placeholder="e.g. jane.smith@uni.edu"
-              {...register('email', { required: true })}
+              {...register("email", { required: true })}
             />
           </div>
 
@@ -108,9 +113,13 @@ export const AddUserModal = ({
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={checked}
-                        onCheckedChange={(value) => handleRoleToggle(role, Boolean(value))}
+                        onCheckedChange={(value) =>
+                          handleRoleToggle(role, Boolean(value))
+                        }
                       />
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{role}</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {role}
+                      </span>
                     </div>
                     {checked && <Badge variant="secondary">Selected</Badge>}
                   </label>
@@ -120,11 +129,20 @@ export const AddUserModal = ({
           </div>
 
           <DialogFooter className="pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSaving}
+            >
               Cancel
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSaving}>
-              {isSaving ? 'Creating...' : 'Create User'}
+            <Button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={isSaving}
+            >
+              {isSaving ? "Creating..." : "Create User"}
             </Button>
           </DialogFooter>
         </form>

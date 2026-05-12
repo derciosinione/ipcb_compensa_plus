@@ -39,4 +39,6 @@ public sealed class CompensationRequest
     public DateTimeOffset SubmittedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    
+    public ICollection<CompensationRequestDocument> Documents { get; set; } = [];
 }

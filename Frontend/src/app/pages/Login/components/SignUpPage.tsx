@@ -19,7 +19,7 @@ import {
   Globe,
   Check,
 } from "lucide-react";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import { requestMagicLink } from "../../../services/auth/authApi";
 import { useLanguage } from "../../../providers/LanguageContext";
 import { ModeToggle } from "../../../components/ui/theme-provider";
@@ -36,9 +36,7 @@ interface SignUpPageProps {
   onNavigate: (view: AuthView) => void;
 }
 
-export const SignUpPage = ({
-  onNavigate,
-}: SignUpPageProps) => {
+export const SignUpPage = ({ onNavigate }: SignUpPageProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -78,11 +76,17 @@ export const SignUpPage = ({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setLanguage("en")} className="gap-2">
+            <DropdownMenuItem
+              onClick={() => setLanguage("en")}
+              className="gap-2"
+            >
               <span>English</span>
               {language === "en" && <Check className="h-4 w-4 ml-auto" />}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setLanguage("pt")} className="gap-2">
+            <DropdownMenuItem
+              onClick={() => setLanguage("pt")}
+              className="gap-2"
+            >
               <span>Português</span>
               {language === "pt" && <Check className="h-4 w-4 ml-auto" />}
             </DropdownMenuItem>
@@ -105,9 +109,7 @@ export const SignUpPage = ({
 
         <Card className="border-slate-200 dark:border-slate-800 shadow-xl">
           <CardHeader>
-            <CardTitle>
-              {emailSent ? "Check your inbox" : "Sign up"}
-            </CardTitle>
+            <CardTitle>{emailSent ? "Check your inbox" : "Sign up"}</CardTitle>
             <CardDescription>
               {emailSent
                 ? `If ${email} is eligible, we sent a magic link with access instructions.`
@@ -116,10 +118,7 @@ export const SignUpPage = ({
           </CardHeader>
           <CardContent>
             {!emailSent ? (
-              <form
-                onSubmit={handleSubmit}
-                className="space-y-4"
-              >
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Full Name</Label>
                   <div className="relative">
@@ -174,7 +173,7 @@ export const SignUpPage = ({
                   <Mail className="w-8 h-8" />
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Can't find it? Check your spam folder or{" "}
+                  Can't find it? Check your spam folder or{""}
                   <button
                     onClick={() => setEmailSent(false)}
                     className="text-blue-600 hover:underline"
@@ -188,7 +187,7 @@ export const SignUpPage = ({
           </CardContent>
           <CardFooter className="flex justify-center border-t border-slate-100 dark:border-slate-800 pt-6">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Already have an account?{" "}
+              Already have an account?{""}
               <button
                 onClick={() => onNavigate("signin")}
                 className="font-medium text-blue-600 hover:text-blue-500 hover:underline transition-colors"

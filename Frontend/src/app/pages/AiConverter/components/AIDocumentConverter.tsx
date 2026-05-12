@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
-import { Upload, FileText, Loader2, Sparkles, MessageSquare, CheckCircle } from 'lucide-react';
-import { Button } from '../../../components/ui/button';
-import { Textarea } from '../../../components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
-import { toast } from 'sonner';
-import { Tabs, TabsList, TabsTrigger } from '../../../components/ui/tabs';
-import { AIChatInterface } from '../../../layouts/AIChatInterface';
-import { PageHeader } from '../../../components/common/PageHeader';
-import { EmptyState } from '../../../components/common/EmptyState';
-import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
-import { IAService } from '../../../services/api/ia.service';
+import React, { useState } from "react";
+import {
+  Upload,
+  FileText,
+  Loader2,
+  Sparkles,
+  MessageSquare,
+  CheckCircle,
+} from "lucide-react";
+import { Button } from "../../../components/ui/button";
+import { Textarea } from "../../../components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../../components/ui/card";
+import { toast } from "sonner";
+import { Tabs, TabsList, TabsTrigger } from "../../../components/ui/tabs";
+import { AIChatInterface } from "../../../layouts/AIChatInterface";
+import { PageHeader } from "../../../components/common/PageHeader";
+import { EmptyState } from "../../../components/common/EmptyState";
+import { LoadingSpinner } from "../../../components/common/LoadingSpinner";
+import { IAService } from "../../../services/api/ia.service";
 
 interface ExtractedData {
   headers: string[];
@@ -18,12 +31,13 @@ interface ExtractedData {
 }
 
 export function AIDocumentConverter() {
-  const [viewMode, setViewMode] = useState<'upload' | 'chat'>('upload');
+  const [viewMode, setViewMode] = useState<"upload" | "chat">("upload");
 
   // Upload mode states
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadPrompt, setUploadPrompt] = useState('');
-  const [uploadExtractedData, setUploadExtractedData] = useState<ExtractedData | null>(null);
+  const [uploadPrompt, setUploadPrompt] = useState("");
+  const [uploadExtractedData, setUploadExtractedData] =
+    useState<ExtractedData | null>(null);
   const [uploadProcessing, setUploadProcessing] = useState(false);
 
   // Upload Mode Handlers
@@ -36,7 +50,7 @@ export function AIDocumentConverter() {
 
   const handleUploadProcess = async () => {
     if (!uploadFile || !uploadPrompt.trim()) {
-      toast.error('Please upload a file and provide instructions');
+      toast.error("Please upload a file and provide instructions");
       return;
     }
 
@@ -45,15 +59,19 @@ export function AIDocumentConverter() {
     try {
       const uploadedFile = await IAService.uploadDocument(uploadFile);
       const aiResponse = await IAService.sendMessage({
-        message: `${uploadPrompt}\n\nReturn the extracted result as concise structured data. If a table is appropriate, include it as JSON with "headers" and "rows".`,
+        message: `${uploadPrompt}\n\nReturn the extracted result as concise structured data. If a table is appropriate, include it as JSON with"headers" and'rows'.`,
         file_ids: [uploadedFile.file_id],
       });
 
-      setUploadExtractedData(normalizeAiExtraction(aiResponse.content ?? JSON.stringify(aiResponse.data ?? {})));
-      toast.success('Document processed successfully!');
+      setUploadExtractedData(
+        normalizeAiExtraction(
+          aiResponse.content ?? JSON.stringify(aiResponse.data ?? {}),
+        ),
+      );
+      toast.success("Document processed successfully!");
     } catch (error) {
-      console.error('Error processing document:', error);
-      toast.error('Failed to process document. Please try again.');
+      console.error("Error processing document:", error);
+      toast.error("Failed to process document. Please try again.");
     } finally {
       setUploadProcessing(false);
     }
@@ -68,7 +86,10 @@ export function AIDocumentConverter() {
           title="AI Document Converter"
           description="Upload documents and extract structured data"
           action={
-            <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'upload' | 'chat')}>
+            <Tabs
+              value={viewMode}
+              onValueChange={(value) => setViewMode(value as "upload" | "chat")}
+            >
               <TabsList>
                 <TabsTrigger value="upload" className="flex items-center gap-2">
                   <Upload className="w-4 h-4" />
@@ -85,7 +106,7 @@ export function AIDocumentConverter() {
       </div>
 
       {/* Content based on view mode */}
-      {viewMode === 'upload' ? renderUploadMode() : renderChatMode()}
+      {viewMode === "upload" ? renderUploadMode() : renderChatMode()}
     </div>
   );
 
@@ -164,7 +185,9 @@ export function AIDocumentConverter() {
                 {/* Process Button */}
                 <Button
                   onClick={handleUploadProcess}
-                  disabled={!uploadFile || !uploadPrompt.trim() || uploadProcessing}
+                  disabled={
+                    !uploadFile || !uploadPrompt.trim() || uploadProcessing
+                  }
                   className="w-full"
                 >
                   {uploadProcessing ? (
@@ -206,7 +229,10 @@ export function AIDocumentConverter() {
 
                 {uploadProcessing && (
                   <div className="py-12">
-                    <LoadingSpinner size="lg" text="AI is analyzing your document..." />
+                    <LoadingSpinner
+                      size="lg"
+                      text="AI is analyzing your document..."
+                    />
                   </div>
                 )}
 
@@ -217,14 +243,16 @@ export function AIDocumentConverter() {
                         <table className="w-full text-sm">
                           <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
                             <tr>
-                              {uploadExtractedData.headers.map((header, idx) => (
-                                <th
-                                  key={idx}
-                                  className="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700"
-                                >
-                                  {header}
-                                </th>
-                              ))}
+                              {uploadExtractedData.headers.map(
+                                (header, idx) => (
+                                  <th
+                                    key={idx}
+                                    className="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700"
+                                  >
+                                    {header}
+                                  </th>
+                                ),
+                              )}
                             </tr>
                           </thead>
                           <tbody>
@@ -258,7 +286,7 @@ export function AIDocumentConverter() {
                         <span className="text-sm font-medium text-green-700 dark:text-green-300">
                           {uploadExtractedData.rows.length > 0
                             ? `${uploadExtractedData.rows.length} rows extracted`
-                            : 'Document processed'}
+                            : "Document processed"}
                         </span>
                       </div>
                     </div>
@@ -279,25 +307,36 @@ export function AIDocumentConverter() {
                   <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-medium">
                     1
                   </span>
-                  <span>Upload a document containing the data you want to extract (PDF, Word, Excel, etc.)</span>
+                  <span>
+                    Upload a document containing the data you want to extract
+                    (PDF, Word, Excel, etc.)
+                  </span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-medium">
                     2
                   </span>
-                  <span>Provide clear instructions describing what data to extract and how to structure it</span>
+                  <span>
+                    Provide clear instructions describing what data to extract
+                    and how to structure it
+                  </span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-medium">
                     3
                   </span>
-                  <span>AI will analyze the document and extract structured data into a table format</span>
+                  <span>
+                    AI will analyze the document and extract structured data
+                    into a table format
+                  </span>
                 </li>
                 <li className="flex gap-3">
                   <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-medium">
                     4
                   </span>
-                  <span>Review the extracted result returned by CompensaAI</span>
+                  <span>
+                    Review the extracted result returned by CompensaAI
+                  </span>
                 </li>
               </ol>
             </CardContent>
@@ -322,7 +361,9 @@ function normalizeAiExtraction(content: string): ExtractedData {
   if (parsed && Array.isArray(parsed.headers) && Array.isArray(parsed.rows)) {
     return {
       headers: parsed.headers.map(String),
-      rows: parsed.rows.map((row: unknown) => Array.isArray(row) ? row : [row]),
+      rows: parsed.rows.map((row: unknown) =>
+        Array.isArray(row) ? row : [row],
+      ),
       content,
     };
   }
@@ -336,7 +377,9 @@ function normalizeAiExtraction(content: string): ExtractedData {
 
 function tryParseJson(content: string): any | null {
   const trimmed = content.trim();
-  const fencedJson = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const fencedJson = trimmed
+    .match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]
+    ?.trim();
   const candidate = fencedJson ?? trimmed;
 
   try {

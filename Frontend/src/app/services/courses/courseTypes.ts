@@ -1,4 +1,4 @@
-export type CourseDegreeType = 'Licenciatura' | 'Mestrado' | 'CTeSP';
+export type CourseDegreeType = "Licenciatura" | "Mestrado" | "CTeSP";
 
 export interface Course {
   id: string;
@@ -27,7 +27,7 @@ export interface UpsertCourseRequest {
   isActive: boolean;
 }
 
-export type UnitComponentType = 'Theoretical' | 'Practical' | 'All';
+export type UnitComponentType = "Theoretical" | "Practical" | "All";
 
 export interface UpsertCurricularUnitRequest {
   name: string;
