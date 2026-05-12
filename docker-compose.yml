@@ -174,14 +174,41 @@ services:
     networks:
       - compensa
 
+  api-gateway:
+    build:
+      context: .
+      dockerfile: Backend/Compensa.Gateway/CompensaGateway/Dockerfile
+    container_name: compensa-gateway
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:8080
+      Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+    ports:
+      - "${GATEWAY_PORT:-5005}:8080"
+    depends_on:
+      identity-api:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+      notifications-api:
+        condition: service_healthy
+      compensa-ai:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
   frontend:
     build:
       context: ./Frontend
       dockerfile: Dockerfile
       args:
-        VITE_IDENTITY_API_URL: ${VITE_IDENTITY_API_URL:-http://localhost:5002}
-        VITE_CORE_API_URL: ${VITE_CORE_API_URL:-http://localhost:5001}
-        VITE_NOTIFICATIONS_API_URL: ${VITE_NOTIFICATIONS_API_URL:-http://localhost:8001}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5005}
     container_name: compensa-frontend
     restart: unless-stopped
     ports:

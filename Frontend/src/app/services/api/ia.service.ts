@@ -23,7 +23,9 @@ export interface UploadFileResponse {
   filename: string;
 }
 
-const AI_API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:8000/api/chat';
+import { API_BASE_URL } from './httpClient';
+
+const AI_API_URL = `${API_BASE_URL}/api/chat`;
 
 export const IAService = {
   async uploadDocument(file: File): Promise<UploadFileResponse> {

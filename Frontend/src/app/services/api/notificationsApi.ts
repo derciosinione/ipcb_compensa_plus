@@ -1,7 +1,6 @@
-import { authenticatedApiRequest } from './httpClient';
+import { authenticatedApiRequest, API_BASE_URL } from './httpClient';
 
-const defaultNotificationsApiUrl = 'http://localhost:8001';
-export const notificationsApiBaseUrl = import.meta.env.VITE_NOTIFICATIONS_API_URL?.replace(/\/$/, '') ?? defaultNotificationsApiUrl;
+export const notificationsApiBaseUrl = API_BASE_URL;
 
 export interface NotificationDto {
     id: string;

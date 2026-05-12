@@ -26,13 +26,12 @@ interface RequestOptions extends RequestInit {
 
 type QueryValue = string | number | boolean | null | undefined;
 
-const defaultIdentityApiUrl = 'http://localhost:5002';
-const defaultCoreApiUrl = 'http://localhost:5001';
+const defaultApiUrl = 'http://localhost:5005';
+export const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? defaultApiUrl;
 
-export const identityApiBaseUrl =
-  import.meta.env.VITE_IDENTITY_API_URL?.replace(/\/$/, '') ?? defaultIdentityApiUrl;
-export const coreApiBaseUrl =
-  import.meta.env.VITE_CORE_API_URL?.replace(/\/$/, '') ?? defaultCoreApiUrl;
+// For backward compatibility while refactoring other files
+export const identityApiBaseUrl = API_BASE_URL;
+export const coreApiBaseUrl = API_BASE_URL;
 
 export const apiRequest = async <T>(
   baseUrl: string,
