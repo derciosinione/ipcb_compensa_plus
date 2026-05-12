@@ -141,6 +141,9 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
+builder.Services.AddHttpClient()
+    .AddStandardResilienceHandler();
+
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IMagicLinkUrlBuilder, HttpContextMagicLinkUrlBuilder>();

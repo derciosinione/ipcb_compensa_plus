@@ -1,10 +1,12 @@
 using CompensaIdentityApi.Contracts.Auth;
+using CompensaIdentityApi.Data;
 using CompensaIdentityApi.DTOs;
 using CompensaIdentityApi.Infrastructure.Auth;
 using CompensaIdentityApi.Infrastructure.Email;
 using CompensaIdentityApi.Infrastructure.MagicLinks;
 using CompensaIdentityApi.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace CompensaIdentityApi.Services.Auth;
 
@@ -16,6 +18,7 @@ public sealed class AuthService : IAuthService
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IEmailSender _emailSender;
     private readonly IWebHostEnvironment _environment;
+    private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -25,6 +28,7 @@ public sealed class AuthService : IAuthService
         IJwtTokenService jwtTokenService,
         IEmailSender emailSender,
         IWebHostEnvironment environment,
+        ApplicationDbContext dbContext,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
@@ -33,6 +37,7 @@ public sealed class AuthService : IAuthService
         _jwtTokenService = jwtTokenService;
         _emailSender = emailSender;
         _environment = environment;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -68,16 +73,53 @@ public sealed class AuthService : IAuthService
         if (user == null)
             return null;
 
+        return await GenerateAuthResponseAsync(user, cancellationToken);
+    }
+
+    public async Task<VerifyMagicLinkResponse?> RefreshTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken = default)
+    {
+        var storedToken = await _dbContext.RefreshTokens
+            .Include(t => t.User)
+            .FirstOrDefaultAsync(t => t.Token == refreshToken, cancellationToken);
+
+        if (storedToken == null || !storedToken.IsActive)
+            return null;
+
+        // Revoke current token
+        storedToken.RevokedAt = DateTime.UtcNow;
+        _dbContext.RefreshTokens.Update(storedToken);
+
+        return await GenerateAuthResponseAsync(storedToken.User, cancellationToken);
+    }
+
+    private async Task<VerifyMagicLinkResponse> GenerateAuthResponseAsync(
+        ApplicationUser user,
+        CancellationToken cancellationToken)
+    {
         var roles = await _userManager.GetRolesAsync(user);
         var roleArray = roles.ToArray();
-        var accessToken = _jwtTokenService.CreateAccessToken(user, roleArray);
+        var tokens = _jwtTokenService.CreateAccessToken(user, roleArray);
+
+        // Save refresh token
+        var refreshTokenEntity = new RefreshToken
+        {
+            Token = tokens.RefreshToken,
+            ExpiresAt = DateTime.UtcNow.AddDays(7), // Refresh token expires in 7 days
+            UserId = user.Id
+        };
+
+        _dbContext.RefreshTokens.Add(refreshTokenEntity);
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return new VerifyMagicLinkResponse(
             user.Id,
             user.Email,
             user.FullName,
             roleArray,
-            accessToken.AccessToken,
-            accessToken.ExpiresAt);
+            tokens.AccessToken,
+            tokens.ExpiresAt,
+            tokens.RefreshToken);
     }
 }

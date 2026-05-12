@@ -39,6 +39,20 @@ services:
     networks:
       - compensa
 
+  redis:
+    image: redis:7-alpine
+    container_name: compensa-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
   identity-api:
     build:
       context: .
@@ -67,6 +81,7 @@ services:
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
       IdentitySeed__AdminFullName: ${IDENTITY_SEED_ADMIN_FULL_NAME:-Compensa Admin}
+      Redis__ConnectionString: compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${IDENTITY_API_PORT:-5002}:8080"
@@ -74,6 +89,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
@@ -100,6 +117,7 @@ services:
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+      Redis__ConnectionString: compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${CORE_API_PORT:-5001}:8080"
@@ -109,6 +127,8 @@ services:
       identity-api:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
@@ -130,11 +150,14 @@ services:
       CORE_API_URL: http://core-api:8080
       OPENAI_API_KEY: ${OPENAI_API_KEY:-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}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyC1M8SJGAjrp5wMUQaCSFesHQK7Ajd0IVU}
+      REDIS_URL: redis://compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${COMPENSA_AI_PORT:-8000}:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]

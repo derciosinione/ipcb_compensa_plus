@@ -145,6 +145,9 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
+builder.Services.AddHttpClient("CompensaAI")
+    .AddStandardResilienceHandler();
+
 builder.Services.AddHostedService<DatabaseStartupService>();
 
 builder.Services
