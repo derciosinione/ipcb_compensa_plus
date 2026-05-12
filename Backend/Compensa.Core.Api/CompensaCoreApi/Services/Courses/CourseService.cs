@@ -73,7 +73,7 @@ public sealed class CourseService : ICourseService
             componentResponses,
             classes.Select(ToClassGroupResponse).ToArray(),
             schedules.Select(ToClassScheduleResponse).ToArray(),
-            courseAssignments.Select(ToCourseAssignmentResponse).ToArray());
+            courseAssignments.Select(a => ToCourseAssignmentResponse(a, course.Name)).ToArray());
     }
 
     public async Task<CourseResponse> CreateAsync(
@@ -639,13 +639,14 @@ public sealed class CourseService : ICourseService
             schedule.IsActive);
     }
 
-    private static CourseTeacherAssignmentResponse ToCourseAssignmentResponse(CourseTeacherAssignment assignment)
+    private static CourseTeacherAssignmentResponse ToCourseAssignmentResponse(CourseTeacherAssignment assignment, string courseName)
     {
         return new CourseTeacherAssignmentResponse(
             assignment.Id,
             assignment.UserId,
             assignment.UserEmail,
             assignment.CourseId,
+            courseName,
             assignment.IsCoordinator,
             assignment.CreatedAt,
             assignment.UpdatedAt);

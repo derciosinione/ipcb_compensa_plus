@@ -5,7 +5,9 @@ public sealed record UserUnitAssignmentResponse(
     string UserId,
     string UserEmail,
     Guid CourseId,
+    string CourseName,
     Guid CurricularUnitId,
+    string CurricularUnitName,
     bool IsResponsible,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);

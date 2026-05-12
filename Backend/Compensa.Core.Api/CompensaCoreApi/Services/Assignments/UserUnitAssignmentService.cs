@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using CompensaCoreApi.Domain.Assignments;
 using CompensaCoreApi.Dtos.Assignments;
 using CompensaCoreApi.Repositories.Assignments;
@@ -20,9 +22,24 @@ public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
         var unitAssignments = await _repository.ListByUserAsync(userId, cancellationToken);
         var courseAssignments = await _repository.ListCoursesByUserAsync(userId, cancellationToken);
 
+        var courseIds = courseAssignments.Select(c => c.CourseId)
+            .Concat(unitAssignments.Select(u => u.CourseId))
+            .Distinct()
+            .ToArray();
+        
+        var unitIds = unitAssignments.Select(u => u.CurricularUnitId).Distinct().ToArray();
+
+        var courses = await _repository.ListCoursesByIdsAsync(courseIds, cancellationToken);
+        var units = await _repository.ListUnitsByIdsAsync(unitIds, cancellationToken);
+
+        var courseNames = courses.ToDictionary(c => c.Id, c => c.Name);
+        var unitNames = units.ToDictionary(u => u.Id, u => u.Name);
+
         return new UserAcademicAssignmentsResponse(
-            courseAssignments.Select(ToCourseResponse).ToArray(),
-            unitAssignments.Select(ToUnitResponse).ToArray());
+            courseAssignments.Select(c => ToCourseResponse(c, courseNames.ContainsKey(c.CourseId) ? courseNames[c.CourseId] : "Unknown")).ToArray(),
+            unitAssignments.Select(u => ToUnitResponse(u, 
+                courseNames.ContainsKey(u.CourseId) ? courseNames[u.CourseId] : "Unknown", 
+                unitNames.ContainsKey(u.CurricularUnitId) ? unitNames[u.CurricularUnitId] : "Unknown")).ToArray());
     }
 
     public async Task<UserAcademicAssignmentsResponse> SaveAsync(
@@ -87,26 +104,29 @@ public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
         return await ListByUserAsync(normalizedUserId, cancellationToken);
     }
 
-    private static UserUnitAssignmentResponse ToUnitResponse(UserUnitAssignment assignment)
+    private static UserUnitAssignmentResponse ToUnitResponse(UserUnitAssignment assignment, string courseName, string unitName)
     {
         return new UserUnitAssignmentResponse(
             assignment.Id,
             assignment.UserId,
             assignment.UserEmail,
             assignment.CourseId,
+            courseName,
             assignment.CurricularUnitId,
+            unitName,
             assignment.IsResponsible,
             assignment.CreatedAt,
             assignment.UpdatedAt);
     }
 
-    private static CourseTeacherAssignmentResponse ToCourseResponse(CourseTeacherAssignment assignment)
+    private static CourseTeacherAssignmentResponse ToCourseResponse(CourseTeacherAssignment assignment, string courseName)
     {
         return new CourseTeacherAssignmentResponse(
             assignment.Id,
             assignment.UserId,
             assignment.UserEmail,
             assignment.CourseId,
+            courseName,
             assignment.IsCoordinator,
             assignment.CreatedAt,
             assignment.UpdatedAt);

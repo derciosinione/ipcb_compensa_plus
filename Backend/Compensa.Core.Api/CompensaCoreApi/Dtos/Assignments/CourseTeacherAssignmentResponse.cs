@@ -5,6 +5,7 @@ public sealed record CourseTeacherAssignmentResponse(
     string UserId,
     string UserEmail,
     Guid CourseId,
+    string CourseName,
     bool IsCoordinator,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
