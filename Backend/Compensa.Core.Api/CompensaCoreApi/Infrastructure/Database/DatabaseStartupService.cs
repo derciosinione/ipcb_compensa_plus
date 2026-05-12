@@ -1,6 +1,7 @@
 using CompensaCoreApi.Data;
 using CompensaCoreApi.Domain.AcademicYears;
 using CompensaCoreApi.Domain.Courses;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace CompensaCoreApi.Infrastructure.Database;
@@ -21,7 +22,7 @@ public sealed class DatabaseStartupService : IHostedService
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
-        await context.Database.EnsureCreatedAsync(cancellationToken);
+        await ApplyMigrationsOrUseLegacySchemaAsync(context, cancellationToken);
         await EnsureAcademicYearsTableAsync(context, cancellationToken);
         await EnsureClassroomsTableAsync(context, cancellationToken);
         await EnsureCoursesTableAsync(context, cancellationToken);
@@ -36,6 +37,44 @@ public sealed class DatabaseStartupService : IHostedService
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private async Task ApplyMigrationsOrUseLegacySchemaAsync(CoreDbContext context, CancellationToken cancellationToken)
+    {
+        var hasMigrationHistory = await TableExistsAsync(context, "__EFMigrationsHistory", cancellationToken);
+        var hasLegacySchema = await TableExistsAsync(context, "courses", cancellationToken);
+
+        if (hasMigrationHistory || !hasLegacySchema)
+        {
+            await context.Database.MigrateAsync(cancellationToken);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Core database already has tables without EF migration history. Keeping legacy schema compatibility path.");
+    }
+
+    private static async Task<bool> TableExistsAsync(
+        CoreDbContext context,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var connection = context.Database.GetDbConnection();
+
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "select to_regclass(@tableName) is not null";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "tableName";
+        parameter.Value = "public.\"" + tableName.Replace("\"", "\"\"") + "\"";
+        command.Parameters.Add(parameter);
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is true;
+    }
 
     private static async Task EnsureAcademicYearsTableAsync(CoreDbContext context, CancellationToken cancellationToken)
     {

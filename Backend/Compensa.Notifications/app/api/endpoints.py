@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Any
+from typing import Any
 
 from ..core.database import get_db
 from ..models import Notification, NotificationPreference
@@ -40,7 +40,7 @@ async def get_notifications(
 
 @router.patch("/notifications/{notification_id}/read")
 async def mark_notification_read(
-    notification_id: int,
+    notification_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ) -> Any:

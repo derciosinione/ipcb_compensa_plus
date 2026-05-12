@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer
+from uuid import uuid4
+
+from sqlalchemy import Column, String, Boolean, DateTime, Text
 from ..core.database import Base
 
 class Notification(Base):
     __tablename__ = "notifications"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid4()))
     user_id = Column(String, index=True, nullable=False)
     title = Column(String, nullable=False)
     message = Column(Text, nullable=False)

@@ -21,7 +21,7 @@ export const useMarkNotificationReadMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) => notificationsApi.markAsRead(id),
+    mutationFn: (id: string) => notificationsApi.markAsRead(id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: notificationQueryKeys.list() });
       const previousNotifications = queryClient.getQueryData<NotificationDto[]>(notificationQueryKeys.list());
@@ -49,7 +49,7 @@ export const useMarkAllNotificationsReadMutation = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (ids: number[]) => Promise.all(ids.map((id) => notificationsApi.markAsRead(id))),
+    mutationFn: (ids: string[]) => Promise.all(ids.map((id) => notificationsApi.markAsRead(id))),
     onMutate: async (ids) => {
       await queryClient.cancelQueries({ queryKey: notificationQueryKeys.list() });
       const idSet = new Set(ids);

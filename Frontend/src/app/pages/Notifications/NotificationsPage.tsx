@@ -43,7 +43,7 @@ export const NotificationsPage = () => {
     return true;
   });
 
-  const markAsRead = async (id: number) => {
+  const markAsRead = async (id: string) => {
     markNotificationRead.mutate(id, {
       onError: (error) => {
         toast.error(getErrorMessage(error, 'Failed to mark notification as read.'));

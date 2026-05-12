@@ -2,6 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .core.config import settings
 from .core.rabbitmq import rabbitmq_client
@@ -13,6 +14,22 @@ import app.models # Import models to register them with Base
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+async def ensure_schema_compatibility(conn):
+    result = await conn.execute(text(
+        """
+        select data_type
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'notifications'
+          and column_name = 'id'
+        """
+    ))
+    id_type = result.scalar_one_or_none()
+
+    if id_type and id_type not in ("character varying", "text"):
+        logger.warning("Dropping legacy notifications table with non-UUID id column.")
+        await conn.execute(text("drop table if exists notifications"))
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
@@ -20,6 +37,7 @@ async def lifespan(app: FastAPI):
     
     # Initialize DB
     async with engine.begin() as conn:
+        await ensure_schema_compatibility(conn)
         await conn.run_sync(Base.metadata.create_all)
         logger.info("Database initialized.")
 
