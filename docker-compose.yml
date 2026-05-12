@@ -67,6 +67,7 @@ services:
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
       IdentitySeed__AdminFullName: ${IDENTITY_SEED_ADMIN_FULL_NAME:-Compensa Admin}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${IDENTITY_API_PORT:-5002}:8080"
     depends_on:
@@ -99,6 +100,7 @@ services:
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${CORE_API_PORT:-5001}:8080"
     depends_on:
@@ -128,6 +130,7 @@ services:
       CORE_API_URL: http://core-api:8080
       OPENAI_API_KEY: ${OPENAI_API_KEY:-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}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyC1M8SJGAjrp5wMUQaCSFesHQK7Ajd0IVU}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${COMPENSA_AI_PORT:-8000}:8000"
     depends_on:
@@ -159,6 +162,7 @@ services:
       EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-info@kiaricode.com}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-Compensa+}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${NOTIFICATIONS_PORT:-8001}:8000"
     depends_on:
@@ -184,6 +188,7 @@ services:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${GATEWAY_PORT:-5005}:8080"
     depends_on:
@@ -227,6 +232,107 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+    networks:
+      - compensa
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.101.0
+    container_name: otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./docker/otel-collector/config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # Prometheus metrics
+    networks:
+      - compensa
+
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+    container_name: aspire-dashboard
+    restart: unless-stopped
+    environment:
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+      - ASPNETCORE_URLS=http://+:18888
+    ports:
+      - "18888:18888" # Dashboard UI
+      - "18889:18889" # OTLP gRPC
+      - "18890:18890" # OTLP HTTP
+    networks:
+      - compensa
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    networks:
+      - compensa
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
+    networks:
+      - compensa
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=${EMAIL_SMTP_HOST:-smtp.privateemail.com}:587
+      - GF_SMTP_USER=${EMAIL_USERNAME:-info@kiaricode.com}
+      - GF_SMTP_PASSWORD=${EMAIL_PASSWORD:-}
+      - GF_SMTP_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-info@kiaricode.com}
+      - GF_SMTP_FROM_NAME=${EMAIL_FROM_NAME:-Compensa Alerting}
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    networks:
+      - compensa
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./docker/loki/loki.yaml:/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - compensa
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./docker/tempo/tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200" # tempo
+      - "4317" # otlp grpc
     networks:
       - compensa
 

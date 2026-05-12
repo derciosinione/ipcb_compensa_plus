@@ -7,6 +7,7 @@ using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Classrooms;
 using CompensaCoreApi.Repositories.CompensationRequests;
 using CompensaCoreApi.Repositories.Courses;
+using CompensaCoreApi.Services.Audit;
 using MassTransit;
 using CompensaCoreApi.IntegrationEvents;
 
@@ -20,6 +21,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
     private readonly IAcademicYearRepository _academicYearRepository;
     private readonly IUserUnitAssignmentRepository _assignmentRepository;
     private readonly IPublishEndpoint _publishEndpoint;
+    private readonly IAuditService _auditService;
 
     public CompensationRequestService(
         ICompensationRequestRepository repository,
@@ -27,7 +29,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
         IClassroomRepository classroomRepository,
         IAcademicYearRepository academicYearRepository,
         IUserUnitAssignmentRepository assignmentRepository,
-        IPublishEndpoint publishEndpoint)
+        IPublishEndpoint publishEndpoint,
+        IAuditService auditService)
     {
         _repository = repository;
         _courseRepository = courseRepository;
@@ -35,6 +38,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         _academicYearRepository = academicYearRepository;
         _assignmentRepository = assignmentRepository;
         _publishEndpoint = publishEndpoint;
+        _auditService = auditService;
     }
 
     public async Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
@@ -148,6 +152,14 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         await _repository.AddAsync(compensationRequest, cancellationToken);
 
+        await _auditService.LogActionAsync(
+            "CompensationRequest",
+            compensationRequest.Id.ToString(),
+            "Create",
+            actorUserId,
+            null,
+            compensationRequest);
+
         var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
         foreach (var coordinatorUserId in coordinatorUserIds)
         {
@@ -186,11 +198,21 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (request.Status is CompensationRequestStatus.Rejected && string.IsNullOrWhiteSpace(request.DecisionComment))
             throw new InvalidOperationException("Rejected requests require a decision comment.");
 
+        var previousState = new { compensationRequest.Status, compensationRequest.DecisionComment };
+
         compensationRequest.Status = request.Status;
         compensationRequest.DecisionComment = request.DecisionComment?.Trim();
         compensationRequest.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogActionAsync(
+            "CompensationRequest",
+            compensationRequest.Id.ToString(),
+            "UpdateStatus",
+            actorUserId,
+            previousState,
+            new { compensationRequest.Status, compensationRequest.DecisionComment });
 
         var decisionCoordinatorIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
         foreach (var coordinatorUserId in decisionCoordinatorIds.DefaultIfEmpty(actorUserId))

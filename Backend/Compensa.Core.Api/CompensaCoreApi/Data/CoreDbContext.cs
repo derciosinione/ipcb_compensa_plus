@@ -1,3 +1,4 @@
+using CompensaCoreApi.Domain.Audit;
 using CompensaCoreApi.Domain.Assignments;
 using CompensaCoreApi.Domain.AcademicYears;
 using CompensaCoreApi.Domain.CompensationRequests;
@@ -23,10 +24,28 @@ public sealed class CoreDbContext : DbContext
     public DbSet<ClassSchedule> ClassSchedules => Set<ClassSchedule>();
     public DbSet<CourseTeacherAssignment> CourseTeacherAssignments => Set<CourseTeacherAssignment>();
     public DbSet<UserUnitAssignment> UserUnitAssignments => Set<UserUnitAssignment>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("audit_logs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.EntityName).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.EntityId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Action).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ActorUserId).HasMaxLength(128).IsRequired();
+            entity.Property(e => e.PreviousState).HasColumnType("jsonb");
+            entity.Property(e => e.NewState).HasColumnType("jsonb");
+            
+            entity.HasIndex(e => e.EntityName);
+            entity.HasIndex(e => e.EntityId);
+            entity.HasIndex(e => e.ActorUserId);
+            entity.HasIndex(e => e.CreatedAt);
+        });
 
         modelBuilder.Entity<CompensationRequest>(entity =>
         {
