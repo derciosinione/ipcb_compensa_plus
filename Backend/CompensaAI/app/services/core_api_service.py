@@ -26,7 +26,7 @@ class CoreApiService:
                 )
                 if response.status_code == 200:
                     return response.json().get("data", {})
-                return {"error": f"Erro técnico ({response.status_code} - {response.reason_phrase})"}
+                return {"error": f"Erro técnico ({response.status_code})"}
         except Exception as e:
             logger.error(f"Error calling Core API get_user_assignments: {e}")
             return {"error": str(e)}
@@ -35,11 +35,7 @@ class CoreApiService:
         """Checks for free rooms in a given period."""
         try:
             async with httpx.AsyncClient() as client:
-                params = {
-                    "Date": date,
-                    "StartTime": start_time,
-                    "EndTime": end_time
-                }
+                params = {"Date": date, "StartTime": start_time, "EndTime": end_time}
                 response = await client.get(
                     f"{self.base_url}/api/schedules/availability", 
                     params=params,
@@ -52,21 +48,53 @@ class CoreApiService:
             logger.error(f"Error calling Core API get_available_rooms: {e}")
             return {"error": str(e)}
 
+    async def get_classrooms(self, search: Optional[str] = None, token: Optional[str] = None):
+        """Lists all classrooms in the system."""
+        try:
+            async with httpx.AsyncClient() as client:
+                params = {}
+                if search: params["search"] = search
+                response = await client.get(f"{self.base_url}/api/classrooms", params=params, headers=self._get_headers(token))
+                if response.status_code == 200:
+                    return response.json().get("data", [])
+                return {"error": f"Erro técnico ({response.status_code})"}
+        except Exception as e:
+            logger.error(f"Error calling Core API get_classrooms: {e}")
+            return {"error": str(e)}
+
+    async def get_dashboard_summary(self, token: Optional[str] = None):
+        """Gets system statistics for the dashboard."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{self.base_url}/api/dashboard/summary", headers=self._get_headers(token))
+                if response.status_code == 200:
+                    return response.json().get("data", {})
+                return {"error": f"Erro técnico ({response.status_code})"}
+        except Exception as e:
+            logger.error(f"Error calling Core API get_dashboard_summary: {e}")
+            return {"error": str(e)}
+
+    async def search_global(self, query: str, token: Optional[str] = None):
+        """Performs a global search across courses, units, and teachers."""
+        try:
+            async with httpx.AsyncClient() as client:
+                params = {"query": query}
+                response = await client.get(f"{self.base_url}/api/search", params=params, headers=self._get_headers(token))
+                if response.status_code == 200:
+                    return response.json().get("data", [])
+                return {"error": f"Erro técnico ({response.status_code})"}
+        except Exception as e:
+            logger.error(f"Error calling Core API search_global: {e}")
+            return {"error": str(e)}
+
     async def get_compensation_requests(self, teacher_user_id: str = None, status: Optional[int] = None, token: Optional[str] = None):
         """Lists compensation requests."""
         try:
             async with httpx.AsyncClient() as client:
                 params = {}
-                if teacher_user_id:
-                    params["teacherUserId"] = teacher_user_id
-                if status:
-                    params["status"] = status
-                
-                response = await client.get(
-                    f"{self.base_url}/api/compensation-requests", 
-                    params=params,
-                    headers=self._get_headers(token)
-                )
+                if teacher_user_id: params["teacherUserId"] = teacher_user_id
+                if status: params["status"] = status
+                response = await client.get(f"{self.base_url}/api/compensation-requests", params=params, headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", [])
                 return {"error": f"Erro técnico ({response.status_code})"}
@@ -78,10 +106,7 @@ class CoreApiService:
         """Gets full details of a specific compensation request."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.base_url}/api/compensation-requests/{request_id}",
-                    headers=self._get_headers(token)
-                )
+                response = await client.get(f"{self.base_url}/api/compensation-requests/{request_id}", headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", {})
                 return {"error": f"Erro técnico ({response.status_code})"}
@@ -89,22 +114,42 @@ class CoreApiService:
             logger.error(f"Error calling Core API get_request_details: {e}")
             return {"error": str(e)}
 
-    async def update_request_status(self, request_id: str, status: int, reason: str, token: Optional[str] = None):
-        """Updates the status of a compensation request (Coordinator/Admin)."""
+    async def submit_compensation_request(self, data: Dict[str, Any], token: Optional[str] = None):
+        """Directly submits a compensation request to the system."""
         try:
             async with httpx.AsyncClient() as client:
-                data = {
-                    "Status": status,
-                    "Reason": reason
+                payload = {
+                    "TeacherUserId": data.get("teacherUserId"),
+                    "TeacherName": data.get("teacherName"),
+                    "AcademicYearId": data.get("academicYearId"),
+                    "CourseId": data.get("courseId"),
+                    "CurricularUnitId": data.get("unitId"),
+                    "ClassGroupId": data.get("classGroupId"),
+                    "OriginalClassScheduleId": data.get("originalClassScheduleId"),
+                    "NewClassroomId": data.get("newClassroomId"),
+                    "OriginalDate": data.get("originalDate"),
+                    "NewDate": data.get("newDate"),
+                    "NewStartTime": data.get("newStartTime"),
+                    "NewEndTime": data.get("newEndTime"),
+                    "Justification": data.get("reason") or data.get("justification")
                 }
-                response = await client.patch(
-                    f"{self.base_url}/api/compensation-requests/{request_id}/status",
-                    json=data,
-                    headers=self._get_headers(token)
-                )
+                response = await client.post(f"{self.base_url}/api/compensation-requests", json=payload, headers=self._get_headers(token))
+                if response.status_code in [200, 201]:
+                    return response.json().get("data", {})
+                return {"error": f"Falha ao submeter: {response.status_code} - {response.text}"}
+        except Exception as e:
+            logger.error(f"Error calling Core API submit_compensation_request: {e}")
+            return {"error": str(e)}
+
+    async def update_request_status(self, request_id: str, status: int, reason: str, token: Optional[str] = None):
+        """Updates the status of a compensation request."""
+        try:
+            async with httpx.AsyncClient() as client:
+                data = {"Status": status, "Reason": reason}
+                response = await client.patch(f"{self.base_url}/api/compensation-requests/{request_id}/status", json=data, headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", {})
-                return {"error": f"Falha ao atualizar estado: {response.status_code} - {response.text}"}
+                return {"error": f"Falha ao atualizar estado: {response.status_code}"}
         except Exception as e:
             logger.error(f"Error calling Core API update_request_status: {e}")
             return {"error": str(e)}
@@ -114,13 +159,8 @@ class CoreApiService:
         try:
             async with httpx.AsyncClient() as client:
                 params = {}
-                if search:
-                    params["search"] = search
-                response = await client.get(
-                    f"{self.base_url}/api/courses",
-                    params=params,
-                    headers=self._get_headers(token)
-                )
+                if search: params["search"] = search
+                response = await client.get(f"{self.base_url}/api/courses", params=params, headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", [])
                 return {"error": f"Erro técnico ({response.status_code})"}
@@ -129,13 +169,10 @@ class CoreApiService:
             return {"error": str(e)}
 
     async def get_course_details(self, course_id: str, token: Optional[str] = None):
-        """Gets full details of a course, including its curricular units."""
+        """Gets full details of a course."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.base_url}/api/courses/{course_id}/details",
-                    headers=self._get_headers(token)
-                )
+                response = await client.get(f"{self.base_url}/api/courses/{course_id}/details", headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", {})
                 return {"error": f"Erro técnico ({response.status_code})"}
@@ -147,10 +184,7 @@ class CoreApiService:
         """Lists academic years."""
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.base_url}/api/academic-years",
-                    headers=self._get_headers(token)
-                )
+                response = await client.get(f"{self.base_url}/api/academic-years", headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", [])
                 return {"error": f"Erro técnico ({response.status_code})"}

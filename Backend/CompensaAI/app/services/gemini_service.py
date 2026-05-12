@@ -18,65 +18,74 @@ COMPENSA_INSTRUCTIONS = """
 You are Compensa IA, a highly intelligent and versatile assistant for the Compensa+ platform at IPCB.
 Your mission is to provide comprehensive support for all users: Teachers, Course Coordinators, and Administrators.
 
-Dynamic Capabilities:
-1. Real-time Information: Use the provided tools to fetch live data about:
-   - Curricular Units (UCs) and Courses.
-   - Schedules and Classrooms (finding free/occupied rooms).
-   - Compensation Requests (listing, tracking status, detailed view).
-   - Academic Years and Courses in the system.
-2. Document Intelligence: Analyze uploaded files (PDFs, Excel, etc.) to extract structured data.
-3. Task Automation: 
-   - Help draft compensation requests (CreateCompensationRequest action).
-   - Help Coordinators/Admins approve or reject requests directly in chat.
-   - Search for information about any course or UC.
+Capabilities:
+1. Real-time Information: Use tools to fetch data about UCs, Courses, Schedules, Classrooms, and Dashboard stats.
+2. Global Search: Use 'search_global' to find anything in the system (teachers, courses, units).
+3. Management: Approve/Reject requests (Coordinators/Admins only), list requests, and view details.
+4. Draft vs. Submit: 
+   - ALWAYS use 'create_compensation_request' (DRAFT) to show a review form to the user.
+   - Use 'submit_compensation_request' ONLY if the user explicitly provides all GUIDs and says 'submit now'.
+5. Dashboard: Use 'get_dashboard_summary' to give a high-level overview of the system state.
 
-User Profiles & Context:
-- Teacher: Focus on their specific UCs, their own schedule, and their requests.
-- Coordinator: Can see data for their course, including requests from other teachers that need approval. They can APPROVE or REJECT requests.
-- Admin: Has full access to the system and can perform any action.
+User Profiles:
+- Teacher: Focus on their assignments and requests.
+- Coordinator: Focus on their course data and pending approvals.
+- Admin: Full system access.
 
-Status Codes for Requests:
-1 = Pending, 2 = Approved, 3 = Rejected, 4 = Cancelled.
-
-Always base your responses on the provided system context (User ID, Role, etc.) and strictly adhere to the scope of the Compensa+ project.
-Be helpful, proactive, and precise. If a tool returns an error, explain it politely to the user.
+Adhere strictly to the scope of Compensa+. If you don't know something, use 'search_global'.
 """
 
-# Tool Definitions for Gemini
+# Tool Definitions
 def create_compensation_request(courseId: str, unitId: str, originalDate: str, proposedDate: str, reason: str):
-    """Call this when a user wants to create or draft a compensation request. This returns an action for the UI to handle."""
+    """Drafts a compensation request (UI Action). Use this for names/text dates."""
+    pass
+
+def submit_compensation_request(courseId: str, unitId: str, classGroupId: str, academicYearId: str, originalClassScheduleId: str, newClassroomId: str, originalDate: str, newDate: str, newStartTime: str, newEndTime: str, reason: str, teacherUserId: Optional[str] = None, teacherName: Optional[str] = None):
+    """Directly submits a compensation request. Requires ALL GUIDs. Avoid unless explicitly requested with all IDs."""
     pass
 
 def get_user_assignments(userId: str):
-    """Gets curricular units and courses assigned to the specified user."""
+    """Gets curricular units and courses for a user."""
     pass
 
 def get_available_rooms(date: str, startTime: str, endTime: str):
-    """Checks for available classrooms for a specific date and time range (format: YYYY-MM-DD, HH:MM)."""
+    """Checks for free classrooms (YYYY-MM-DD, HH:MM)."""
+    pass
+
+def get_classrooms(search: Optional[str] = None):
+    """Lists all classrooms or searches for specific ones."""
     pass
 
 def get_my_compensation_requests(teacherUserId: Optional[str] = None, status: Optional[int] = None):
-    """Lists compensation requests. Teachers see their own; Coordinators/Admins can filter by teacher or status (1=Pending, 2=Approved, 3=Rejected, 4=Cancelled)."""
+    """Lists requests. 1=Pending, 2=Approved, 3=Rejected, 4=Cancelled."""
     pass
 
 def get_request_details(requestId: str):
-    """Gets full details of a specific compensation request including its history and reason."""
+    """Gets full details of a specific request."""
     pass
 
 def update_request_status(requestId: str, status: int, reason: str):
-    """Updates the status of a compensation request. 2=Approved, 3=Rejected. Mandatory for Coordinators/Admins to provide a reason."""
+    """Updates status (2=Approved, 3=Rejected). Mandatory reason for Coordinators/Admins."""
     pass
 
 def get_courses(search: Optional[str] = None):
-    """Lists or searches for courses in the system."""
+    """Lists or searches for courses."""
     pass
 
 def get_course_details(courseId: str):
-    """Gets full details of a course, including its curricular units (UCs) and general info."""
+    """Gets course details and UCs."""
     pass
 
 def get_academic_years():
-    """Lists the academic years available in the system (e.g., 2023/24)."""
+    """Lists academic years (e.g., 2023/24)."""
+    pass
+
+def get_dashboard_summary():
+    """Gets system statistics (total requests, pending, etc.)."""
+    pass
+
+def search_global(query: str):
+    """Performs a global search across the entire system."""
     pass
 
 class CompensaGemini_Service:
@@ -86,14 +95,18 @@ class CompensaGemini_Service:
             model_name='gemini-flash-latest',
             tools=[
                 create_compensation_request,
+                submit_compensation_request,
                 get_user_assignments,
                 get_available_rooms,
+                get_classrooms,
                 get_my_compensation_requests,
                 get_request_details,
                 update_request_status,
                 get_courses,
                 get_course_details,
-                get_academic_years
+                get_academic_years,
+                get_dashboard_summary,
+                search_global
             ],
             system_instruction=COMPENSA_INSTRUCTIONS
         )
@@ -110,136 +123,78 @@ class CompensaGemini_Service:
     async def send_message(self, thread_id: str, content: str, file_ids: Optional[List[str]] = None, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         if thread_id not in self.sessions:
             self.sessions[thread_id] = self.model.start_chat(history=[])
-            
         chat_session = self.sessions[thread_id]
-        
-        # Add dynamic context (time and user)
         current_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
-        final_content = f"[Contexto do Sistema: Data/Hora Atual={current_time_str}]"
-        
+        final_content = f"[Context: {current_time_str}]"
         if user_context:
-            final_content += f"\n[Contexto do Utilizador: ID={user_context.get('id')}, Role={user_context.get('role')}, Name={user_context.get('name')}]"
+            final_content += f" [User: {user_context.get('name')} ({user_context.get('role')})]"
+        final_content += f"\n\nUser: {content}"
         
-        final_content += f"\n\nMensagem do Utilizador: {content}"
-
         message_content = []
         if file_ids:
             for file_id in file_ids:
-                try:
-                    f = genai.get_file(file_id)
-                    message_content.append(f)
-                except Exception as e:
-                    logger.warning(f"Failed to get file {file_id}: {e}")
-        
+                try: message_content.append(genai.get_file(file_id))
+                except Exception as e: logger.warning(f"File error {file_id}: {e}")
         message_content.append(final_content)
         
         try:
             response = await chat_session.send_message_async(message_content)
             return await self._handle_response(response, chat_session, user_context)
         except Exception as e:
-            logger.error(f"Error in Gemini send_message: {e}")
-            return {
-                "type": "error",
-                "content": f"Erro ao processar mensagem: {str(e)}"
-            }
+            logger.error(f"Gemini error: {e}")
+            return {"type": "error", "content": str(e)}
 
     async def _handle_response(self, response, chat_session, user_context):
-        # Check for function calls
-        if response.candidates:
-            candidate = response.candidates[0]
-            if candidate.content.parts:
-                for part in candidate.content.parts:
-                    if part.function_call:
-                        fc = part.function_call
-                        return await self._execute_tool(fc, chat_session, user_context)
-
-        # Normal text response
-        try:
-            return {
-                "type": "text",
-                "content": response.text
-            }
-        except Exception as e:
-            logger.warning(f"Failed to extract text from Gemini response: {e}")
-            if response.candidates and response.candidates[0].finish_reason:
-                 return {
-                    "type": "text",
-                    "content": f"A resposta foi interrompida (Razão: {response.candidates[0].finish_reason}). Por favor, tenta reformular."
-                }
-            return {
-                "type": "text",
-                "content": "Não foi possível extrair o texto da resposta."
-            }
+        if response.candidates and response.candidates[0].content.parts:
+            for part in response.candidates[0].content.parts:
+                if part.function_call:
+                    return await self._execute_tool(part.function_call, chat_session, user_context)
+        try: return {"type": "text", "content": response.text}
+        except: return {"type": "text", "content": "Erro ao processar resposta."}
 
     async def _execute_tool(self, fc, chat_session, user_context):
         name = fc.name
         args = {k: v for k, v in fc.args.items()}
         token = user_context.get("token") if user_context else None
         
-        logger.info(f"AI requested tool: {name} with args: {args}")
-
-        # For create_compensation_request, we return it as an "action" to the frontend
         if name == "create_compensation_request":
-            return {
-                "type": "action",
-                "action": "CreateCompensationRequest",
-                "data": args
-            }
+            return {"type": "action", "action": "CreateCompensationRequest", "data": args}
 
-        # For other tools, we call the Core API and send the result back to the model
         result = None
-        
         try:
             if name == "get_user_assignments":
                 uid = args.get("userId") or (user_context.get("id") if user_context else None)
-                if uid:
-                    result = await core_api_service.get_user_assignments(uid, token)
-                else:
-                    result = {"error": "User ID missing"}
-            
+                result = await core_api_service.get_user_assignments(uid, token)
             elif name == "get_available_rooms":
-                result = await core_api_service.get_available_rooms(
-                    args.get("date"), args.get("startTime"), args.get("endTime"), token
-                )
-            
+                result = await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), token)
+            elif name == "get_classrooms":
+                result = await core_api_service.get_classrooms(args.get("search"), token)
+            elif name == "get_dashboard_summary":
+                result = await core_api_service.get_dashboard_summary(token)
+            elif name == "search_global":
+                result = await core_api_service.search_global(args.get("query"), token)
             elif name == "get_my_compensation_requests":
                 uid = args.get("teacherUserId") or (user_context.get("id") if user_context else None)
-                status = args.get("status")
-                result = await core_api_service.get_compensation_requests(uid, status, token)
-
+                result = await core_api_service.get_compensation_requests(uid, args.get("status"), token)
+            elif name == "submit_compensation_request":
+                result = await core_api_service.submit_compensation_request(args, token)
             elif name == "get_request_details":
                 result = await core_api_service.get_request_details(args.get("requestId"), token)
-
             elif name == "update_request_status":
-                result = await core_api_service.update_request_status(
-                    args.get("requestId"), int(args.get("status")), args.get("reason"), token
-                )
-
+                result = await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), token)
             elif name == "get_courses":
                 result = await core_api_service.get_courses(args.get("search"), token)
-
             elif name == "get_course_details":
                 result = await core_api_service.get_course_details(args.get("courseId"), token)
-
             elif name == "get_academic_years":
                 result = await core_api_service.get_academic_years(token)
             
             if result is not None:
-                # Feed the result back to Gemini using a dictionary structure
-                response = await chat_session.send_message_async({
-                    "parts": [{
-                        "function_response": {
-                            "name": name,
-                            "response": {"result": result}
-                        }
-                    }]
-                })
+                response = await chat_session.send_message_async({"parts": [{"function_response": {"name": name, "response": {"result": result}}}]})
                 return await self._handle_response(response, chat_session, user_context)
-                
         except Exception as e:
-            logger.error(f"Error executing tool {name}: {e}")
-            return {"type": "text", "content": f"Erro ao executar a ferramenta {name}: {str(e)}"}
-
-        return {"type": "text", "content": "Ferramenta não implementada."}
+            logger.error(f"Tool error {name}: {e}")
+            return {"type": "text", "content": f"Erro em {name}: {str(e)}"}
+        return {"type": "text", "content": "Não implementado."}
 
 gemini_service = CompensaGemini_Service()
