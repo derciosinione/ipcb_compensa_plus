@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Http.Resilience;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using CompensaIdentityApi.Data;
@@ -141,7 +142,7 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
-builder.Services.AddHttpClient()
+builder.Services.AddHttpClient("IdentityClient")
     .AddStandardResilienceHandler();
 
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
