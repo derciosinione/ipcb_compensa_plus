@@ -10,6 +10,8 @@ using CompensaCoreApi.Repositories.Courses;
 using CompensaCoreApi.Services.Audit;
 using MassTransit;
 using CompensaCoreApi.IntegrationEvents;
+using CompensaCoreApi.Infrastructure.Caching;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace CompensaCoreApi.Services.CompensationRequests;
 
@@ -22,6 +24,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
     private readonly IUserUnitAssignmentRepository _assignmentRepository;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly IAuditService _auditService;
+    private readonly IDistributedCache _cache;
 
     public CompensationRequestService(
         ICompensationRequestRepository repository,
@@ -30,7 +33,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
         IAcademicYearRepository academicYearRepository,
         IUserUnitAssignmentRepository assignmentRepository,
         IPublishEndpoint publishEndpoint,
-        IAuditService auditService)
+        IAuditService auditService,
+        IDistributedCache cache)
     {
         _repository = repository;
         _courseRepository = courseRepository;
@@ -39,6 +43,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         _assignmentRepository = assignmentRepository;
         _publishEndpoint = publishEndpoint;
         _auditService = auditService;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
@@ -174,6 +179,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
             }, cancellationToken);
         }
 
+        await InvalidateDashboardCacheAsync(cancellationToken);
+
         return ToResponse(compensationRequest);
     }
 
@@ -227,6 +234,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
                 DecisionComment = compensationRequest.DecisionComment
             }, cancellationToken);
         }
+
+        await InvalidateDashboardCacheAsync(cancellationToken);
 
         return ToResponse(compensationRequest);
     }
@@ -430,5 +439,10 @@ public sealed class CompensationRequestService : ICompensationRequestService
             request.SubmittedAt,
             request.CreatedAt,
             request.UpdatedAt);
+    }
+
+    private async Task InvalidateDashboardCacheAsync(CancellationToken cancellationToken)
+    {
+        await _cache.RemoveAsync(CacheKeys.DashboardSummary, cancellationToken);
     }
 }

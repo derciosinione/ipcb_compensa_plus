@@ -85,9 +85,10 @@ app.UseRateLimiter();
 // Centralized Swagger UI
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/api/identity/swagger/v1/swagger.json", "Identity API");
-    options.SwaggerEndpoint("/api/core/swagger/v1/swagger.json", "Core API");
-    options.SwaggerEndpoint("/api/notifications/swagger.json", "Notifications API");
+    options.SwaggerEndpoint("/api/identity/openapi/v1.json", "Identity API");
+    options.SwaggerEndpoint("/api/core/openapi/v1.json", "Core API");
+    options.SwaggerEndpoint("/api/notifications/openapi.json", "Notifications API");
+    options.SwaggerEndpoint("/api/ai/openapi.json", "AI API");
     options.RoutePrefix = "swagger";
 });
 

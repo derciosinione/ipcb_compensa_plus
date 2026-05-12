@@ -2,20 +2,32 @@ using CompensaCoreApi.Data;
 using CompensaCoreApi.Domain.CompensationRequests;
 using CompensaCoreApi.Dtos.Dashboard;
 using Microsoft.EntityFrameworkCore;
+using CompensaCoreApi.Infrastructure.Caching;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace CompensaCoreApi.Services.Dashboard;
 
 public sealed class DashboardService : IDashboardService
 {
     private readonly CoreDbContext _dbContext;
+    private readonly IDistributedCache _cache;
 
-    public DashboardService(CoreDbContext dbContext)
+    public DashboardService(CoreDbContext dbContext, IDistributedCache cache)
     {
         _dbContext = dbContext;
+        _cache = cache;
     }
 
     public async Task<DashboardSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
+        var cacheKey = CacheKeys.DashboardSummary;
+        var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
+        if (!string.IsNullOrEmpty(cachedData))
+        {
+            return JsonSerializer.Deserialize<DashboardSummaryResponse>(cachedData)!;
+        }
+
         var activeAcademicYear = await _dbContext.AcademicYears
             .AsNoTracking()
             .Where(academicYear => academicYear.IsActive)
@@ -69,7 +81,15 @@ public sealed class DashboardService : IDashboardService
         var trends = await BuildTrendAsync(cancellationToken);
         var weekSchedule = await BuildWeekScheduleAsync(activeAcademicYear?.Id, cancellationToken);
 
-        return new DashboardSummaryResponse(activeAcademicYear?.Name, metrics, trends, weekSchedule);
+        var result = new DashboardSummaryResponse(activeAcademicYear?.Name, metrics, trends, weekSchedule);
+
+        await _cache.SetStringAsync(
+            cacheKey,
+            JsonSerializer.Serialize(result),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) },
+            cancellationToken);
+
+        return result;
     }
 
     private async Task<IReadOnlyCollection<DashboardTrendPointResponse>> BuildTrendAsync(

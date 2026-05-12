@@ -170,10 +170,7 @@ builder.Services
             return new BadRequestObjectResult(ApiResponse<object>.Fail("Validation failed.", errors));
         };
     });
-builder.Services.AddOpenApi(options =>
-{
-    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
-});
+builder.Services.AddOpenApi();
 
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("DefaultConnection")!);

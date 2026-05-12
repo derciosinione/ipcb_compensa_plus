@@ -7,6 +7,9 @@ using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Courses;
 using CompensaCoreApi.Services.Schedules;
+using CompensaCoreApi.Infrastructure.Caching;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace CompensaCoreApi.Services.Courses;
 
@@ -17,15 +20,18 @@ public sealed class CourseService : ICourseService
     private readonly ICourseRepository _repository;
     private readonly IAcademicYearRepository _academicYearRepository;
     private readonly IUserUnitAssignmentRepository _assignmentRepository;
+    private readonly IDistributedCache _cache;
 
     public CourseService(
         ICourseRepository repository,
         IAcademicYearRepository academicYearRepository,
-        IUserUnitAssignmentRepository assignmentRepository)
+        IUserUnitAssignmentRepository assignmentRepository,
+        IDistributedCache cache)
     {
         _repository = repository;
         _academicYearRepository = academicYearRepository;
         _assignmentRepository = assignmentRepository;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyCollection<CourseResponse>> ListAsync(
@@ -35,6 +41,17 @@ public sealed class CourseService : ICourseService
         bool isAdmin,
         CancellationToken cancellationToken = default)
     {
+        var version = await GetListVersionAsync(cancellationToken);
+        var cacheKey = CacheKeys.CourseList(version, search, actorUserId, isCoordinator, isAdmin);
+        var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
+
+        if (!string.IsNullOrEmpty(cachedData))
+        {
+            return JsonSerializer.Deserialize<IReadOnlyCollection<CourseResponse>>(cachedData)!;
+        }
+
+        IReadOnlyCollection<CourseResponse> result;
+
         // Security check: Teachers only see their assigned courses
         if (!isAdmin && !isCoordinator)
         {
@@ -44,15 +61,25 @@ public sealed class CourseService : ICourseService
                 .ToHashSet();
 
             var courses = await _repository.ListAsync(search, cancellationToken);
-            return courses
+            result = courses
                 .Where(c => assignedCourseIds.Contains(c.Id))
                 .Select(ToResponse)
                 .ToArray();
         }
+        else
+        {
+            // Coordinators/Admins see all for now (or we could filter coordinators too)
+            var allCourses = await _repository.ListAsync(search, cancellationToken);
+            result = allCourses.Select(ToResponse).ToArray();
+        }
 
-        // Coordinators/Admins see all for now (or we could filter coordinators too)
-        var allCourses = await _repository.ListAsync(search, cancellationToken);
-        return allCourses.Select(ToResponse).ToArray();
+        await _cache.SetStringAsync(
+            cacheKey,
+            JsonSerializer.Serialize(result),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) },
+            cancellationToken);
+
+        return result;
     }
 
     public async Task<CourseResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -63,6 +90,14 @@ public sealed class CourseService : ICourseService
 
     public async Task<CourseDetailsResponse> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        var cacheKey = CacheKeys.CourseDetails(id);
+        var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
+
+        if (!string.IsNullOrEmpty(cachedData))
+        {
+            return JsonSerializer.Deserialize<CourseDetailsResponse>(cachedData)!;
+        }
+
         var course = await GetRequiredCourseAsync(id, cancellationToken);
         var units = await _repository.ListUnitsAsync(id, cancellationToken);
         var components = await _repository.ListComponentsAsync(id, cancellationToken);
@@ -73,7 +108,7 @@ public sealed class CourseService : ICourseService
 
         var componentResponses = components.Select(ToComponentResponse).ToArray();
 
-        return new CourseDetailsResponse(
+        var result = new CourseDetailsResponse(
             ToResponse(course),
             units.Select(unit => ToUnitResponse(
                     unit,
@@ -93,6 +128,14 @@ public sealed class CourseService : ICourseService
             classes.Select(ToClassGroupResponse).ToArray(),
             schedules.Select(ToClassScheduleResponse).ToArray(),
             courseAssignments.Select(a => ToCourseAssignmentResponse(a, course.Name)).ToArray());
+
+        await _cache.SetStringAsync(
+            cacheKey,
+            JsonSerializer.Serialize(result),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30) },
+            cancellationToken);
+
+        return result;
     }
 
     public async Task<CourseResponse> CreateAsync(
@@ -118,6 +161,7 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddAsync(course, cancellationToken);
+        await InvalidateListCacheAsync(cancellationToken);
         return ToResponse(course);
     }
 
@@ -141,6 +185,11 @@ public sealed class CourseService : ICourseService
         course.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        
+        // Invalidate cache
+        await InvalidateDetailsCacheAsync(id, cancellationToken);
+        await InvalidateListCacheAsync(cancellationToken);
+        
         return ToResponse(course);
     }
 
@@ -168,6 +217,8 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddUnitAsync(unit, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
+        
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             unit.ResponsibleTeacherId,
             unit.ResponsibleTeacherEmail,
@@ -198,6 +249,8 @@ public sealed class CourseService : ICourseService
         unit.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
+        
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             unit.ResponsibleTeacherId,
             unit.ResponsibleTeacherEmail,
@@ -222,6 +275,7 @@ public sealed class CourseService : ICourseService
     {
         var unit = await GetRequiredUnitAsync(courseId, unitId, cancellationToken);
         await _repository.DeleteUnitAsync(unit, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
     }
 
     public async Task<CurricularUnitComponentResponse> CreateComponentAsync(
@@ -246,6 +300,8 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddComponentAsync(component, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
+        
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             component.ResponsibleTeacherId,
             component.ResponsibleTeacherEmail,
@@ -274,6 +330,8 @@ public sealed class CourseService : ICourseService
         component.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
+        
         var unit = await GetRequiredUnitAsync(courseId, unitId, cancellationToken);
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             component.ResponsibleTeacherId,
@@ -295,6 +353,7 @@ public sealed class CourseService : ICourseService
         var component = await GetRequiredComponentAsync(courseId, unitId, componentId, cancellationToken);
 
         await _repository.DeleteComponentAsync(component, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
     }
 
     public async Task<ClassGroupResponse> CreateClassGroupAsync(
@@ -316,6 +375,7 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddClassGroupAsync(classGroup, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
         return ToClassGroupResponse(classGroup);
     }
 
@@ -335,6 +395,7 @@ public sealed class CourseService : ICourseService
         classGroup.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
         return ToClassGroupResponse(classGroup);
     }
 
@@ -345,6 +406,7 @@ public sealed class CourseService : ICourseService
     {
         var classGroup = await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
         await _repository.DeleteClassGroupAsync(classGroup, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
     }
 
     public async Task<ClassScheduleResponse> CreateScheduleAsync(
@@ -387,6 +449,7 @@ public sealed class CourseService : ICourseService
         };
 
         await _repository.AddClassScheduleAsync(schedule, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
         return ToClassScheduleResponse(schedule);
     }
 
@@ -424,6 +487,7 @@ public sealed class CourseService : ICourseService
         schedule.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
         return ToClassScheduleResponse(schedule);
     }
 
@@ -436,12 +500,16 @@ public sealed class CourseService : ICourseService
         await GetRequiredClassGroupAsync(courseId, classGroupId, cancellationToken);
         var schedule = await GetRequiredClassScheduleAsync(courseId, classGroupId, scheduleId, cancellationToken);
         await _repository.DeleteClassScheduleAsync(schedule, cancellationToken);
+        await InvalidateDetailsCacheAsync(courseId, cancellationToken);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var course = await GetRequiredCourseAsync(id, cancellationToken);
         await _repository.DeleteAsync(course, cancellationToken);
+        
+        await InvalidateDetailsCacheAsync(id, cancellationToken);
+        await InvalidateListCacheAsync(cancellationToken);
     }
 
     private async Task<Course> GetRequiredCourseAsync(Guid id, CancellationToken cancellationToken)
@@ -669,5 +737,29 @@ public sealed class CourseService : ICourseService
             assignment.IsCoordinator,
             assignment.CreatedAt,
             assignment.UpdatedAt);
+    }
+
+    private async Task<string> GetListVersionAsync(CancellationToken cancellationToken)
+    {
+        return await _cache.GetStringAsync(CacheKeys.CourseListVersion, cancellationToken) ?? "0";
+    }
+
+    private async Task InvalidateListCacheAsync(CancellationToken cancellationToken)
+    {
+        var version = await GetListVersionAsync(cancellationToken);
+        var nextVersion = (int.TryParse(version, out var v) ? v : 0) + 1;
+        await _cache.SetStringAsync(CacheKeys.CourseListVersion, nextVersion.ToString(), cancellationToken);
+        await InvalidateDashboardCacheAsync(cancellationToken);
+    }
+
+    private async Task InvalidateDashboardCacheAsync(CancellationToken cancellationToken)
+    {
+        await _cache.RemoveAsync(CacheKeys.DashboardSummary, cancellationToken);
+    }
+
+    private async Task InvalidateDetailsCacheAsync(Guid id, CancellationToken cancellationToken)
+    {
+        await _cache.RemoveAsync(CacheKeys.CourseDetails(id), cancellationToken);
+        await InvalidateDashboardCacheAsync(cancellationToken);
     }
 }
