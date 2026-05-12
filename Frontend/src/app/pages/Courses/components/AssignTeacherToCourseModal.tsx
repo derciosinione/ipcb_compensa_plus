@@ -18,7 +18,7 @@ import {
 } from '../../../components/ui/select';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
-import { CurricularUnit } from '../../../mocks/data';
+import { CurricularUnit } from '../../../types/academic';
 import { toast } from 'sonner@2.0.3';
 import { Search } from 'lucide-react';
 import { Input } from '../../../components/ui/input';

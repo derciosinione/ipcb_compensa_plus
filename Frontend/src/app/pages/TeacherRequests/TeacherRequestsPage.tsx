@@ -15,7 +15,7 @@ import {
 } from "../../components/ui/alert-dialog";
 import { RequestForm } from '../../components/domain/requests/RequestForm';
 import { RequestDetailsPage } from '../../components/domain/requests/RequestDetailsPage';
-import { ClassRequest } from '../../mocks/data';
+import type { ClassRequest } from '../../types/requests';
 import { toast } from 'sonner@2.0.3';
 import { useLanguage } from '../../providers/LanguageContext';
 import { FilterBar, ViewMode, SortOrder, StatusFilter, CourseFilter } from '../../components/common/FilterBar';
@@ -153,7 +153,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
       const newComment = {
           id: Math.random().toString(36).substr(2, 9),
           authorName: 'Dr. Ana Silva',
-          role: 'teacher' as const,
+          role: user.role,
           text,
           createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
       };

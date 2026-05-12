@@ -14,7 +14,7 @@ import { getCourseDetails, listCourses } from '../../services/courses/coursesApi
 import type { Course, CurricularUnit } from '../../services/courses/courseTypes';
 import { listUserUnitAssignments, saveUserUnitAssignments } from '../../services/assignments/assignmentsApi';
 import type { CourseAssignmentInput } from '../../services/assignments/assignmentTypes';
-import type { User as ImportedUser } from '../../mocks/data';
+import type { ImportedUser } from '../../types/user';
 import { toIdentityRole } from './userPresentation';
 import { getErrorMessage } from '../../utils/errors';
 
@@ -102,7 +102,7 @@ export const UsersPage = () => {
     }
   };
 
-  const handleBulkImport = async (newUsers: Omit<ImportedUser, 'id'>[]) => {
+  const handleBulkImport = async (newUsers: ImportedUser[]) => {
     try {
       setIsSavingUser(true);
 

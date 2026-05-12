@@ -20,7 +20,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Card } from '../ui/card';
-import { ClassRequest } from '../compensa/data';
+import type { ClassRequest } from '../../types/requests';
 import { cn } from '../ui/utils';
 
 export interface RequestsTableProps {

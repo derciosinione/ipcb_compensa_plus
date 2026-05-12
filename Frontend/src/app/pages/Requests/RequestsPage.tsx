@@ -1,5 +1,4 @@
-import { UserRole } from '../../mocks/data';
-import type { AuthenticatedUser } from '../../types/user';
+import type { AuthenticatedUser, UserRole } from '../../types/user';
 import { CoordinatorRequestsPage } from '../CoordinatorRequests/CoordinatorRequestsPage';
 import { TeacherRequestsPage } from '../TeacherRequests/TeacherRequestsPage';
 

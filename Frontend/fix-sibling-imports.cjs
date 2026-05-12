@@ -4,8 +4,7 @@ const path = require('path');
 const srcDir = path.join(__dirname, 'src');
 
 const moveMap = {
-  // Core / Providers / Mocks
-  'data': 'mocks/data.ts',
+  // Core / Providers
   'LanguageContext': 'providers/LanguageContext.tsx',
   'Layout': 'layouts/Layout.tsx',
   'FloatingAIChat': 'layouts/FloatingAIChat.tsx',

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { toast } from 'sonner@2.0.3';
-import { TimeSlot } from '../../../mocks/data';
+import { TimeSlot } from '../../../types/academic';
 import * as XLSX from 'xlsx';
 import {
   Table,
@@ -175,20 +175,8 @@ export const BulkImportSchedulesSheet = ({
         }
       };
       reader.readAsText(file);
-    } else if (file.name.endsWith('.pdf')) {
-        // Mock PDF parsing
-        setTimeout(() => {
-            const mockData: Omit<TimeSlot, 'id'>[] = [
-                { dayOfWeek: 1, startTime: "09:00", endTime: "11:00", unit: "Software Architecture", type: "theoretical", room: "C1.04", yearGroup: "Year 1", classGroup: "A", course: courseName },
-                { dayOfWeek: 2, startTime: "14:00", endTime: "16:00", unit: "Web Development", type: "practical", room: "L.02", yearGroup: "Year 1", classGroup: "A", course: courseName },
-                { dayOfWeek: 3, startTime: "10:00", endTime: "12:00", unit: "Database Systems", type: "theoretical", room: "C2.01", yearGroup: "Year 1", classGroup: "B", course: courseName },
-            ];
-            setPreviewData(mockData);
-            toast.success("PDF parsed successfully (Simulated)");
-            toast.info("Note: PDF parsing is simulated in this demo environment.");
-        }, 1000);
     } else {
-      setError("Unsupported file format. Please upload .csv, .xlsx, .json, or .pdf");
+      setError("Unsupported file format. Please upload .csv, .xlsx, .xls, .json, or .txt");
     }
   };
 

@@ -20,7 +20,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../ui/tooltip';
-import { ClassRequest, RequestStatus } from '../compensa/data';
+import type { ClassRequest, RequestStatus } from '../../types/requests';
 import { cn } from '../ui/utils';
 
 export interface RequestCardProps {

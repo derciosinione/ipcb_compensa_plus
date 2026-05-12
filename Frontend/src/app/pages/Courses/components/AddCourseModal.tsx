@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue, 
 } from '../../../components/ui/select';
-import { Course } from '../../../mocks/data';
+import { Course } from '../../../types/academic';
 import { toast } from 'sonner@2.0.3';
 import { useLanguage } from '../../../providers/LanguageContext';
 

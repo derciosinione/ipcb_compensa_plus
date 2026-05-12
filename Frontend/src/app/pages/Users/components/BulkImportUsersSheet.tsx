@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '../../../components/ui/alert';
 import { toast } from 'sonner@2.0.3';
-import { User, UserRole } from '../../../mocks/data';
+import type { ImportedUser, UserRole } from '../../../types/user';
 import * as XLSX from 'xlsx';
 import {
   Table,
@@ -38,7 +38,7 @@ import { cn } from '../../../components/ui/utils';
 interface BulkImportUsersSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onImport: (users: Omit<User, 'id'>[]) => void;
+  onImport: (users: ImportedUser[]) => void;
 }
 
 export const BulkImportUsersSheet = ({ 
@@ -46,7 +46,7 @@ export const BulkImportUsersSheet = ({
   onOpenChange, 
   onImport
 }: BulkImportUsersSheetProps) => {
-  const [previewData, setPreviewData] = useState<Omit<User, 'id'>[] | null>(null);
+  const [previewData, setPreviewData] = useState<ImportedUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -83,7 +83,7 @@ export const BulkImportUsersSheet = ({
     }
   };
 
-  const mapToUsers = (data: any[]): Omit<User, 'id'>[] => {
+  const mapToUsers = (data: any[]): ImportedUser[] => {
     return data.map((item, index) => {
       // Flexible mapping for CSV/Excel headers
       const nameRaw = item.name || item.Name || item.Nome || "Unknown Name";
@@ -154,20 +154,8 @@ export const BulkImportUsersSheet = ({
         }
       };
       reader.readAsText(file);
-    } else if (file.name.endsWith('.pdf')) {
-        // Mock PDF parsing
-        setTimeout(() => {
-            const mockData: Omit<User, 'id'>[] = [
-                { name: "John Doe", email: "john.doe@uni.edu", role: "teacher" },
-                { name: "Jane Smith", email: "jane.smith@uni.edu", role: "coordinator" },
-                { name: "Robert Johnson", email: "robert.j@uni.edu", role: "teacher" },
-            ];
-            setPreviewData(mockData);
-            toast.success("PDF parsed successfully (Simulated)");
-            toast.info("Note: PDF parsing is simulated in this demo environment.");
-        }, 1000);
     } else {
-      setError("Unsupported file format. Please upload .csv, .xlsx, .json, or .pdf");
+      setError("Unsupported file format. Please upload .csv, .xlsx, .xls, .json, or .txt");
     }
   };
 

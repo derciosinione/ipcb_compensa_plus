@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     CORE_API_URL: str = "http://core-api:8080"
     DATABASE_URL: str = ""
+    JWT_SIGNING_KEY: str = "CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM"
+    JWT_ISSUER: str = "Compensa.Identity"
+    JWT_AUDIENCE: str = "Compensa.Api"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

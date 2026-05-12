@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router';
 import { FloatingAIChat } from './FloatingAIChat';
 import { Layout } from './Layout';
-import type { User, UserRole } from '../mocks/data';
+import type { User, UserRole } from '../types/user';
 
 interface AppShellProps {
   user: User;

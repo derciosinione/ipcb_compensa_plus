@@ -24,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../ui/dropdown-menu';
-import { ClassGroup, CurricularUnit, TimeSlot } from '../../../mocks/data';
+import { ClassGroup, CurricularUnit, TimeSlot } from '../../../types/academic';
 import { AddScheduleModal } from '../../../pages/Courses/components/AddScheduleModal';
 import { BulkImportSchedulesSheet } from '../../../pages/Courses/components/BulkImportSchedulesSheet';
 import { toast } from 'sonner@2.0.3';

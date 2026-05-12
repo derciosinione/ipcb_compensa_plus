@@ -1,5 +1,5 @@
 import { UserProfile } from './components/UserProfile';
-import { User } from '../../mocks/data';
+import type { User } from '../../types/user';
 
 interface ProfilePageProps {
   user: User;

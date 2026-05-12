@@ -2,7 +2,7 @@ import React, { useCallback, useState, useEffect } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { toast } from 'sonner@2.0.3';
-import { ClassRequest } from '../../mocks/data';
+import type { ClassRequest } from '../../types/requests';
 import { RequestDetailsPage } from '../../components/domain/requests/RequestDetailsPage';
 import { RejectionDialog } from '../../components/domain/requests/RejectionDialog';
 import { FilterBar, ViewMode, SortOrder, StatusFilter, CourseFilter } from '../../components/common/FilterBar';

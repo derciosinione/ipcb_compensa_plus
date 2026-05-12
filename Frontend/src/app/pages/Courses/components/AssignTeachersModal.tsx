@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue, 
 } from '../../../components/ui/select';
-import { CurricularUnit } from '../../../mocks/data';
+import { CurricularUnit } from '../../../types/academic';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
 import type { PlatformUser } from '../../../services/users/userTypes';
 

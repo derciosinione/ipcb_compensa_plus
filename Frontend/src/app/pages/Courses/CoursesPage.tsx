@@ -38,7 +38,7 @@ import {
 import { Textarea } from '../../components/ui/textarea';
 import { Switch } from '../../components/ui/switch';
 import { toast } from 'sonner@2.0.3';
-import type { User } from '../../mocks/data';
+import type { User } from '../../types/user';
 import { useLanguage } from '../../providers/LanguageContext';
 import {
   createCourse,

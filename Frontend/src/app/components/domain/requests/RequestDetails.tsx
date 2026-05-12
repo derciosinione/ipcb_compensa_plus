@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
 import { Calendar, Clock, MapPin, Send, MessageSquare, User, Users, BookOpen } from 'lucide-react';
-import { ClassRequest, Comment, mockUser } from '../../../mocks/data';
+import type { ClassRequest, Comment } from '../../../types/requests';
 import { cn } from '../../ui/utils';
 
 interface RequestDetailsProps {

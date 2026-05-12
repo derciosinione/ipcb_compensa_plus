@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
 import { Badge } from '../../../components/ui/badge';
@@ -19,36 +19,68 @@ import {
   Edit
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { User } from '../../../mocks/data';
+import type { User } from '../../../types/user';
+import { listCompensationRequests } from '../../../services/compensationRequests/compensationRequestsApi';
+import type { CompensationRequest } from '../../../services/compensationRequests/compensationRequestTypes';
+import { getErrorMessage } from '../../../utils/errors';
+import { toast } from 'sonner@2.0.3';
 
 interface UserProfileProps {
   user: User;
 }
 
-// Mock stats for the logged-in user (since we don't have real backend stats yet)
-const mockStats = {
-  totalRequests: 24,
-  approvedRequests: 21,
-  pendingRequests: 2,
-  rejectedRequests: 1,
-  hoursCompensated: 48
-};
-
-const activityData = [
-  { name: 'Mon', hours: 2 },
-  { name: 'Tue', hours: 4 },
-  { name: 'Wed', hours: 1 },
-  { name: 'Thu', hours: 5 },
-  { name: 'Fri', hours: 3 },
-];
-
-const recentActivity = [
-  { id: 1, type: "request", title: "Submitted Request #1023", date: "Yesterday", desc: "Computer Networks - Lab 3" },
-  { id: 2, type: "approval", title: "Request #1019 Approved", date: "3 days ago", desc: "Introduction to Programming" },
-  { id: 3, type: "system", title: "Password Changed", date: "1 week ago", desc: "Security update" },
-];
-
 export const UserProfile = ({ user }: UserProfileProps) => {
+  const [requests, setRequests] = useState<CompensationRequest[]>([]);
+
+  useEffect(() => {
+    const loadProfileData = async () => {
+      try {
+        const teacherUserId = user.role === 'teacher' ? user.id : undefined;
+        setRequests(await listCompensationRequests(undefined, teacherUserId));
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Failed to load profile activity.'));
+      }
+    };
+
+    void loadProfileData();
+  }, [user.id, user.role]);
+
+  const stats = useMemo(() => {
+    const totalRequests = requests.length;
+    const approvedRequests = requests.filter((request) => request.status === 'Approved').length;
+    const pendingRequests = requests.filter((request) => request.status === 'Pending').length;
+    const rejectedRequests = requests.filter((request) => request.status === 'Rejected').length;
+    const approvedPercent = totalRequests ? Math.round((approvedRequests / totalRequests) * 100) : 0;
+
+    return { totalRequests, approvedRequests, pendingRequests, rejectedRequests, approvedPercent };
+  }, [requests]);
+
+  const activityData = useMemo(() => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const counts = days.map((name) => ({ name, requests: 0 }));
+
+    requests.forEach((request) => {
+      const date = new Date(request.submittedAt);
+      if (!Number.isNaN(date.getTime())) {
+        counts[date.getDay()].requests += 1;
+      }
+    });
+
+    return counts.slice(1).concat(counts[0]);
+  }, [requests]);
+
+  const recentActivity = useMemo(() => requests
+    .slice()
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5)
+    .map((request) => ({
+      id: request.id,
+      type: request.status === 'Approved' ? 'approval' : request.status === 'Rejected' ? 'rejection' : 'request',
+      title: `${request.status} request`,
+      date: new Date(request.updatedAt).toLocaleDateString(),
+      desc: `${request.curricularUnit} - ${request.course}`,
+    })), [requests]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -117,7 +149,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
                 <div className="space-y-4">
                    <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-600 dark:text-slate-300">Total Requests</span>
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{mockStats.totalRequests}</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{stats.totalRequests}</span>
                    </div>
                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
                       <div className="bg-blue-500 h-full rounded-full" style={{ width: '100%' }}></div>
@@ -125,10 +157,10 @@ export const UserProfile = ({ user }: UserProfileProps) => {
 
                    <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-600 dark:text-slate-300">Approved</span>
-                      <span className="font-bold text-green-600">{mockStats.approvedRequests}</span>
+                      <span className="font-bold text-green-600">{stats.approvedRequests}</span>
                    </div>
                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                      <div className="bg-green-500 h-full rounded-full" style={{ width: '87%' }}></div>
+                      <div className="bg-green-500 h-full rounded-full" style={{ width: `${stats.approvedPercent}%` }}></div>
                    </div>
                 </div>
              </CardContent>
@@ -156,7 +188,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
                                 contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }}
                                 cursor={{ fill: 'transparent' }}
                              />
-                             <Bar dataKey="hours" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={20} />
+                             <Bar dataKey="requests" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={20} />
                           </BarChart>
                        </ResponsiveContainer>
                     </div>
@@ -203,6 +235,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
                           <span className={`absolute -left-1.5 top-1.5 h-3 w-3 rounded-full border-2 border-white dark:border-slate-900 ${
                              item.type === 'approval' ? 'bg-green-500' :
                              item.type === 'request' ? 'bg-blue-500' :
+                             item.type === 'rejection' ? 'bg-red-500' :
                              item.type === 'achievement' ? 'bg-amber-500' : 'bg-slate-400'
                           }`}></span>
                           

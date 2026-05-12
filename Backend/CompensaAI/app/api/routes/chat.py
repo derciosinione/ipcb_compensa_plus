@@ -1,8 +1,10 @@
 import os
 import tempfile
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
+
+from app.api.auth import get_current_user_context
 from app.services.ai_coordinator import ai_coordinator
 
 router = APIRouter()
@@ -21,7 +23,10 @@ class ChatResponse(BaseModel):
     data: Optional[dict] = None
 
 @router.post("/message", response_model=ChatResponse)
-async def send_message(request: ChatRequest):
+async def send_message(
+    request: ChatRequest,
+    user_context: Dict[str, Any] = Depends(get_current_user_context),
+):
     try:
         thread_id = request.thread_id
         if not thread_id:
@@ -31,7 +36,7 @@ async def send_message(request: ChatRequest):
             thread_id=thread_id,
             content=request.message,
             file_ids=request.file_ids,
-            user_context=request.user_context
+            user_context=user_context
         )
 
         response = ChatResponse(
@@ -54,7 +59,10 @@ async def send_message(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    _user_context: Dict[str, Any] = Depends(get_current_user_context),
+):
     try:
         # Save file temporarily to upload to OpenAI
         with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as temp_file:

@@ -11,7 +11,6 @@ import { useMutation } from '@tanstack/react-query';
 import { createCompensationRequest } from '../services/compensationRequests/compensationRequestsApi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getStoredAuthSession, mapSessionToUser } from '../services/auth/authSession';
 
 interface ChatMessage {
   id: string;
@@ -105,19 +104,10 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
         fileIds.push(uploadRes.file_id);
       }
 
-      const session = getStoredAuthSession();
-      const user = session ? mapSessionToUser(session) : null;
-
       const response = await IAService.sendMessage({
         thread_id: threadId,
         message: input || "Processa este documento anexo e extrai as informações relevantes.",
         file_ids: fileIds.length > 0 ? fileIds : undefined,
-        user_context: user ? {
-          id: user.id,
-          name: user.name,
-          role: user.role,
-          token: session?.accessToken
-        } : undefined
       });
 
       if (response.thread_id) {

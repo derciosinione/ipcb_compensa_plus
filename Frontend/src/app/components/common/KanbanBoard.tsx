@@ -2,7 +2,7 @@ import React from 'react';
 import { useDrop } from 'react-dnd';
 import { Check, Clock, Inbox, X } from 'lucide-react';
 import { Badge } from '../ui/badge';
-import { ClassRequest, RequestStatus } from '../compensa/data';
+import type { ClassRequest, RequestStatus } from '../../types/requests';
 import { RequestCard } from './RequestCard';
 import { cn } from '../ui/utils';
 

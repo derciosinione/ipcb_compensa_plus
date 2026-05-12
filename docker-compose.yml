@@ -148,8 +148,11 @@ services:
       COMPENSA_AI_ENVIRONMENT: ${COMPENSA_AI_ENVIRONMENT:-development}
       DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${AI_DB:-CompensaAiDB}
       CORE_API_URL: http://core-api:8080
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-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}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyC1M8SJGAjrp5wMUQaCSFesHQK7Ajd0IVU}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
       REDIS_URL: redis://compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:

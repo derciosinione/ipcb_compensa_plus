@@ -34,7 +34,27 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { cn } from '../../../components/ui/utils';
 import { RequestDetailsPage } from '../../../components/domain/requests/RequestDetailsPage';
-import { mockRequests } from '../../../mocks/data';
+import type { ClassRequest } from '../../../types/requests';
+
+const storyboardRequest: ClassRequest = {
+  id: 'storyboard-request',
+  course: 'Computer Science Engineering',
+  unit: 'Software Engineering',
+  yearGroups: ['Year 2', 'Class A'],
+  componentType: 'practical',
+  originalDate: '2026-05-18',
+  originalTime: '09:00 - 11:00',
+  originalRoom: 'C1.04',
+  newDate: '2026-05-20',
+  newTime: '14:00 - 16:00',
+  newRoom: 'L.02',
+  reason: 'Academic meeting conflict',
+  status: 'pending',
+  teacherName: 'Dr. Ana Silva',
+  submittedAt: '2026-05-12',
+  hasConflict: false,
+  comments: [],
+};
 
 // --- 1. Mock Calendar Screen ---
 
@@ -322,13 +342,10 @@ export const MockProfileScreen = () => {
 // --- 4. Mock Request Detail Wrapper ---
 
 export const MockRequestDetailsScreen = () => {
-    // Pick a mock request
-    const req = mockRequests[0];
-    
     return (
         <div className="h-full bg-slate-50 dark:bg-slate-950 p-6 overflow-hidden">
             <RequestDetailsPage 
-                request={req}
+                request={storyboardRequest}
                 onBack={() => {}} 
                 onAddComment={() => {}}
                 userRole="teacher"

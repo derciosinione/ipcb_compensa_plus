@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Button } from '../components/ui/button';
-import { User, UserRole } from '../mocks/data';
+import type { User, UserRole } from '../types/user';
 import {
   Sidebar,
   SidebarContent,

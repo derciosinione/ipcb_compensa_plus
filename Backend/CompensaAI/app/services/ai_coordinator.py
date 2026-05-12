@@ -55,7 +55,7 @@ class AI_Coordinator:
         # Attempt OpenAI
         if not thread_id.startswith("gemini_thread_") and time.time() > self.openai_disabled_until:
             try:
-                response = openai_service.send_message(thread_id, content, openai_files if openai_files else None, user_context)
+                response = await openai_service.send_message(thread_id, content, openai_files if openai_files else None, user_context)
                 
                 # Fallback if OpenAI returns an error of any kind
                 if response.get("type") == "error":

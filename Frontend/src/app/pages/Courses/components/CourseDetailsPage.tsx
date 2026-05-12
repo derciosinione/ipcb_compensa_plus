@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 import { Separator } from '../../../components/ui/separator';
-import { Course as MockCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../mocks/data';
+import { Course as ViewCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../types/academic';
 import { cn } from '../../../components/ui/utils';
 import { toast } from 'sonner@2.0.3';
 import { AddCurricularUnitModal } from './AddCurricularUnitModal';
@@ -79,7 +79,7 @@ interface CourseDetailsPageProps {
   onBack: () => void;
 }
 
-const toDetailsCourse = (course: ApiCourse): MockCourse => ({
+const toDetailsCourse = (course: ApiCourse): ViewCourse => ({
   id: course.id,
   name: course.name,
   abbreviation: course.abbreviation,
@@ -148,7 +148,7 @@ const toTimeSlot = (
 };
 
 export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userId, userEmail, onBack }: CourseDetailsPageProps) => {
-  const [course, setCourse] = useState<MockCourse | undefined>(
+  const [course, setCourse] = useState<ViewCourse | undefined>(
     apiCourse ? toDetailsCourse(apiCourse) : undefined
   );
   

@@ -2,12 +2,6 @@ export interface ChatMessageRequest {
   thread_id?: string;
   message: string;
   file_ids?: string[];
-  user_context?: {
-    id: string;
-    name: string;
-    role: string;
-    token?: string;
-  };
 }
 
 export interface ChatMessageResponse {
@@ -24,16 +18,27 @@ export interface UploadFileResponse {
 }
 
 import { API_BASE_URL } from './httpClient';
+import { getStoredAccessToken } from '../auth/authSession';
 
 const AI_API_URL = `${API_BASE_URL}/api/chat`;
 
 export const IAService = {
+  getAuthHeaders(): HeadersInit {
+    const token = getStoredAccessToken();
+    if (!token) {
+      throw new Error('Authentication required');
+    }
+
+    return { Authorization: `Bearer ${token}` };
+  },
+
   async uploadDocument(file: File): Promise<UploadFileResponse> {
     const formData = new FormData();
     formData.append('file', file);
     
     const response = await fetch(`${AI_API_URL}/upload`, {
       method: 'POST',
+      headers: this.getAuthHeaders(),
       body: formData,
     });
     
@@ -49,6 +54,7 @@ export const IAService = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
       },
       body: JSON.stringify(data),
     });

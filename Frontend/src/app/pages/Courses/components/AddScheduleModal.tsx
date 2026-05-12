@@ -19,7 +19,7 @@ import {
 } from '../../../components/ui/select';
 import { Badge } from '../../../components/ui/badge';
 import { toast } from 'sonner@2.0.3';
-import { TimeSlot, ClassGroup, CurricularUnit } from '../../../mocks/data';
+import { TimeSlot, ClassGroup, CurricularUnit } from '../../../types/academic';
 import type { Classroom } from '../../../services/classrooms/classroomTypes';
 
 interface AddScheduleModalProps {

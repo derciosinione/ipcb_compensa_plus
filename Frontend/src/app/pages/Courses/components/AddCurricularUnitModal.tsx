@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue, 
 } from '../../../components/ui/select';
-import { CurricularUnit } from '../../../mocks/data';
+import { CurricularUnit } from '../../../types/academic';
 
 interface AddCurricularUnitModalProps {
   isOpen: boolean;

@@ -10,7 +10,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { User } from '../mocks/data';
+import type { User } from '../types/user';
 import { appPaths, AppPath } from '../routes/paths';
 
 type Translate = (key: string) => string;

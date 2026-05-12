@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue, 
 } from '../../../components/ui/select';
-import { ClassGroup, CurricularUnit } from '../../../mocks/data';
+import { ClassGroup, CurricularUnit } from '../../../types/academic';
 import type { PlatformUser } from '../../../services/users/userTypes';
 
 interface AddClassModalProps {
