@@ -24,6 +24,9 @@ import { Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
 import { useLanguage } from '../../../providers/LanguageContext';
 import { listClassrooms } from '../../../services/classrooms/classroomsApi';
 import type { Classroom } from '../../../services/classrooms/classroomTypes';
+import { getCourseDetails, listCourses } from '../../../services/courses/coursesApi';
+import type { ClassGroup, ClassSchedule, Course, CurricularUnit } from '../../../services/courses/courseTypes';
+import { checkScheduleAvailability } from '../../../services/schedules/schedulesApi';
 
 interface CreateRequestSheetProps {
   open: boolean;
@@ -42,8 +45,16 @@ export const CreateRequestSheet = ({
 }: CreateRequestSheetProps) => {
   const { t } = useLanguage();
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [units, setUnits] = useState<CurricularUnit[]>([]);
+  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
+  const [roomAvailability, setRoomAvailability] = useState<Record<string, boolean | undefined>>({});
   const [formData, setFormData] = useState({
+    courseId: '',
     unit: '',
+    classGroupId: '',
+    originalClassScheduleId: '',
     date: '',
     startTime: '',
     endTime: '',
@@ -56,12 +67,78 @@ export const CreateRequestSheet = ({
     if (!open) return;
 
     const loadClassrooms = async () => {
-      const loadedClassrooms = await listClassrooms();
+      const [loadedClassrooms, loadedCourses] = await Promise.all([
+        listClassrooms(),
+        listCourses(),
+      ]);
       setClassrooms(loadedClassrooms.filter(room => room.isActive));
+      setCourses(loadedCourses.filter(course => course.isActive));
     };
 
     void loadClassrooms();
   }, [open]);
+
+  useEffect(() => {
+    if (!formData.courseId) {
+      setUnits([]);
+      setClassGroups([]);
+      setSchedules([]);
+      return;
+    }
+
+    const loadCourseDetails = async () => {
+      const details = await getCourseDetails(formData.courseId);
+      setUnits((details?.units ?? []).filter(unit => unit.isActive));
+      setClassGroups((details?.classes ?? []).filter(classGroup => classGroup.isActive));
+      setSchedules((details?.schedules ?? []).filter(schedule => schedule.isActive));
+    };
+
+    void loadCourseDetails();
+  }, [formData.courseId]);
+
+  useEffect(() => {
+    if (!formData.date || !formData.startTime || !formData.endTime) {
+      setRoomAvailability({});
+      return;
+    }
+
+    const selectedSchedule = schedules.find(schedule => schedule.id === formData.originalClassScheduleId);
+    if (!selectedSchedule) {
+      setRoomAvailability({});
+      return;
+    }
+
+    const loadAvailability = async () => {
+      const entries = await Promise.all(
+        classrooms.map(async room => {
+          const availability = await checkScheduleAvailability({
+            academicYearId: selectedSchedule.academicYearId,
+            semester: selectedSchedule.semester,
+            date: formData.date,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            classGroupId: formData.classGroupId || undefined,
+            classroomId: room.id,
+            excludedScheduleId: selectedSchedule.id,
+          });
+
+          return [room.id, availability?.isAvailable] as const;
+        }),
+      );
+
+      setRoomAvailability(Object.fromEntries(entries));
+    };
+
+    void loadAvailability();
+  }, [
+    classrooms,
+    formData.classGroupId,
+    formData.date,
+    formData.endTime,
+    formData.originalClassScheduleId,
+    formData.startTime,
+    schedules,
+  ]);
 
   useEffect(() => {
     if (initialDate) {
@@ -93,7 +170,10 @@ export const CreateRequestSheet = ({
     onOpenChange(false);
     // Reset form
     setFormData({
+        courseId: '',
         unit: '',
+        classGroupId: '',
+        originalClassScheduleId: '',
         date: '',
         startTime: '',
         endTime: '',
@@ -114,18 +194,45 @@ export const CreateRequestSheet = ({
         </SheetHeader>
         
         <div className="space-y-6">
-          {/* Unit & Type */}
+          {/* Course, unit & type */}
+          <div className="space-y-2">
+            <Label>{t('form.course')}</Label>
+            <Select
+              value={formData.courseId}
+              onValueChange={(courseId) => setFormData({
+                ...formData,
+                courseId,
+                unit: '',
+                classGroupId: '',
+                originalClassScheduleId: '',
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t('form.select_course')} />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map(course => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
                 <Label htmlFor="unit">{t('sheet.unit_course')}</Label>
-                <Select value={formData.unit} onValueChange={(v) => setFormData({...formData, unit: v})}>
+                <Select value={formData.unit} onValueChange={(v) => setFormData({...formData, unit: v, classGroupId: '', originalClassScheduleId: ''})}>
                     <SelectTrigger>
                         <SelectValue placeholder={t('sheet.select_unit')} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="Software Architecture">Software Architecture</SelectItem>
-                        <SelectItem value="Web Development">Web Development</SelectItem>
-                        <SelectItem value="Database Systems">Database Systems</SelectItem>
+                        {units.map(unit => (
+                          <SelectItem key={unit.id} value={unit.id}>
+                            {unit.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </div>
@@ -140,6 +247,49 @@ export const CreateRequestSheet = ({
                         <SelectItem value="practical">Practical</SelectItem>
                     </SelectContent>
                 </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>{t('form.class_group')}</Label>
+              <Select
+                value={formData.classGroupId}
+                onValueChange={(classGroupId) => setFormData({...formData, classGroupId, originalClassScheduleId: ''})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('form.select_group')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {classGroups
+                    .filter(group => !formData.unit || group.curricularUnitId === formData.unit)
+                    .map(group => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t('form.original_schedule')}</Label>
+              <Select
+                value={formData.originalClassScheduleId}
+                onValueChange={(originalClassScheduleId) => setFormData({...formData, originalClassScheduleId})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Original schedule" />
+                </SelectTrigger>
+                <SelectContent>
+                  {schedules
+                    .filter(schedule => !formData.classGroupId || schedule.classGroupId === formData.classGroupId)
+                    .map(schedule => (
+                      <SelectItem key={schedule.id} value={schedule.id}>
+                        {formatSchedule(schedule)}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -191,10 +341,11 @@ export const CreateRequestSheet = ({
                                 <span>{room.name} <span className="text-slate-400 text-xs">({room.type})</span></span>
                                 <span className={cn(
                                     "text-[10px] px-1.5 py-0.5 rounded-full",
-                                    // Mock availability logic just for visual demo
-                                    Math.random() > 0.3 ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
+                                    roomAvailability[room.id] === false
+                                      ? "text-red-600 bg-red-50"
+                                      : "text-green-600 bg-green-50"
                                 )}>
-                                    {Math.random() > 0.3 ? t('sheet.avail') : t('sheet.busy')}
+                                    {roomAvailability[room.id] === false ? t('sheet.busy') : t('sheet.avail')}
                                 </span>
                             </span>
                         </SelectItem>
@@ -231,4 +382,10 @@ export const CreateRequestSheet = ({
       </SheetContent>
     </Sheet>
   );
+};
+
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const formatSchedule = (schedule: ClassSchedule) => {
+  return `${dayNames[schedule.dayOfWeek] ?? `Day ${schedule.dayOfWeek}`} ${schedule.startTime}-${schedule.endTime}`;
 };

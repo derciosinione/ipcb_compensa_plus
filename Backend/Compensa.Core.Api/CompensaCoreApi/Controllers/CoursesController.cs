@@ -43,7 +43,12 @@ public sealed class CoursesController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var course = await _service.GetByIdAsync(id, cancellationToken);
+        var course = await _service.GetByIdAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<CourseResponse>.Ok("Course loaded.", course));
     }
 
@@ -55,7 +60,12 @@ public sealed class CoursesController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var details = await _service.GetDetailsAsync(id, cancellationToken);
+        var details = await _service.GetDetailsAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<CourseDetailsResponse>.Ok("Course details loaded.", details));
     }
 

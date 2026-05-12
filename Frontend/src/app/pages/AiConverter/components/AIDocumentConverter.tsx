@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, Loader2, Sparkles, MessageSquare, CheckCircle, Database } from 'lucide-react';
+import { Upload, FileText, Loader2, Sparkles, MessageSquare, CheckCircle } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../../components/ui/card';
@@ -9,10 +9,12 @@ import { AIChatInterface } from '../../../layouts/AIChatInterface';
 import { PageHeader } from '../../../components/common/PageHeader';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
+import { IAService } from '../../../services/api/ia.service';
 
 interface ExtractedData {
   headers: string[];
   rows: any[][];
+  content?: string;
 }
 
 export function AIDocumentConverter() {
@@ -23,7 +25,6 @@ export function AIDocumentConverter() {
   const [uploadPrompt, setUploadPrompt] = useState('');
   const [uploadExtractedData, setUploadExtractedData] = useState<ExtractedData | null>(null);
   const [uploadProcessing, setUploadProcessing] = useState(false);
-  const [uploadSaving, setUploadSaving] = useState(false);
 
   // Upload Mode Handlers
   const handleUploadFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,60 +43,19 @@ export function AIDocumentConverter() {
     setUploadProcessing(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('prompt', uploadPrompt);
-
-      const response = await fetch('YOUR_BACKEND_URL/api/ai/process-document', {
-        method: 'POST',
-        body: formData,
+      const uploadedFile = await IAService.uploadDocument(uploadFile);
+      const aiResponse = await IAService.sendMessage({
+        message: `${uploadPrompt}\n\nReturn the extracted result as concise structured data. If a table is appropriate, include it as JSON with "headers" and "rows".`,
+        file_ids: [uploadedFile.file_id],
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to process document');
-      }
-
-      const data = await response.json();
-      setUploadExtractedData(data);
+      setUploadExtractedData(normalizeAiExtraction(aiResponse.content ?? JSON.stringify(aiResponse.data ?? {})));
       toast.success('Document processed successfully!');
     } catch (error) {
       console.error('Error processing document:', error);
       toast.error('Failed to process document. Please try again.');
     } finally {
       setUploadProcessing(false);
-    }
-  };
-
-  const handleUploadSaveToDatabase = async () => {
-    if (!uploadExtractedData) return;
-
-    setUploadSaving(true);
-
-    try {
-      const response = await fetch('YOUR_BACKEND_URL/api/database/insert', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          headers: uploadExtractedData.headers,
-          rows: uploadExtractedData.rows,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save to database');
-      }
-
-      toast.success('Data saved to database successfully!');
-      setUploadFile(null);
-      setUploadPrompt('');
-      setUploadExtractedData(null);
-    } catch (error) {
-      console.error('Error saving to database:', error);
-      toast.error('Failed to save to database. Please try again.');
-    } finally {
-      setUploadSaving(false);
     }
   };
 
@@ -230,7 +190,7 @@ export function AIDocumentConverter() {
                   Extracted Data Preview
                 </CardTitle>
                 <CardDescription>
-                  Review the data before saving to database
+                  Review the extracted data returned by CompensaAI
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -252,67 +212,56 @@ export function AIDocumentConverter() {
 
                 {uploadExtractedData && (
                   <div className="space-y-4">
-                    <div className="overflow-auto max-h-[400px] border border-slate-200 dark:border-slate-700 rounded-lg">
-                      <table className="w-full text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
-                          <tr>
-                            {uploadExtractedData.headers.map((header, idx) => (
-                              <th
-                                key={idx}
-                                className="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700"
-                              >
-                                {header}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {uploadExtractedData.rows.map((row, rowIdx) => (
-                            <tr
-                              key={rowIdx}
-                              className="hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                            >
-                              {row.map((cell, cellIdx) => (
-                                <td
-                                  key={cellIdx}
-                                  className="px-4 py-2 text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800"
+                    {uploadExtractedData.rows.length > 0 ? (
+                      <div className="overflow-auto max-h-[400px] border border-slate-200 dark:border-slate-700 rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                            <tr>
+                              {uploadExtractedData.headers.map((header, idx) => (
+                                <th
+                                  key={idx}
+                                  className="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700"
                                 >
-                                  {cell}
-                                </td>
+                                  {header}
+                                </th>
                               ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {uploadExtractedData.rows.map((row, rowIdx) => (
+                              <tr
+                                key={rowIdx}
+                                className="hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                              >
+                                {row.map((cell, cellIdx) => (
+                                  <td
+                                    key={cellIdx}
+                                    className="px-4 py-2 text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800"
+                                  >
+                                    {cell}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <pre className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                        {uploadExtractedData.content}
+                      </pre>
+                    )}
 
                     <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                       <div className="flex items-center gap-2">
                         <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
                         <span className="text-sm font-medium text-green-700 dark:text-green-300">
-                          {uploadExtractedData.rows.length} rows extracted
+                          {uploadExtractedData.rows.length > 0
+                            ? `${uploadExtractedData.rows.length} rows extracted`
+                            : 'Document processed'}
                         </span>
                       </div>
                     </div>
-
-                    <Button
-                      onClick={handleUploadSaveToDatabase}
-                      disabled={uploadSaving}
-                      className="w-full"
-                      variant="default"
-                    >
-                      {uploadSaving ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Saving to Database...
-                        </>
-                      ) : (
-                        <>
-                          <Database className="w-4 h-4 mr-2" />
-                          Save to Database
-                        </>
-                      )}
-                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -348,7 +297,7 @@ export function AIDocumentConverter() {
                   <span className="flex-shrink-0 w-6 h-6 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-medium">
                     4
                   </span>
-                  <span>Review the extracted data and save it to your database</span>
+                  <span>Review the extracted result returned by CompensaAI</span>
                 </li>
               </ol>
             </CardContent>
@@ -364,5 +313,35 @@ export function AIDocumentConverter() {
         <AIChatInterface maxHeight="100%" />
       </div>
     );
+  }
+}
+
+function normalizeAiExtraction(content: string): ExtractedData {
+  const parsed = tryParseJson(content);
+
+  if (parsed && Array.isArray(parsed.headers) && Array.isArray(parsed.rows)) {
+    return {
+      headers: parsed.headers.map(String),
+      rows: parsed.rows.map((row: unknown) => Array.isArray(row) ? row : [row]),
+      content,
+    };
+  }
+
+  return {
+    headers: [],
+    rows: [],
+    content,
+  };
+}
+
+function tryParseJson(content: string): any | null {
+  const trimmed = content.trim();
+  const fencedJson = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)?.[1]?.trim();
+  const candidate = fencedJson ?? trimmed;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    return null;
   }
 }

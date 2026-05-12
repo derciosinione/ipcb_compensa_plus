@@ -247,7 +247,7 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
 
     const newRequest: RequestFormData = {
       ...currentData,
-      id: Math.random().toString(36).substr(2, 9),
+      id: createLocalId(),
     };
 
     setQueue(prev => [...prev, newRequest]);
@@ -305,7 +305,7 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
             return;
         }
 
-        finalQueue.push({ ...currentData, id: Math.random().toString(36).substr(2, 9) });
+        finalQueue.push({ ...currentData, id: createLocalId() });
     }
 
     onSubmit(finalQueue.map(item => ({ ...item, academicYearId: activeAcademicYear.id })));
@@ -314,6 +314,8 @@ export const RequestForm = ({ open, onOpenChange, onSubmit, initialData }: Reque
     onOpenChange(false);
     toast.success(t('form.submitted_success').replace('{count}', finalQueue.length.toString()));
   };
+
+  const createLocalId = () => crypto.randomUUID?.() ?? `local-${Date.now()}`;
 
   const clearForm = () => {
       setCurrentData(initialFormState);

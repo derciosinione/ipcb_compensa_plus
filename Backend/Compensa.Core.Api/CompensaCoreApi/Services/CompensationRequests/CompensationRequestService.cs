@@ -61,11 +61,11 @@ public sealed class CompensationRequestService : ICompensationRequestService
         }
 
         var requests = await _repository.ListAsync(status, teacherUserId, cancellationToken);
-        
-        // Extra layer for coordinators: they should only see requests for their courses?
-        // For now, we trust the filter above for teachers, and let coordinators see all.
-        // If we wanted to be stricter:
-        // if (isCoordinator && !isAdmin) { /* filter requests by coordinated course IDs */ }
+
+        if (!isAdmin && isCoordinator)
+        {
+            requests = await FilterRequestsByCourseRelationshipAsync(requests, actorUserId, cancellationToken);
+        }
 
         return requests.Select(ToResponse).ToArray();
     }
@@ -79,8 +79,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
     {
         var request = await GetRequiredRequestAsync(id, cancellationToken);
         
-        // Security check: If teacher, must be the owner
-        if (!isAdmin && !isCoordinator && request.TeacherUserId != actorUserId)
+        if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
         {
             throw new ForbiddenException("You don't have permission to view this request.");
         }
@@ -91,10 +90,12 @@ public sealed class CompensationRequestService : ICompensationRequestService
     public async Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,
         string actorUserId,
-        bool canCreateForOthers,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default)
     {
         ValidateSchedule(request.NewStartTime, request.NewEndTime, "new");
+        var canCreateForOthers = isCoordinator || isAdmin;
         EnsureCanCreateRequestForUser(request, actorUserId, canCreateForOthers);
 
         var academicYear = await _academicYearRepository.GetByIdAsync(request.AcademicYearId, cancellationToken)
@@ -118,6 +119,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var newRoom = await _classroomRepository.GetByIdAsync(request.NewClassroomId, cancellationToken)
             ?? throw new NotFoundException($"New classroom '{request.NewClassroomId}' was not found.");
 
+        await EnsureCanCreateRequestInCourseAsync(request, course, actorUserId, isCoordinator, isAdmin, cancellationToken);
         ValidateOriginalSchedule(request, academicYear.Id, course.Id, unit.Id, classGroup.Id, originalSchedule);
         await EnsureTeacherCanUseClassAsync(request, classGroup, canCreateForOthers, cancellationToken);
         await EnsureNewScheduleHasNoConflictsAsync(request, classGroup, originalSchedule, cancellationToken);
@@ -262,6 +264,94 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         if (!canCreateForOthers && request.TeacherUserId != actorUserId)
             throw new InvalidOperationException("Teachers can only create compensation requests for themselves.");
+    }
+
+    private async Task EnsureCanCreateRequestInCourseAsync(
+        CreateCompensationRequestRequest request,
+        Course course,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (isAdmin)
+            return;
+
+        if (request.TeacherUserId == actorUserId)
+            return;
+
+        if (isCoordinator && await CanCoordinateCourseAsync(actorUserId, course, cancellationToken))
+            return;
+
+        throw new ForbiddenException("You don't have permission to create requests for this course.");
+    }
+
+    private async Task<IReadOnlyCollection<CompensationRequest>> FilterRequestsByCourseRelationshipAsync(
+        IReadOnlyCollection<CompensationRequest> requests,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var allowedRequests = new List<CompensationRequest>();
+        foreach (var request in requests)
+        {
+            if (await HasCourseRelationshipAsync(actorUserId, request.CourseId, cancellationToken))
+            {
+                allowedRequests.Add(request);
+            }
+        }
+
+        return allowedRequests;
+    }
+
+    private async Task<bool> CanViewRequestAsync(
+        CompensationRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (isAdmin)
+            return true;
+
+        if (request.TeacherUserId == actorUserId)
+            return true;
+
+        return isCoordinator && await HasCourseRelationshipAsync(actorUserId, request.CourseId, cancellationToken);
+    }
+
+    private async Task<bool> HasCourseRelationshipAsync(
+        string actorUserId,
+        Guid? courseId,
+        CancellationToken cancellationToken)
+    {
+        if (!courseId.HasValue)
+            return false;
+
+        var course = await _courseRepository.GetByIdAsync(courseId.Value, cancellationToken);
+        if (course is null)
+            return false;
+
+        if (course.CoordinatorUserId == actorUserId)
+            return true;
+
+        var unitAssignments = await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken);
+        if (unitAssignments.Any(assignment => assignment.CourseId == course.Id))
+            return true;
+
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        return courseAssignments.Any(assignment => assignment.CourseId == course.Id);
+    }
+
+    private async Task<bool> CanCoordinateCourseAsync(
+        string actorUserId,
+        Course course,
+        CancellationToken cancellationToken)
+    {
+        if (course.CoordinatorUserId == actorUserId)
+            return true;
+
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        return courseAssignments.Any(assignment => assignment.CourseId == course.Id && assignment.IsCoordinator);
     }
 
     private static void ValidateOriginalSchedule(

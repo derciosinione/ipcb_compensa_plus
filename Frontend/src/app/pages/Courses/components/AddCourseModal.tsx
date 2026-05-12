@@ -56,20 +56,12 @@ export const AddCourseModal = ({
         description: '',
         durationYears: '3',
         totalCredits: '180',
-        coordinatorId: 'user-coord-1' // Default mock
+        coordinatorId: ''
       });
     }
   }, [isOpen, reset]);
 
   const onSubmit = (data: FormData) => {
-    // Basic image selection based on type for mock purposes
-    let image = 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=1000&auto=format&fit=crop';
-    if (data.type === 'Mestrado') {
-        image = 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1000&auto=format&fit=crop';
-    } else if (data.type === 'CTeSP') {
-        image = 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000&auto=format&fit=crop';
-    }
-
     const courseData: Omit<Course, 'id'> = {
       name: data.name,
       abbreviation: data.abbreviation,
@@ -78,7 +70,7 @@ export const AddCourseModal = ({
       durationYears: parseInt(data.durationYears),
       totalCredits: parseInt(data.totalCredits),
       coordinatorId: data.coordinatorId,
-      image: image
+      image: ''
     };
 
     onSave(courseData);

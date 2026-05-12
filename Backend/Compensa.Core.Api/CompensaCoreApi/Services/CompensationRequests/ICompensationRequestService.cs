@@ -23,7 +23,8 @@ public interface ICompensationRequestService
     Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,
         string actorUserId,
-        bool canCreateForOthers,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default);
 
     Task<CompensationRequestResponse> UpdateStatusAsync(

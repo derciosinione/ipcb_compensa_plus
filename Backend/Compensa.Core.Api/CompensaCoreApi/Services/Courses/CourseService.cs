@@ -52,8 +52,21 @@ public sealed class CourseService : ICourseService
 
         IReadOnlyCollection<CourseResponse> result;
 
-        // Security check: Teachers only see their assigned courses
-        if (!isAdmin && !isCoordinator)
+        if (isAdmin)
+        {
+            var allCourses = await _repository.ListAsync(search, cancellationToken);
+            result = allCourses.Select(ToResponse).ToArray();
+        }
+        else if (isCoordinator)
+        {
+            var relatedCourseIds = await GetRelatedCourseIdsAsync(actorUserId, cancellationToken);
+            var courses = await _repository.ListAsync(search, cancellationToken);
+            result = courses
+                .Where(course => relatedCourseIds.Contains(course.Id) || course.CoordinatorUserId == actorUserId)
+                .Select(ToResponse)
+                .ToArray();
+        }
+        else
         {
             var assignedCourseIds = (await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken))
                 .Select(a => a.CourseId)
@@ -66,12 +79,6 @@ public sealed class CourseService : ICourseService
                 .Select(ToResponse)
                 .ToArray();
         }
-        else
-        {
-            // Coordinators/Admins see all for now (or we could filter coordinators too)
-            var allCourses = await _repository.ListAsync(search, cancellationToken);
-            result = allCourses.Select(ToResponse).ToArray();
-        }
 
         await _cache.SetStringAsync(
             cacheKey,
@@ -82,14 +89,28 @@ public sealed class CourseService : ICourseService
         return result;
     }
 
-    public async Task<CourseResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<CourseResponse> GetByIdAsync(
+        Guid id,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
     {
         var course = await GetRequiredCourseAsync(id, cancellationToken);
+        await EnsureCanReadCourseAsync(course, actorUserId, isCoordinator, isAdmin, cancellationToken);
         return ToResponse(course);
     }
 
-    public async Task<CourseDetailsResponse> GetDetailsAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<CourseDetailsResponse> GetDetailsAsync(
+        Guid id,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
     {
+        var course = await GetRequiredCourseAsync(id, cancellationToken);
+        await EnsureCanReadCourseAsync(course, actorUserId, isCoordinator, isAdmin, cancellationToken);
+
         var cacheKey = CacheKeys.CourseDetails(id);
         var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
 
@@ -98,7 +119,6 @@ public sealed class CourseService : ICourseService
             return JsonSerializer.Deserialize<CourseDetailsResponse>(cachedData)!;
         }
 
-        var course = await GetRequiredCourseAsync(id, cancellationToken);
         var units = await _repository.ListUnitsAsync(id, cancellationToken);
         var components = await _repository.ListComponentsAsync(id, cancellationToken);
         var unitAssignments = await _repository.ListUnitAssignmentsAsync(id, cancellationToken);
@@ -516,6 +536,56 @@ public sealed class CourseService : ICourseService
     {
         return await _repository.GetByIdAsync(id, cancellationToken)
             ?? throw new NotFoundException($"Course '{id}' was not found.");
+    }
+
+    private async Task EnsureCanReadCourseAsync(
+        Course course,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (isAdmin)
+            return;
+
+        if (isCoordinator && await HasCourseRelationshipAsync(course, actorUserId, cancellationToken))
+            return;
+
+        var assignedCourseIds = (await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken))
+            .Select(assignment => assignment.CourseId)
+            .ToHashSet();
+
+        if (assignedCourseIds.Contains(course.Id))
+            return;
+
+        throw new ForbiddenException("You don't have permission to view this course.");
+    }
+
+    private async Task<HashSet<Guid>> GetRelatedCourseIdsAsync(
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var unitCourseIds = (await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken))
+            .Select(assignment => assignment.CourseId);
+        var courseAssignmentIds = (await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken))
+            .Select(assignment => assignment.CourseId);
+
+        return unitCourseIds
+            .Concat(courseAssignmentIds)
+            .Distinct()
+            .ToHashSet();
+    }
+
+    private async Task<bool> HasCourseRelationshipAsync(
+        Course course,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (course.CoordinatorUserId == actorUserId)
+            return true;
+
+        var relatedCourseIds = await GetRelatedCourseIdsAsync(actorUserId, cancellationToken);
+        return relatedCourseIds.Contains(course.Id);
     }
 
     private async Task<CurricularUnit> GetRequiredUnitAsync(

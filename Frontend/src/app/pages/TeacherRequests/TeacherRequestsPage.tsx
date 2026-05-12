@@ -151,7 +151,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
 
   const handleAddComment = (requestId: string, text: string) => {
       const newComment = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: createLocalId(),
           authorName: 'Dr. Ana Silva',
           role: user.role,
           text,
@@ -169,6 +169,8 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
           return req;
       }));
   };
+
+  const createLocalId = () => crypto.randomUUID?.() ?? `local-${Date.now()}`;
 
   const openEdit = (req: ClassRequest) => {
       setEditingRequest(req);

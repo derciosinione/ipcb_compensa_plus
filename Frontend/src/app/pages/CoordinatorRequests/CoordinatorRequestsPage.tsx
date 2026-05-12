@@ -126,7 +126,7 @@ export const CoordinatorRequestsPage = ({ userRole = 'coordinator' }: Coordinato
 
   const handleAddComment = (requestId: string, text: string) => {
       const newComment = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: createLocalId(),
           authorName: isAdmin ? 'Admin' : 'Coordinator', 
           role: userRole as any,
           text,
@@ -144,6 +144,8 @@ export const CoordinatorRequestsPage = ({ userRole = 'coordinator' }: Coordinato
           return req;
       }));
   };
+
+  const createLocalId = () => crypto.randomUUID?.() ?? `local-${Date.now()}`;
 
   const openDetails = (req: ClassRequest) => {
       setSelectedRequest(req);

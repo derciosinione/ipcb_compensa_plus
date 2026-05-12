@@ -67,7 +67,8 @@ public sealed class CompensationRequestsController : ControllerBase
         var created = await _service.CreateAsync(
             request,
             actorUserId,
-            canCreateForOthers: User.IsInRole("Coordinator") || User.IsInRole("Admin"),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
             cancellationToken);
         var response = ApiResponse<CompensationRequestResponse>.Ok("Compensation request created.", created);
 
