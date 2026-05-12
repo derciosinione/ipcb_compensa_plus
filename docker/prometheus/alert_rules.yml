@@ -1,0 +1,20 @@
+groups:
+  - name: compensa_alerts
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.instance }} down"
+          description: "{{ $labels.job }} at {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: HighErrorRate
+        expr: sum(rate(traces_spanmetrics_latency_count{status_code="Error"}[5m])) by (service_name) / sum(rate(traces_spanmetrics_latency_count[5m])) by (service_name) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.service_name }}"
+          description: "{{ $labels.service_name }} error rate is above 5%."

@@ -2,6 +2,7 @@ using CompensaCoreApi.Contracts;
 using CompensaCoreApi.Domain.CompensationRequests;
 using CompensaCoreApi.Dtos.CompensationRequests;
 using CompensaCoreApi.Services.CompensationRequests;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,7 +28,13 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromQuery] string? teacherUserId,
         CancellationToken cancellationToken)
     {
-        var requests = await _service.ListAsync(status, teacherUserId, cancellationToken);
+        var requests = await _service.ListAsync(
+            status,
+            teacherUserId,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<CompensationRequestResponse>>.Ok("Compensation requests loaded.", requests));
     }
 
@@ -39,7 +46,12 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
-        var request = await _service.GetByIdAsync(id, cancellationToken);
+        var request = await _service.GetByIdAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request loaded.", request));
     }
 
@@ -51,7 +63,12 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromBody] CreateCompensationRequestRequest request,
         CancellationToken cancellationToken)
     {
-        var created = await _service.CreateAsync(request, cancellationToken);
+        var actorUserId = GetCurrentUserId();
+        var created = await _service.CreateAsync(
+            request,
+            actorUserId,
+            canCreateForOthers: User.IsInRole("Coordinator") || User.IsInRole("Admin"),
+            cancellationToken);
         var response = ApiResponse<CompensationRequestResponse>.Ok("Compensation request created.", created);
 
         return CreatedAtAction(nameof(GetById), new { id = created.Id }, response);
@@ -67,7 +84,20 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromBody] UpdateCompensationRequestStatusRequest request,
         CancellationToken cancellationToken)
     {
-        var updated = await _service.UpdateStatusAsync(id, request, cancellationToken);
+        var updated = await _service.UpdateStatusAsync(
+            id,
+            request,
+            GetCurrentUserId(),
+            User.IsInRole("Coordinator"),
+            User.IsInRole("Admin"),
+            cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request status updated.", updated));
+    }
+
+    private string GetCurrentUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub")
+            ?? throw new InvalidOperationException("Authenticated user id was not found.");
     }
 }

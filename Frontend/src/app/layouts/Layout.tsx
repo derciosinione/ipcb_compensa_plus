@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Button } from '../components/ui/button';
-import { User, UserRole, mockNotifications, Notification } from '../mocks/data';
+import { User, UserRole } from '../mocks/data';
 import {
   Sidebar,
   SidebarContent,
@@ -38,6 +38,8 @@ import { useLanguage } from '../providers/LanguageContext';
 import { Check } from 'lucide-react';
 import { getAdminNavigationItems, getMainNavigationItems } from '../config/navigation';
 import { appPaths, resolveAppPath } from '../routes/paths';
+import { type NotificationDto } from '../services/api/notificationsApi';
+import { useMarkNotificationReadMutation, useNotificationsQuery } from '../services/notifications/notificationQueries';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -52,27 +54,26 @@ export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) 
   const navigate = useNavigate();
   const currentPath = location.pathname;
   
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
-  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [selectedNotification, setSelectedNotification] = useState<NotificationDto | null>(null);
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
   const [showHelp, setShowHelp] = useState(false);
+  const { data: notifications = [] } = useNotificationsQuery();
+  const markNotificationRead = useMarkNotificationReadMutation();
 
   const sidebarItems = getMainNavigationItems({ t, user });
   const adminItems = getAdminNavigationItems({ t, user });
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  
   const filteredNotifications = notifications.filter(n => 
-    notifFilter === 'all' ? true : !n.read
+    notifFilter === 'all' ? true : !n.isRead
   );
 
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = (notification: NotificationDto) => {
     setSelectedNotification(notification);
-    markAsRead(notification.id);
+    if (!notification.isRead) {
+      markNotificationRead.mutate(notification.id);
+    }
   };
 
   return (
@@ -257,17 +258,17 @@ export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) 
                                    onClick={() => handleNotificationClick(n)}
                                    className={cn(
                                       "w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors relative",
-                                      !n.read && "bg-blue-50/30 dark:bg-blue-900/10"
+                                      !n.isRead && "bg-blue-50/30 dark:bg-blue-900/10"
                                    )}
                                 >
-                                   {!n.read && <span className="absolute top-4 right-4 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
-                                   <p className={cn("text-xs font-semibold mb-1", !n.read ? "text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400")}>
+                                   {!n.isRead && <span className="absolute top-4 right-4 w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+                                   <p className={cn("text-xs font-semibold mb-1", !n.isRead ? "text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400")}>
                                       {n.title}
                                    </p>
                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
                                       {n.message}
                                    </p>
-                                   <span className="text-[10px] text-slate-400 mt-2 block">{n.date}</span>
+                                   <span className="text-[10px] text-slate-400 mt-2 block">{new Date(n.createdAt).toLocaleString()}</span>
                                 </button>
                              ))}
                           </div>
@@ -351,14 +352,14 @@ export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) 
          <DialogContent className="dark:bg-slate-900 dark:border-slate-800">
             <DialogHeader>
                <DialogTitle className="flex items-center gap-2">
-                  {selectedNotification?.type === 'success' && <span className="w-2 h-2 rounded-full bg-green-500" />}
-                  {selectedNotification?.type === 'warning' && <span className="w-2 h-2 rounded-full bg-amber-500" />}
-                  {selectedNotification?.type === 'error' && <span className="w-2 h-2 rounded-full bg-red-500" />}
-                  {selectedNotification?.type === 'info' && <span className="w-2 h-2 rounded-full bg-blue-500" />}
+                  {selectedNotification?.type === 'RequestStatusUpdated' && <span className="w-2 h-2 rounded-full bg-green-500" />}
+                  {selectedNotification?.type === 'RequestCreated' && <span className="w-2 h-2 rounded-full bg-blue-500" />}
                   {selectedNotification?.title}
                </DialogTitle>
                <DialogDescription className="pt-2">
-                  <span className="block text-xs text-slate-400 mb-4">{selectedNotification?.date}</span>
+                  <span className="block text-xs text-slate-400 mb-4">
+                     {selectedNotification ? new Date(selectedNotification.createdAt).toLocaleString() : ''}
+                  </span>
                   <div className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                      {selectedNotification?.message}
                   </div>

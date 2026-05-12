@@ -1,0 +1,61 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: "Compensa Microservices"
+    folder: "Health"
+    interval: 1m
+    rules:
+      - uid: "service_down"
+        title: "Service Instance Down"
+        condition: "C"
+        data:
+          - refId: "A"
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "prom-ds"
+            model:
+              expr: "up == 0"
+              instant: true
+              range: false
+          - refId: "C"
+            datasourceUid: "__expr__"
+            model:
+              type: "threshold"
+              expression: "A"
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  reducer: { type: "last" }
+        for: 1m
+        annotations:
+          summary: "Service {{ $labels.instance }} is down"
+          description: "Microservice {{ $labels.job }} ({{ $labels.instance }}) is not responding."
+        labels:
+          severity: "critical"
+
+      - uid: "high_error_rate"
+        title: "High Error Rate (>5%)"
+        condition: "C"
+        data:
+          - refId: "A"
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "prom-ds"
+            model:
+              expr: 'sum(rate(traces_spanmetrics_latency_count{status_code="Error"}[5m])) by (service_name) / sum(rate(traces_spanmetrics_latency_count[5m])) by (service_name)'
+              instant: true
+              range: false
+          - refId: "C"
+            datasourceUid: "__expr__"
+            model:
+              type: "threshold"
+              expression: "A"
+              conditions:
+                - evaluator: { params: [0.05], type: "gt" }
+                  operator: { type: "and" }
+                  reducer: { type: "last" }
+        for: 2m
+        annotations:
+          summary: "High error rate in {{ $labels.service_name }}"
+          description: "Service {{ $labels.service_name }} has an error rate above 5% over the last 5 minutes."
+        labels:
+          severity: "warning"

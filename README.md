@@ -194,16 +194,33 @@ Built-in light/dark mode:
 ## 🔧 Configuration
 
 ### Environment Variables
-Currently frontend-only, no environment variables required.
+The frontend expects the backend URLs below when they differ from local defaults:
+
+```bash
+VITE_IDENTITY_API_URL=http://localhost:5002
+VITE_CORE_API_URL=http://localhost:5001
+VITE_NOTIFICATIONS_API_URL=http://localhost:5003
+```
 
 ### Backend Integration
-The AI features require backend implementation. See [AI_BACKEND_IMPLEMENTATION.md](./AI_BACKEND_IMPLEMENTATION.md) for API specifications.
+The product is split into backend services:
 
-Update backend URLs in:
-- `src/app/components/compensa/AIDocumentConverter.tsx`
-- `src/app/components/compensa/AIChatInterface.tsx`
+- **Compensa Core API** (`Backend/Compensa.Core.Api`) handles academic years, classrooms, courses, curricular units, schedules, compensation requests, dashboard aggregates, and global search.
+- **Compensa Identity API** (`Backend/Compensa.Identity.Api`) handles magic-link authentication, JWTs, users, and roles.
+- **Compensa Notifications** (`Backend/Compensa.Notifications`) handles notification delivery and preferences.
+- **CompensaAI** (`Backend/CompensaAI`) is the Python/FastAPI integration surface for AI workflows.
 
-Replace `YOUR_BACKEND_URL` with your actual backend URL.
+Important Core API endpoints currently used by the frontend:
+
+- `GET /api/dashboard/summary`
+- `GET /api/search?query=...`
+- `GET /api/courses`
+- `GET /api/courses/{id}/details`
+- `GET /api/classrooms`
+- `GET /api/compensation-requests`
+- `POST /api/compensation-requests`
+
+Academic scheduling rules are enforced in the backend service layer. For each academic year and semester, a class schedule cannot overlap for the same class group, classroom, or teacher.
 
 ## 👥 User Roles
 
@@ -226,14 +243,22 @@ Replace `YOUR_BACKEND_URL` with your actual backend URL.
 
 ## 🧪 Testing
 
-Testing framework not yet implemented. Recommended stack:
+Backend tests are available for the Core API:
 
 ```bash
-# Unit tests (future)
-pnpm run test
+dotnet test Backend/Compensa.Core.Api/Compensa.Core.Api.sln
+```
 
-# E2E tests (future)
-pnpm run test:e2e
+Frontend production build:
+
+```bash
+pnpm --dir Frontend build
+```
+
+Core API build:
+
+```bash
+dotnet build Backend/Compensa.Core.Api/CompensaCoreApi/CompensaCoreApi.csproj
 ```
 
 See [DEVELOPMENT_GUIDELINES.md](./DEVELOPMENT_GUIDELINES.md#testing-strategy) for testing approach.

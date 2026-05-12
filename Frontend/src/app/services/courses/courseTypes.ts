@@ -29,6 +29,35 @@ export interface UpsertCourseRequest {
 
 export type UnitComponentType = 'Theoretical' | 'Practical' | 'All';
 
+export interface UpsertCurricularUnitRequest {
+  name: string;
+  year: number;
+  semester: 1 | 2;
+  ects: number;
+  responsibleTeacherId: string;
+  responsibleTeacherEmail: string;
+  isActive: boolean;
+}
+
+export interface UpsertCurricularUnitComponentRequest {
+  name: string;
+  type: UnitComponentType;
+  responsibleTeacherId: string;
+  responsibleTeacherEmail: string;
+  isActive: boolean;
+}
+
+export interface CurricularUnitComponent {
+  id: string;
+  courseId: string;
+  curricularUnitId: string;
+  name: string;
+  type: UnitComponentType;
+  responsibleTeacherId: string;
+  responsibleTeacherEmail: string;
+  isActive: boolean;
+}
+
 export interface CurricularUnit {
   id: string;
   courseId: string;
@@ -37,10 +66,9 @@ export interface CurricularUnit {
   semester: 1 | 2;
   ects: number;
   teacherIds: string[];
-  regentId?: string | null;
-  theoreticalTeacherId?: string | null;
-  practicalTeacherId?: string | null;
-  component: UnitComponentType;
+  responsibleTeacherId: string;
+  responsibleTeacherEmail: string;
+  components: CurricularUnitComponent[];
   isActive: boolean;
 }
 
@@ -53,8 +81,52 @@ export interface ClassGroup {
   isActive: boolean;
 }
 
+export interface ClassSchedule {
+  id: string;
+  courseId: string;
+  curricularUnitId: string;
+  classGroupId: string;
+  academicYearId: string;
+  semester: 1 | 2;
+  componentType: UnitComponentType;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  classroomId: string;
+  isActive: boolean;
+}
+
+export interface UpsertClassGroupRequest {
+  curricularUnitId: string;
+  name: string;
+  teacherId: string;
+  isActive: boolean;
+}
+
+export interface UpsertClassScheduleRequest {
+  academicYearId: string;
+  semester: 1 | 2;
+  componentType: UnitComponentType;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  classroomId: string;
+  isActive: boolean;
+}
+
 export interface CourseDetails {
   course: Course;
   units: CurricularUnit[];
+  components: CurricularUnitComponent[];
   classes: ClassGroup[];
+  schedules: ClassSchedule[];
+  courseAssignments: {
+    id: string;
+    userId: string;
+    userEmail: string;
+    courseId: string;
+    isCoordinator: boolean;
+    createdAt: string;
+    updatedAt: string;
+  }[];
 }

@@ -1,16 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Loader2, Send, Paperclip, Database, X } from 'lucide-react';
+import { FileText, Loader2, Send, Paperclip, X, CalendarCheck } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
-import { Card, CardContent } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { toast } from 'sonner';
 import { ScrollArea } from '../components/ui/scroll-area';
-
-interface ExtractedData {
-  headers: string[];
-  rows: any[][];
-}
+import { IAService } from '../services/api/ia.service';
+import { useMutation } from '@tanstack/react-query';
+import { createCompensationRequest } from '../services/compensationRequests/compensationRequestsApi';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { getStoredAuthSession, mapSessionToUser } from '../services/auth/authSession';
 
 interface ChatMessage {
   id: string;
@@ -18,7 +19,8 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   file?: File;
-  extractedData?: ExtractedData;
+  action?: string;
+  actionData?: any;
   isProcessing?: boolean;
 }
 
@@ -32,15 +34,32 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
     {
       id: '1',
       type: 'assistant',
-      content: 'Hello! I\'m your AI assistant. Upload a document and tell me what data you\'d like to extract. I can help you convert documents into structured tables and save them to your database.',
+      content: 'Olá! Sou o Assistente IA do Compensa+. Como posso ajudar? Você pode fazer perguntas sobre o sistema ou anexar documentos para que eu analise e preencha formulários automaticamente.',
       timestamp: new Date(),
     }
   ]);
   const [input, setInput] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const createRequestMutation = useMutation({
+    mutationFn: createCompensationRequest,
+    onSuccess: () => {
+      toast.success('Pedido de compensação criado com sucesso!');
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'system',
+        content: '✅ Pedido de compensação inserido no sistema com sucesso.',
+        timestamp: new Date(),
+      }]);
+    },
+    onError: (error) => {
+      toast.error('Erro ao criar pedido de compensação.');
+    }
+  });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -68,105 +87,83 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
     const currentFile = file;
     setFile(null);
 
-    if (currentFile) {
-      setIsProcessing(true);
+    setIsProcessing(true);
+    const processingMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      type: 'assistant',
+      content: 'A processar a sua solicitação...',
+      timestamp: new Date(),
+      isProcessing: true,
+    };
+    setMessages(prev => [...prev, processingMessage]);
 
-      const processingMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: 'Processing your document...',
-        timestamp: new Date(),
-        isProcessing: true,
-      };
-
-      setMessages(prev => [...prev, processingMessage]);
-
-      try {
-        const formData = new FormData();
-        formData.append('file', currentFile);
-        formData.append('prompt', input || 'Extract all data from this document into a structured table');
-
-        const response = await fetch('YOUR_BACKEND_URL/api/ai/process-document', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to process document');
-        }
-
-        const extractedData = await response.json();
-
-        setMessages(prev => prev.filter(m => m.id !== processingMessage.id));
-
-        const resultMessage: ChatMessage = {
-          id: (Date.now() + 2).toString(),
-          type: 'assistant',
-          content: `I've extracted ${extractedData.rows.length} rows of data from your document. Here's what I found:`,
-          timestamp: new Date(),
-          extractedData,
-        };
-
-        setMessages(prev => [...prev, resultMessage]);
-        toast.success('Document processed successfully!');
-      } catch (error) {
-        console.error('Error processing document:', error);
-        setMessages(prev => prev.filter(m => m.id !== processingMessage.id));
-
-        const errorMessage: ChatMessage = {
-          id: (Date.now() + 2).toString(),
-          type: 'assistant',
-          content: 'Sorry, I encountered an error processing your document. Please make sure your backend is configured and try again.',
-          timestamp: new Date(),
-        };
-
-        setMessages(prev => [...prev, errorMessage]);
-        toast.error('Failed to process document');
-      } finally {
-        setIsProcessing(false);
+    try {
+      let fileIds: string[] = [];
+      
+      if (currentFile) {
+        const uploadRes = await IAService.uploadDocument(currentFile);
+        fileIds.push(uploadRes.file_id);
       }
-    } else {
-      const responseMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
+
+      const session = getStoredAuthSession();
+      const user = session ? mapSessionToUser(session) : null;
+
+      const response = await IAService.sendMessage({
+        thread_id: threadId,
+        message: input || "Processa este documento anexo e extrai as informações relevantes.",
+        file_ids: fileIds.length > 0 ? fileIds : undefined,
+        user_context: user ? {
+          id: user.id,
+          name: user.name,
+          role: user.role,
+          token: session?.accessToken
+        } : undefined
+      });
+
+      if (response.thread_id) {
+        setThreadId(response.thread_id);
+      }
+
+      setMessages(prev => prev.filter(m => m.id !== processingMessage.id));
+
+      const resultMessage: ChatMessage = {
+        id: (Date.now() + 2).toString(),
         type: 'assistant',
-        content: 'Please upload a document so I can help you extract data from it. Use the attachment button to select a file.',
+        content: response.content || (response.action ? 'Encontrei as seguintes informações. Deseja prosseguir com a ação sugerida?' : ''),
         timestamp: new Date(),
+        action: response.action,
+        actionData: response.data
       };
 
-      setMessages(prev => [...prev, responseMessage]);
+      setMessages(prev => [...prev, resultMessage]);
+    } catch (error) {
+      console.error('Error with AI:', error);
+      setMessages(prev => prev.filter(m => m.id !== processingMessage.id));
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 2).toString(),
+        type: 'assistant',
+        content: 'Desculpe, ocorreu um erro de comunicação. Por favor tente novamente.',
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleSaveToDatabase = async (extractedData: ExtractedData) => {
-    try {
-      const response = await fetch('YOUR_BACKEND_URL/api/database/insert', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          headers: extractedData.headers,
-          rows: extractedData.rows,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save to database');
-      }
-
-      toast.success('Data saved to database successfully!');
-
-      const confirmMessage: ChatMessage = {
-        id: Date.now().toString(),
-        type: 'system',
-        content: `✓ Successfully saved ${extractedData.rows.length} rows to the database.`,
-        timestamp: new Date(),
+  const handleAction = (action: string, data: any) => {
+    if (action === 'CreateCompensationRequest') {
+      const payload = {
+         unitId: data.unitId,
+         courseId: data.courseId,
+         originalDate: data.originalDate,
+         proposedDate: data.proposedDate,
+         reason: data.reason || 'Sugerido pela Compensa IA',
+         classroom: 'Sala Gerada (AI)',
+         status: 'Pending',
+         type: 'Anticipation'
       };
-
-      setMessages(prev => [...prev, confirmMessage]);
-    } catch (error) {
-      console.error('Error saving to database:', error);
-      toast.error('Failed to save to database. Please try again.');
+      
+      createRequestMutation.mutate(payload as any);
     }
   };
 
@@ -178,10 +175,10 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
   };
 
   return (
-    <div className="flex flex-col" style={{ height: maxHeight }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: maxHeight }}>
       {/* Chat Messages */}
-      <ScrollArea className="flex-1 py-4">
-        <div className="space-y-6 px-1">
+      <ScrollArea className="flex-1 min-h-0 w-full">
+        <div className="space-y-6 px-4 py-6">
           {messages.map((message) => (
             <div
               key={message.id}
@@ -190,7 +187,7 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
               {message.type !== 'user' && (
                 <Avatar className="w-8 h-8 flex-shrink-0">
                   <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
-                    AI
+                    IA
                   </AvatarFallback>
                 </Avatar>
               )}
@@ -211,7 +208,11 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
                       <span className="text-sm">{message.content}</span>
                     </div>
                   ) : (
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <div className="text-sm markdown-content prose dark:prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-900 prose-pre:p-0 prose-compact">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
                   )}
 
                   {message.file && (
@@ -227,55 +228,35 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
                   )}
                 </div>
 
-                {message.extractedData && (
-                  <Card className="w-full mt-2">
-                    <CardContent className="p-4">
-                      <div className="overflow-auto max-h-[300px] border border-slate-200 dark:border-slate-700 rounded-lg mb-3">
-                        <table className="w-full text-sm">
-                          <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
-                            <tr>
-                              {message.extractedData.headers.map((header, idx) => (
-                                <th
-                                  key={idx}
-                                  className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700"
-                                >
-                                  {header}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {message.extractedData.rows.map((row, rowIdx) => (
-                              <tr
-                                key={rowIdx}
-                                className="hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                              >
-                                {row.map((cell, cellIdx) => (
-                                  <td
-                                    key={cellIdx}
-                                    className="px-3 py-2 text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800"
-                                  >
-                                    {cell}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-500">
-                          {message.extractedData.rows.length} rows × {message.extractedData.headers.length} columns
-                        </span>
-                        <Button
-                          size="sm"
-                          onClick={() => handleSaveToDatabase(message.extractedData!)}
-                        >
-                          <Database className="w-3 h-3 mr-1" />
-                          Save to Database
-                        </Button>
-                      </div>
+                {message.action === 'CreateCompensationRequest' && message.actionData && (
+                  <Card className="w-full mt-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
+                    <CardHeader className="py-3 px-4 border-b border-blue-100 dark:border-blue-900">
+                       <CardTitle className="text-sm font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                          <CalendarCheck className="w-4 h-4"/> Rascunho de Pedido
+                       </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-4 space-y-2">
+                       <div className="text-sm grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300">
+                          <span className="font-medium">Unidade Curricular:</span>
+                          <span>{message.actionData.unitId}</span>
+                          <span className="font-medium">Data Original:</span>
+                          <span>{message.actionData.originalDate}</span>
+                          <span className="font-medium">Data Proposta:</span>
+                          <span>{message.actionData.proposedDate}</span>
+                          <span className="font-medium">Motivo:</span>
+                          <span>{message.actionData.reason}</span>
+                       </div>
+                       <div className="pt-3">
+                         <Button 
+                            className="w-full" 
+                            size="sm" 
+                            disabled={createRequestMutation.isPending}
+                            onClick={() => handleAction(message.action as string, message.actionData)}
+                         >
+                            {createRequestMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : null}
+                            Submeter Pedido
+                         </Button>
+                       </div>
                     </CardContent>
                   </Card>
                 )}
@@ -288,7 +269,7 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
               {message.type === 'user' && (
                 <Avatar className="w-8 h-8 flex-shrink-0">
                   <AvatarFallback className="bg-blue-600 text-white text-xs">
-                    U
+                    EU
                   </AvatarFallback>
                 </Avatar>
               )}
@@ -339,7 +320,7 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Describe what data you want to extract..."
+              placeholder="Digite a sua mensagem ou faça o upload de um documento..."
               className="min-h-[60px] max-h-[120px] resize-none pr-12"
               disabled={isProcessing}
             />
@@ -362,22 +343,16 @@ export function AIChatInterface({ compact = false, maxHeight = 'calc(100vh - 8re
         {!compact && (
           <div className="mt-2 flex flex-wrap gap-2">
             <button
-              onClick={() => setInput('Extract all names and email addresses into a table')}
+              onClick={() => setInput('Agendar compensação para a próxima terça')}
               className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              Extract contacts
+              Agendar compensação
             </button>
             <button
-              onClick={() => setInput('Create a table with all dates, amounts, and descriptions')}
+              onClick={() => setInput('Quais são as regras para submeter pedidos?')}
               className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
-              Extract financial data
-            </button>
-            <button
-              onClick={() => setInput('Extract student names, grades, and attendance percentage')}
-              className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-            >
-              Extract student data
+              Regras do sistema
             </button>
           </div>
         )}

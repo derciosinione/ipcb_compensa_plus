@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   ArrowLeft, 
   CalendarRange, 
@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 import { Separator } from '../../../components/ui/separator';
-import { mockCourses, mockTeachers, mockTimetable, Course as MockCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../mocks/data';
+import { Course as MockCourse, CurricularUnit, ClassGroup, TimeSlot } from '../../../mocks/data';
 import { cn } from '../../../components/ui/utils';
 import { toast } from 'sonner@2.0.3';
 import { AddCurricularUnitModal } from './AddCurricularUnitModal';
@@ -49,14 +49,33 @@ import { AssignTeachersModal } from './AssignTeachersModal';
 import { AssignTeacherToCourseModal } from './AssignTeacherToCourseModal';
 import { ClassDetailsView } from '../../../components/domain/requests/ClassDetailsView';
 import { BulkImportSchedulesSheet } from './BulkImportSchedulesSheet';
-import { getCourseDetails } from '../../../services/courses/coursesApi';
-import type { Course as ApiCourse, ClassGroup as ApiClassGroup, CurricularUnit as ApiCurricularUnit } from '../../../services/courses/courseTypes';
+import {
+  createClassGroup,
+  createClassSchedule,
+  createCurricularUnit,
+  createCurricularUnitComponent,
+  deleteClassSchedule,
+  deleteCurricularUnit,
+  getCourseDetails,
+  updateClassSchedule,
+  updateCurricularUnit,
+  updateCurricularUnitComponent,
+} from '../../../services/courses/coursesApi';
+import { getErrorMessage } from '../../../utils/errors';
+import type { Course as ApiCourse, ClassGroup as ApiClassGroup, ClassSchedule as ApiClassSchedule, CurricularUnit as ApiCurricularUnit } from '../../../services/courses/courseTypes';
+import { listUsers } from '../../../services/users/usersApi';
+import type { PlatformUser } from '../../../services/users/userTypes';
+import { listClassrooms } from '../../../services/classrooms/classroomsApi';
+import type { Classroom } from '../../../services/classrooms/classroomTypes';
+import { getActiveAcademicYear } from '../../../services/academicYears/academicYearsApi';
+import type { AcademicYear } from '../../../services/academicYears/academicYearTypes';
 
 interface CourseDetailsPageProps {
   courseId: string;
   course?: ApiCourse;
   userRole: 'coordinator' | 'teacher' | 'admin';
   userId: string; 
+  userEmail: string;
   onBack: () => void;
 }
 
@@ -80,10 +99,21 @@ const toDetailsUnit = (unit: ApiCurricularUnit): CurricularUnit => ({
   semester: unit.semester,
   ects: unit.ects,
   teacherIds: unit.teacherIds,
-  regentId: unit.regentId ?? undefined,
-  theoreticalTeacherId: unit.theoreticalTeacherId ?? undefined,
-  practicalTeacherId: unit.practicalTeacherId ?? undefined,
-  component: unit.component,
+  regentId: unit.responsibleTeacherId,
+  theoreticalTeacherId: unit.components.find(component => component.type === 'Theoretical')?.responsibleTeacherId,
+  practicalTeacherId: unit.components.find(component => component.type === 'Practical')?.responsibleTeacherId,
+  component: unit.components.length > 1 ? 'All' : unit.components[0]?.type ?? 'All',
+});
+
+type CourseUnit = CurricularUnit & {
+  responsibleTeacherEmail: string;
+  components: ApiCurricularUnit['components'];
+};
+
+const toCourseUnit = (unit: ApiCurricularUnit): CourseUnit => ({
+  ...toDetailsUnit(unit),
+  responsibleTeacherEmail: unit.responsibleTeacherEmail,
+  components: unit.components,
 });
 
 const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
@@ -93,14 +123,42 @@ const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
   teacherId: group.teacherId,
 });
 
-export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userId, onBack }: CourseDetailsPageProps) => {
+const toTimeSlot = (
+  schedule: ApiClassSchedule,
+  classes: ClassGroup[],
+  units: CourseUnit[],
+  classrooms: Classroom[],
+): TimeSlot => {
+  const classGroup = classes.find(group => group.id === schedule.classGroupId);
+  const unit = units.find(item => item.id === schedule.curricularUnitId);
+  const classroom = classrooms.find(room => room.id === schedule.classroomId);
+
+  return {
+    id: schedule.id,
+    dayOfWeek: schedule.dayOfWeek,
+    startTime: schedule.startTime.slice(0, 5),
+    endTime: schedule.endTime.slice(0, 5),
+    unit: unit?.name ?? schedule.curricularUnitId,
+    type: schedule.componentType === 'Practical' ? 'practical' : 'theoretical',
+    room: classroom?.name ?? schedule.classroomId,
+    course: schedule.courseId,
+    yearGroup: `Year ${unit?.year ?? '?'}`,
+    classGroup: classGroup?.name ?? schedule.classGroupId,
+  };
+};
+
+export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userId, userEmail, onBack }: CourseDetailsPageProps) => {
   const [course, setCourse] = useState<MockCourse | undefined>(
-    apiCourse ? toDetailsCourse(apiCourse) : mockCourses.find(c => c.id === courseId)
+    apiCourse ? toDetailsCourse(apiCourse) : undefined
   );
   
-  const [localUnits, setLocalUnits] = useState<CurricularUnit[]>([]);
+  const [localUnits, setLocalUnits] = useState<CourseUnit[]>([]);
   const [localClasses, setLocalClasses] = useState<ClassGroup[]>([]);
-  const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>(mockTimetable);
+  const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>([]);
+  const [courseAssignmentTeacherIds, setCourseAssignmentTeacherIds] = useState<string[]>([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [activeAcademicYear, setActiveAcademicYear] = useState<AcademicYear | undefined>(undefined);
+  const [teachers, setTeachers] = useState<PlatformUser[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -112,13 +170,38 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   const [isAddTeacherToCourseModalOpen, setIsAddTeacherToCourseModalOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   
-  const [editingUnit, setEditingUnit] = useState<CurricularUnit | undefined>(undefined);
-  const [assigningUnit, setAssigningUnit] = useState<CurricularUnit | undefined>(undefined);
+  const [editingUnit, setEditingUnit] = useState<CourseUnit | undefined>(undefined);
+  const [assigningUnit, setAssigningUnit] = useState<CourseUnit | undefined>(undefined);
   
   // Navigation State
   const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
   
   const [selectedYear, setSelectedYear] = useState<number>(1);
+
+  const loadCourseDetails = useCallback(async () => {
+      const [details, loadedUsers, loadedClassrooms, loadedAcademicYear] = await Promise.all([
+          getCourseDetails(courseId),
+          listUsers(),
+          listClassrooms(),
+          getActiveAcademicYear(),
+      ]);
+
+      if (!details) {
+          return;
+      }
+
+      const mappedUnits = details.units.map(toCourseUnit);
+      const mappedClasses = details.classes.map(toDetailsClassGroup);
+
+      setCourse(toDetailsCourse(details.course));
+      setLocalUnits(mappedUnits);
+      setLocalClasses(mappedClasses);
+      setLocalTimetable(details.schedules.map(schedule => toTimeSlot(schedule, mappedClasses, mappedUnits, loadedClassrooms)));
+      setCourseAssignmentTeacherIds((details.courseAssignments ?? []).map(assignment => assignment.userId));
+      setTeachers(loadedUsers.filter(user => user.roles.includes('Teacher')));
+      setClassrooms(loadedClassrooms);
+      setActiveAcademicYear(loadedAcademicYear ?? undefined);
+  }, [courseId]);
 
   useEffect(() => {
       let isMounted = true;
@@ -126,17 +209,13 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       const loadDetails = async () => {
           try {
               setIsLoadingDetails(true);
-              const details = await getCourseDetails(courseId);
+              await loadCourseDetails();
 
-              if (!isMounted || !details) {
+              if (!isMounted) {
                   return;
               }
-
-              setCourse(toDetailsCourse(details.course));
-              setLocalUnits(details.units.map(toDetailsUnit));
-              setLocalClasses(details.classes.map(toDetailsClassGroup));
           } catch (error) {
-              toast.error(error instanceof Error ? error.message : "Unable to load course details.");
+              toast.error(getErrorMessage(error, "Unable to load course details."));
           } finally {
               if (isMounted) {
                   setIsLoadingDetails(false);
@@ -149,7 +228,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       return () => {
           isMounted = false;
       };
-  }, [courseId]);
+  }, [loadCourseDetails]);
 
   if (isLoadingDetails && !course) {
       return (
@@ -183,7 +262,22 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
 
   // 4. Get Teachers involved in this course
   const courseTeacherIds = Array.from(new Set(courseUnits.flatMap(u => u.teacherIds)));
-  const courseTeachers = mockTeachers.filter(t => courseTeacherIds.includes(t.id));
+  const courseTeachers = teachers.filter(teacher =>
+      courseTeacherIds.includes(teacher.id) || courseAssignmentTeacherIds.includes(teacher.id)
+  );
+
+  const getTeacher = (teacherId?: string) => {
+      if (!teacherId) return undefined;
+      return teachers.find(teacher => teacher.id === teacherId);
+  };
+
+  const getTeacherName = (teacher: PlatformUser) => teacher.fullName || teacher.email;
+
+  const getTeacherInitial = (teacher: PlatformUser) => getTeacherName(teacher).charAt(0).toUpperCase();
+
+  const getTeacherAvatarUrl = (teacher: PlatformUser) => {
+      return `https://ui-avatars.com/api/?name=${encodeURIComponent(getTeacherName(teacher))}&background=random`;
+  };
 
   // --- Handlers ---
 
@@ -199,9 +293,14 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       setIsUnitModalOpen(true);
   };
 
-  const handleDeleteUnit = (unitId: string) => {
-      setLocalUnits(prev => prev.filter(u => u.id !== unitId));
-      toast.success("Curricular unit deleted");
+  const handleDeleteUnit = async (unitId: string) => {
+      try {
+          await deleteCurricularUnit(courseId, unitId);
+          setLocalUnits(prev => prev.filter(u => u.id !== unitId));
+          toast.success("Curricular unit deleted");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to delete curricular unit."));
+      }
   };
 
   const handleViewUnit = (unit: CurricularUnit) => {
@@ -214,65 +313,146 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       setIsAssignTeacherModalOpen(true);
   };
 
-  const handleSaveUnit = (unitData: Omit<CurricularUnit, 'id'>) => {
-      if (editingUnit) {
-          setLocalUnits(prev => prev.map(u => u.id === editingUnit.id ? { ...u, ...unitData } : u));
-      } else {
-          const newUnit: CurricularUnit = {
-              ...unitData,
-              id: `new_u_${Date.now()}`,
-              teacherIds: [] // Default empty
-          };
-          setLocalUnits(prev => [...prev, newUnit]);
+  const handleSaveUnit = async (unitData: Omit<CurricularUnit, 'id'>) => {
+      const responsibleTeacherId = unitData.regentId || editingUnit?.regentId || userId;
+      const request = {
+          name: unitData.name,
+          year: unitData.year,
+          semester: unitData.semester,
+          ects: unitData.ects,
+          responsibleTeacherId,
+          responsibleTeacherEmail: userEmail,
+          isActive: true,
+      };
+
+      try {
+          const saved = editingUnit
+              ? await updateCurricularUnit(courseId, editingUnit.id, request)
+              : await createCurricularUnit(courseId, request);
+
+          if (!saved) {
+              throw new Error("Curricular unit response was empty.");
+          }
+
+          const nextUnit = toDetailsUnit(saved);
+
+          if (editingUnit) {
+              setLocalUnits(prev => prev.map(u => u.id === editingUnit.id ? nextUnit : u));
+          } else {
+              setLocalUnits(prev => [...prev, nextUnit]);
+          }
+
+          setIsUnitModalOpen(false);
+          toast.success(editingUnit ? "Curricular unit updated successfully" : "Curricular unit created successfully");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to save curricular unit."));
       }
   };
 
-  const handleSaveTeacherAssignment = (unitId: string, assignments: { regentId: string, theoreticalTeacherId?: string, practicalTeacherId?: string }) => {
-      setLocalUnits(prev => prev.map(u => {
-          if (u.id !== unitId) return u;
-          
-          // Calculate new teacherIds list (unique set)
-          const newTeacherIds = new Set<string>();
-          if (assignments.regentId) newTeacherIds.add(assignments.regentId);
-          if (assignments.theoreticalTeacherId) newTeacherIds.add(assignments.theoreticalTeacherId);
-          if (assignments.practicalTeacherId) newTeacherIds.add(assignments.practicalTeacherId);
+  const handleSaveTeacherAssignment = async (unitId: string, assignments: { regentId: string, theoreticalTeacherId?: string, practicalTeacherId?: string }) => {
+      const unit = localUnits.find(item => item.id === unitId);
+      const regent = getTeacher(assignments.regentId);
 
-          return {
-              ...u,
-              ...assignments,
-              teacherIds: Array.from(newTeacherIds)
+      if (!unit || !regent) {
+          toast.error("Select a responsible teacher for the curricular unit.");
+          return;
+      }
+
+      try {
+          await updateCurricularUnit(courseId, unitId, {
+              name: unit.name,
+              year: unit.year,
+              semester: unit.semester,
+              ects: unit.ects,
+              responsibleTeacherId: regent.id,
+              responsibleTeacherEmail: regent.email,
+              isActive: true,
+          });
+
+          const saveComponentResponsible = async (
+              type: 'Theoretical' | 'Practical',
+              teacherId?: string,
+          ) => {
+              if (!teacherId) {
+                  return;
+              }
+
+              const teacher = getTeacher(teacherId);
+
+              if (!teacher) {
+                  throw new Error(`Teacher '${teacherId}' was not found.`);
+              }
+
+              const existingComponent = unit.components.find(component => component.type === type);
+              const request = {
+                  name: type,
+                  type,
+                  responsibleTeacherId: teacher.id,
+                  responsibleTeacherEmail: teacher.email,
+                  isActive: true,
+              };
+
+              if (existingComponent) {
+                  await updateCurricularUnitComponent(courseId, unitId, existingComponent.id, request);
+                  return;
+              }
+
+              await createCurricularUnitComponent(courseId, unitId, request);
           };
-      }));
+
+          await Promise.all([
+              saveComponentResponsible('Theoretical', assignments.theoreticalTeacherId),
+              saveComponentResponsible('Practical', assignments.practicalTeacherId),
+          ]);
+
+          await loadCourseDetails();
+          setIsAssignTeacherModalOpen(false);
+          toast.success(`Teachers assigned to ${unit.name}`);
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to assign teachers."));
+      }
   };
 
-  const handleAddTeacherToCourse = (data: { teacherId: string, unitId: string, roles: { regent: boolean, theoretical: boolean, practical: boolean } }) => {
-      setLocalUnits(prev => prev.map(u => {
-          if (u.id !== data.unitId) return u;
+  const handleAddTeacherToCourse = async (data: { teacherId: string, unitId: string, roles: { regent: boolean, theoretical: boolean, practical: boolean } }) => {
+      const unit = localUnits.find(item => item.id === data.unitId);
 
-          // Clone existing data
-          const updated = { ...u };
-          const newTeacherIds = new Set(updated.teacherIds);
-          newTeacherIds.add(data.teacherId);
+      if (!unit) {
+          toast.error("Curricular unit not found.");
+          return;
+      }
 
-          if (data.roles.regent) updated.regentId = data.teacherId;
-          if (data.roles.theoretical) updated.theoreticalTeacherId = data.teacherId;
-          if (data.roles.practical) updated.practicalTeacherId = data.teacherId;
+      await handleSaveTeacherAssignment(data.unitId, {
+          regentId: data.roles.regent ? data.teacherId : unit.regentId || data.teacherId,
+          theoreticalTeacherId: data.roles.theoretical ? data.teacherId : unit.theoreticalTeacherId,
+          practicalTeacherId: data.roles.practical ? data.teacherId : unit.practicalTeacherId,
+      });
 
-          updated.teacherIds = Array.from(newTeacherIds);
-          return updated;
-      }));
+      setIsAddTeacherToCourseModalOpen(false);
   };
 
   const handleAddClass = () => {
       setIsClassModalOpen(true);
   };
   
-  const handleSaveClass = (classData: Omit<ClassGroup, 'id'>) => {
-      const newClass: ClassGroup = {
-          ...classData,
-          id: `new_class_${Date.now()}`,
-      };
-      setLocalClasses(prev => [...prev, newClass]);
+  const handleSaveClass = async (classData: Omit<ClassGroup, 'id'>) => {
+      try {
+          const created = await createClassGroup(courseId, {
+              curricularUnitId: classData.unitId,
+              name: classData.name,
+              teacherId: classData.teacherId,
+              isActive: true,
+          });
+
+          if (!created) {
+              throw new Error("Class group response was empty.");
+          }
+
+          setLocalClasses(prev => [...prev, toDetailsClassGroup(created)]);
+          setIsClassModalOpen(false);
+          toast.success("Class created successfully");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to save class group."));
+      }
   };
 
   const handleBulkImportSchedules = (schedules: Omit<TimeSlot, 'id'>[]) => {
@@ -285,30 +465,113 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   };
 
   // Schedule CRUD Handlers passed to ClassDetailsView
-  const handleAddSchedule = (scheduleData: Omit<TimeSlot, 'id'>) => {
-      const newSlot: TimeSlot = {
-          ...scheduleData,
-          id: `slot_${Date.now()}`,
-      };
-      setLocalTimetable(prev => [...prev, newSlot]);
-      toast.success("Schedule added successfully!");
+  const handleAddSchedule = async (scheduleData: Omit<TimeSlot, 'id'>) => {
+      if (!selectedClass) return;
+
+      const room = classrooms.find(item => item.name === scheduleData.room || item.id === scheduleData.room);
+
+      if (!room) {
+          toast.error("Select a valid classroom.");
+          return;
+      }
+
+      if (!activeAcademicYear) {
+          toast.error("Active academic year was not found.");
+          return;
+      }
+
+      const unit = localUnits.find(item => item.id === selectedClass.unitId);
+
+      if (!unit) {
+          toast.error("Curricular unit not found for this class.");
+          return;
+      }
+
+      try {
+          const created = await createClassSchedule(courseId, selectedClass.id, {
+              academicYearId: activeAcademicYear.id,
+              semester: unit.semester,
+              componentType: scheduleData.type === 'practical' ? 'Practical' : 'Theoretical',
+              dayOfWeek: scheduleData.dayOfWeek,
+              startTime: scheduleData.startTime,
+              endTime: scheduleData.endTime,
+              classroomId: room.id,
+              isActive: true,
+          });
+
+          if (!created) {
+              throw new Error("Schedule response was empty.");
+          }
+
+          setLocalTimetable(prev => [...prev, toTimeSlot(created, localClasses, localUnits, classrooms)]);
+          toast.success("Schedule added successfully!");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to save schedule."));
+      }
   };
 
-  const handleUpdateSchedule = (id: string, scheduleData: Omit<TimeSlot, 'id'>) => {
-      setLocalTimetable(prev => prev.map(slot => slot.id === id ? { ...slot, ...scheduleData } : slot));
-      toast.success("Schedule updated successfully!");
+  const handleUpdateSchedule = async (id: string, scheduleData: Omit<TimeSlot, 'id'>) => {
+      if (!selectedClass) return;
+
+      const room = classrooms.find(item => item.name === scheduleData.room || item.id === scheduleData.room);
+
+      if (!room) {
+          toast.error("Select a valid classroom.");
+          return;
+      }
+
+      if (!activeAcademicYear) {
+          toast.error("Active academic year was not found.");
+          return;
+      }
+
+      const unit = localUnits.find(item => item.id === selectedClass.unitId);
+
+      if (!unit) {
+          toast.error("Curricular unit not found for this class.");
+          return;
+      }
+
+      try {
+          const updated = await updateClassSchedule(courseId, selectedClass.id, id, {
+              academicYearId: activeAcademicYear.id,
+              semester: unit.semester,
+              componentType: scheduleData.type === 'practical' ? 'Practical' : 'Theoretical',
+              dayOfWeek: scheduleData.dayOfWeek,
+              startTime: scheduleData.startTime,
+              endTime: scheduleData.endTime,
+              classroomId: room.id,
+              isActive: true,
+          });
+
+          if (!updated) {
+              throw new Error("Schedule response was empty.");
+          }
+
+          setLocalTimetable(prev => prev.map(slot => slot.id === id ? toTimeSlot(updated, localClasses, localUnits, classrooms) : slot));
+          toast.success("Schedule updated successfully!");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to update schedule."));
+      }
   };
 
-  const handleDeleteSchedule = (id: string) => {
-      setLocalTimetable(prev => prev.filter(slot => slot.id !== id));
-      toast.success("Schedule deleted successfully.");
+  const handleDeleteSchedule = async (id: string) => {
+      if (!selectedClass) return;
+
+      try {
+          await deleteClassSchedule(courseId, selectedClass.id, id);
+          setLocalTimetable(prev => prev.filter(slot => slot.id !== id));
+          toast.success("Schedule deleted successfully.");
+      } catch (error) {
+          toast.error(getErrorMessage(error, "Unable to delete schedule."));
+      }
   };
 
   // --- Render Logic ---
 
   if (selectedClass) {
       const unit = localUnits.find(u => u.id === selectedClass.unitId);
-      const teacher = mockTeachers.find(t => t.id === selectedClass.teacherId);
+      const teacher = getTeacher(selectedClass.teacherId);
       
       if (!unit) return <div>Unit not found error</div>;
 
@@ -319,6 +582,8 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
               teacher={teacher}
               schedules={localTimetable}
               allClasses={localClasses}
+              courseUnits={courseUnits}
+              classrooms={classrooms}
               onBack={() => setSelectedClass(null)}
               onAddSchedule={handleAddSchedule}
               onUpdateSchedule={handleUpdateSchedule}
@@ -329,14 +594,21 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
   }
 
   const renderCurriculumByYear = () => {
-      // Group by Year
-      const unitsByYear = visibleUnits.reduce((acc, unit) => {
-          if (!acc[unit.year]) acc[unit.year] = [];
-          acc[unit.year].push(unit);
-          return acc;
-      }, {} as Record<number, CurricularUnit[]>);
+      const normalizedSearch = searchTerm.trim().toLowerCase();
+      const searchableUnits = normalizedSearch
+          ? visibleUnits.filter(unit => unit.name.toLowerCase().includes(normalizedSearch))
+          : visibleUnits;
 
-      if (Object.keys(unitsByYear).length === 0) {
+      const unitsByYearAndSemester = searchableUnits.reduce((acc, unit) => {
+          if (!acc[unit.year]) {
+              acc[unit.year] = { 1: [], 2: [] };
+          }
+
+          acc[unit.year][unit.semester].push(unit);
+          return acc;
+      }, {} as Record<number, Record<1 | 2, CurricularUnit[]>>);
+
+      if (Object.keys(unitsByYearAndSemester).length === 0) {
           return (
             <div className="text-center py-12 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                 <BookCopy className="w-12 h-12 mx-auto mb-3 opacity-20" />
@@ -349,7 +621,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
       }
 
       // Ensure we display years in order
-      const sortedYears = Object.keys(unitsByYear).map(Number).sort((a, b) => a - b);
+      const sortedYears = Object.keys(unitsByYearAndSemester).map(Number).sort((a, b) => a - b);
 
       return (
           <Accordion type="multiple" defaultValue={sortedYears.map(y => `item-${y}`)} className="w-full space-y-4">
@@ -362,17 +634,27 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
                               </div>
                               <span className="font-semibold text-lg text-slate-900 dark:text-slate-100">Year {year}</span>
                               <Badge variant="secondary" className="ml-2 font-normal text-slate-500 bg-slate-100 dark:bg-slate-800">
-                                  {unitsByYear[year].length} Units
+                                  {unitsByYearAndSemester[year][1].length + unitsByYearAndSemester[year][2].length} Units
                               </Badge>
                           </div>
                       </AccordionTrigger>
                       <AccordionContent className="pb-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                              {unitsByYear[year]
-                                .filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                                .map(unit => {
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pt-2">
+                              {([1, 2] as const).map((semester) => (
+                                  <div key={semester} className="space-y-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 p-3">
+                                      <div className="flex items-center justify-between">
+                                          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Semester {semester}</h4>
+                                          <Badge variant="outline" className="text-[10px] font-normal">
+                                              {unitsByYearAndSemester[year][semester].length} Units
+                                          </Badge>
+                                      </div>
+                                      {unitsByYearAndSemester[year][semester].length === 0 ? (
+                                          <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 py-8 text-center text-sm text-slate-400">
+                                              No units in this semester.
+                                          </div>
+                                      ) : unitsByYearAndSemester[year][semester].map(unit => {
                                   // Find Regent
-                                  const regent = mockTeachers.find(t => t.id === unit.regentId);
+                                  const regent = getTeacher(unit.regentId);
                                   
                                   return (
                                   <div key={unit.id} className="group flex items-start justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer">
@@ -391,10 +673,10 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
                                               {regent && (
                                                   <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-200 dark:border-slate-700">
                                                       <Avatar className="w-4 h-4">
-                                                          <AvatarImage src={regent.avatarUrl} />
-                                                          <AvatarFallback>{regent.name[0]}</AvatarFallback>
+                                                          <AvatarImage src={getTeacherAvatarUrl(regent)} />
+                                                          <AvatarFallback>{getTeacherInitial(regent)}</AvatarFallback>
                                                       </Avatar>
-                                                      <span className="truncate max-w-[100px]">{regent.name}</span>
+                                                      <span className="truncate max-w-[100px]">{getTeacherName(regent)}</span>
                                                   </div>
                                               )}
                                           </div>
@@ -433,6 +715,8 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
                                       </DropdownMenu>
                                   </div>
                                 )})}
+                                  </div>
+                              ))}
                           </div>
                           {(userRole === 'coordinator' || userRole === 'admin') && (
                               <Button variant="outline" size="sm" className="w-full mt-3 border-dashed text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50" onClick={() => handleAddUnitClick(year)}>
@@ -462,6 +746,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
         onClose={() => setIsClassModalOpen(false)}
         onSave={handleSaveClass}
         units={courseUnits}
+        teachers={teachers}
       />
 
       <AssignTeachersModal 
@@ -469,6 +754,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
         onClose={() => setIsAssignTeacherModalOpen(false)}
         onSave={handleSaveTeacherAssignment}
         unit={assigningUnit}
+        teachers={teachers}
       />
 
       <AssignTeacherToCourseModal 
@@ -476,6 +762,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
         onClose={() => setIsAddTeacherToCourseModalOpen(false)}
         onSave={handleAddTeacherToCourse}
         courseUnits={courseUnits}
+        teachers={teachers}
       />
 
       <BulkImportSchedulesSheet 
@@ -608,11 +895,11 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
                             <Card key={teacher.id} className="hover:shadow-lg transition-all duration-300 border-slate-200 dark:border-slate-800">
                                 <CardHeader className="flex flex-row items-center gap-4 pb-2">
                                     <Avatar className="w-14 h-14 border border-slate-100">
-                                        <AvatarImage src={teacher.avatarUrl} />
-                                        <AvatarFallback>{teacher.name[0]}</AvatarFallback>
+                                        <AvatarImage src={getTeacherAvatarUrl(teacher)} />
+                                        <AvatarFallback>{getTeacherInitial(teacher)}</AvatarFallback>
                                     </Avatar>
                                     <div>
-                                        <CardTitle className="text-base">{teacher.name}</CardTitle>
+                                        <CardTitle className="text-base">{getTeacherName(teacher)}</CardTitle>
                                         <CardDescription>{teacher.email}</CardDescription>
                                     </div>
                                 </CardHeader>
@@ -677,7 +964,7 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
                         .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
                         .map(cls => {
                              const unit = localUnits.find(u => u.id === cls.unitId);
-                             const teacher = mockTeachers.find(t => t.id === cls.teacherId);
+                             const teacher = getTeacher(cls.teacherId);
                              
                              // Count schedule items for this class
                              const scheduleCount = localTimetable.filter(t => t.classGroup === cls.name && t.unit === unit?.name).length;
@@ -726,11 +1013,11 @@ export const CourseDetailsPage = ({ courseId, course: apiCourse, userRole, userI
                                         {teacher && (
                                             <div className="flex items-center gap-2 mb-4 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                                                 <Avatar className="w-6 h-6">
-                                                    <AvatarImage src={teacher.avatarUrl} />
-                                                    <AvatarFallback>{teacher.name[0]}</AvatarFallback>
+                                                    <AvatarImage src={getTeacherAvatarUrl(teacher)} />
+                                                    <AvatarFallback>{getTeacherInitial(teacher)}</AvatarFallback>
                                                 </Avatar>
                                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
-                                                    {teacher.name}
+                                                    {getTeacherName(teacher)}
                                                 </span>
                                             </div>
                                         )}

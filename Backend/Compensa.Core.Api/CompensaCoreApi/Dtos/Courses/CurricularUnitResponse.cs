@@ -10,8 +10,7 @@ public sealed record CurricularUnitResponse(
     int Semester,
     int Ects,
     string[] TeacherIds,
-    string? RegentId,
-    string? TheoreticalTeacherId,
-    string? PracticalTeacherId,
-    UnitComponentType Component,
+    string ResponsibleTeacherId,
+    string ResponsibleTeacherEmail,
+    IReadOnlyCollection<CurricularUnitComponentResponse> Components,
     bool IsActive);

@@ -1,0 +1,17 @@
+fastapi==0.111.0
+uvicorn==0.29.0
+aio-pika==9.4.1
+pydantic==2.7.1
+pydantic-settings==2.2.1
+sqlalchemy[asyncio]==2.0.30
+asyncpg==0.29.0
+alembic==1.13.1
+PyJWT==2.8.0
+cryptography==42.0.7
+aiosmtplib==3.0.1
+email-validator==2.1.1
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp
+

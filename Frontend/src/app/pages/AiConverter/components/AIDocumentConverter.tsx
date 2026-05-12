@@ -360,8 +360,8 @@ export function AIDocumentConverter() {
 
   function renderChatMode() {
     return (
-      <div className="flex-1 overflow-hidden py-6">
-        <AIChatInterface />
+      <div className="flex-1 min-h-0 py-6">
+        <AIChatInterface maxHeight="100%" />
       </div>
     );
   }

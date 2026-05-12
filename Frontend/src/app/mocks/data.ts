@@ -210,15 +210,6 @@ export const holidays = [
   { date: '2024-05-01', name: 'Labour Day' },
 ];
 
-export interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  date: string;
-  read: boolean;
-  type: 'info' | 'success' | 'warning' | 'error';
-}
-
 export const mockUser: User = {
   id: 'u1',
   name: 'Dr. Ana Silva',
@@ -226,25 +217,6 @@ export const mockUser: User = {
   role: 'teacher',
   avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
 };
-
-export const mockNotifications: Notification[] = [
-  {
-    id: 'n1',
-    title: 'Request Approved',
-    message: 'Your request for Software Engineering has been approved by the coordinator.',
-    date: '2h ago',
-    read: false,
-    type: 'success',
-  },
-  {
-    id: 'n2',
-    title: 'New Conflict Detected',
-    message: 'Room 204 is now occupied on Jan 17th. Please review your pending request.',
-    date: '5h ago',
-    read: false,
-    type: 'warning',
-  },
-];
 
 export const kpiData = {
     totalRequests: 24,

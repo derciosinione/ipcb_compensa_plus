@@ -48,6 +48,7 @@ import {
 } from '../../services/courses/coursesApi';
 import type { Course, CourseDegreeType, UpsertCourseRequest } from '../../services/courses/courseTypes';
 import { CourseDetailsPage } from './components/CourseDetailsPage';
+import { getErrorMessage } from '../../utils/errors';
 
 interface CoursesPageProps {
   user: User;
@@ -102,7 +103,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       const result = await listCourses();
       setCourses(result);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to load courses.');
+      toast.error(getErrorMessage(error, 'Unable to load courses.'));
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +221,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       setIsFormOpen(false);
       toast.success(editingCourse ? 'Course updated.' : 'Course created.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to save course.');
+      toast.error(getErrorMessage(error, 'Unable to save course.'));
     } finally {
       setIsSaving(false);
     }
@@ -236,7 +237,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
       setCourses((current) => current.filter((item) => item.id !== course.id));
       toast.success('Course deleted.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Unable to delete course.');
+      toast.error(getErrorMessage(error, 'Unable to delete course.'));
     }
   };
 
@@ -253,6 +254,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
         course={selectedCourse}
         userRole={user.role as 'coordinator' | 'teacher' | 'admin'}
         userId={user.id}
+        userEmail={user.email}
         onBack={() => setSelectedCourse(null)}
       />
     );

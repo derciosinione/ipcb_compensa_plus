@@ -36,6 +36,32 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
         return _context.CompensationRequests.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<CompensationRequest>> ListOverlappingActiveAsync(
+        Guid academicYearId,
+        int semester,
+        DateOnly date,
+        TimeOnly startTime,
+        TimeOnly endTime,
+        Guid? excludedRequestId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.CompensationRequests
+            .AsNoTracking()
+            .Where(request =>
+                request.AcademicYearId == academicYearId &&
+                request.Semester == semester &&
+                request.NewDate == date &&
+                request.Status != CompensationRequestStatus.Rejected &&
+                request.Status != CompensationRequestStatus.Cancelled &&
+                request.NewStartTime < endTime &&
+                startTime < request.NewEndTime);
+
+        if (excludedRequestId.HasValue)
+            query = query.Where(request => request.Id != excludedRequestId.Value);
+
+        return await query.ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(CompensationRequest request, CancellationToken cancellationToken = default)
     {
         _context.CompensationRequests.Add(request);

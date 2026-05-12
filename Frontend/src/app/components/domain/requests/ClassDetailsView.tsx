@@ -24,22 +24,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../ui/dropdown-menu';
-import { ClassGroup, CurricularUnit, TimeSlot, User as UserType, mockTeachers } from '../../../mocks/data';
+import { ClassGroup, CurricularUnit, TimeSlot } from '../../../mocks/data';
 import { AddScheduleModal } from '../../../pages/Courses/components/AddScheduleModal';
 import { BulkImportSchedulesSheet } from '../../../pages/Courses/components/BulkImportSchedulesSheet';
 import { toast } from 'sonner@2.0.3';
+import type { PlatformUser } from '../../../services/users/userTypes';
+import type { Classroom } from '../../../services/classrooms/classroomTypes';
 
 interface ClassDetailsViewProps {
   classGroup: ClassGroup;
   unit: CurricularUnit;
-  teacher?: UserType;
+  teacher?: PlatformUser;
   schedules: TimeSlot[];
   allClasses: ClassGroup[]; // needed for conflict check
   courseUnits: CurricularUnit[]; // added for modal
+  classrooms: Classroom[];
   onBack: () => void;
-  onAddSchedule: (data: Omit<TimeSlot, 'id'>) => void;
-  onUpdateSchedule: (id: string, data: Omit<TimeSlot, 'id'>) => void;
-  onDeleteSchedule: (id: string) => void;
+  onAddSchedule: (data: Omit<TimeSlot, 'id'>) => void | Promise<void>;
+  onUpdateSchedule: (id: string, data: Omit<TimeSlot, 'id'>) => void | Promise<void>;
+  onDeleteSchedule: (id: string) => void | Promise<void>;
   userRole: 'coordinator' | 'teacher' | 'admin';
 }
 
@@ -50,6 +53,7 @@ export const ClassDetailsView = ({
   schedules,
   allClasses,
   courseUnits,
+  classrooms,
   onBack,
   onAddSchedule,
   onUpdateSchedule,
@@ -60,7 +64,8 @@ export const ClassDetailsView = ({
   const [editingSchedule, setEditingSchedule] = useState<TimeSlot | undefined>(undefined);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
 
-  const canManage = userRole === 'coordinator';
+  const canManage = userRole === 'coordinator' || userRole === 'admin';
+  const teacherName = teacher?.fullName || teacher?.email || '';
 
   const handleEditClick = (schedule: TimeSlot) => {
       setEditingSchedule(schedule);
@@ -114,6 +119,7 @@ export const ClassDetailsView = ({
         existingTimetable={schedules} 
         allClasses={allClasses}
         initialData={editingSchedule}
+        classrooms={classrooms}
       />
       
       <BulkImportSchedulesSheet 
@@ -159,12 +165,12 @@ export const ClassDetailsView = ({
               {teacher && (
                   <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
                       <Avatar className="w-12 h-12 border border-white dark:border-slate-700 shadow-sm">
-                          <AvatarImage src={teacher.avatarUrl} />
-                          <AvatarFallback>{teacher.name[0]}</AvatarFallback>
+                          <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(teacherName)}&background=random`} />
+                          <AvatarFallback>{teacherName[0]}</AvatarFallback>
                       </Avatar>
                       <div>
                           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assigned Teacher</p>
-                          <p className="font-semibold text-slate-900 dark:text-slate-100">{teacher.name}</p>
+                          <p className="font-semibold text-slate-900 dark:text-slate-100">{teacherName}</p>
                           <p className="text-xs text-slate-500">{teacher.email}</p>
                       </div>
                   </div>

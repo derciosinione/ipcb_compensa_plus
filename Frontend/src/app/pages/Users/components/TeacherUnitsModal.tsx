@@ -1,169 +1,259 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogFooter,
-  DialogDescription
+  DialogDescription,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Label } from '../../../components/ui/label';
 import { Checkbox } from '../../../components/ui/checkbox';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue, 
+  SelectValue,
 } from '../../../components/ui/select';
 import { ScrollArea } from '../../../components/ui/scroll-area';
-import { Course, CurricularUnit, mockCourses, User } from '../../../mocks/data';
-import { toast } from 'sonner@2.0.3';
 import { Badge } from '../../../components/ui/badge';
+import type { Course, CurricularUnit } from '../../../services/courses/courseTypes';
+import type { PlatformUser } from '../../../services/users/userTypes';
+import type { CourseAssignmentInput } from '../../../services/assignments/assignmentTypes';
 
 interface TeacherUnitsModalProps {
   isOpen: boolean;
+  isSaving?: boolean;
   onClose: () => void;
-  onSave: (assignments: { unitId: string, assigned: boolean }[]) => void;
-  teacher?: User;
-  allUnits: CurricularUnit[];
+  onSave: (curricularUnitIds: string[], courses: CourseAssignmentInput[]) => Promise<void> | void;
+  user?: PlatformUser;
+  courses: Course[];
+  units: CurricularUnit[];
+  assignedUnitIds: string[];
+  assignedCourses: CourseAssignmentInput[];
 }
 
-export const TeacherUnitsModal = ({ 
-  isOpen, 
-  onClose, 
+export const TeacherUnitsModal = ({
+  isOpen,
+  isSaving = false,
+  onClose,
   onSave,
-  teacher,
-  allUnits
+  user,
+  courses,
+  units,
+  assignedUnitIds,
+  assignedCourses,
 }: TeacherUnitsModalProps) => {
-  const [selectedCourseId, setSelectedCourseId] = useState<string>(mockCourses[0]?.id || '');
+  const [selectedCourseId, setSelectedCourseId] = useState('');
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
+  const [selectedCourses, setSelectedCourses] = useState<Map<string, boolean>>(new Map());
 
-  // Reset state when modal opens or teacher changes
   useEffect(() => {
-    if (isOpen && teacher) {
-      // Find all units where this teacher is currently assigned
-      const currentAssignments = new Set(
-        allUnits
-          .filter(u => u.teacherIds.includes(teacher.id))
-          .map(u => u.id)
-      );
-      setSelectedUnitIds(currentAssignments);
+    if (isOpen) {
+      setSelectedCourseId(courses[0]?.id ?? '');
+      setSelectedUnitIds(new Set(assignedUnitIds));
+      setSelectedCourses(new Map(assignedCourses.map((course) => [course.courseId, course.isCoordinator])));
     }
-  }, [isOpen, teacher, allUnits]);
+  }, [assignedCourses, assignedUnitIds, courses, isOpen]);
+
+  const currentCourse = useMemo(
+    () => courses.find((course) => course.id === selectedCourseId),
+    [courses, selectedCourseId],
+  );
+
+  const currentCourseUnits = useMemo(
+    () => units.filter((unit) => unit.courseId === selectedCourseId),
+    [selectedCourseId, units],
+  );
 
   const handleToggleUnit = (unitId: string, checked: boolean) => {
-    const newSet = new Set(selectedUnitIds);
-    if (checked) {
-      newSet.add(unitId);
-    } else {
-      newSet.delete(unitId);
+    const unit = units.find((item) => item.id === unitId);
+
+    setSelectedUnitIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+
+      if (checked) {
+        nextIds.add(unitId);
+      } else {
+        nextIds.delete(unitId);
+      }
+
+      return nextIds;
+    });
+
+    if (checked && unit) {
+      setSelectedCourses((currentCourses) => {
+        if (currentCourses.has(unit.courseId)) {
+          return currentCourses;
+        }
+
+        const nextCourses = new Map(currentCourses);
+        nextCourses.set(unit.courseId, false);
+        return nextCourses;
+      });
     }
-    setSelectedUnitIds(newSet);
   };
 
-  const handleSave = () => {
-    // Determine changes
-    // We send back ALL units for the selected course (or all units changed?)
-    // Actually simpler: we just iterate over all units we know about or just the ones in the selected course?
-    // If we only show one course, we might accidentally unset units in other courses if we just send a full list.
-    // The onSave callback expects a list of changes or the full new state.
-    // Let's send a list of ALL units and their desired state (assigned or not) for the *current* selection set.
-    
-    // Better: Send a list of { unitId, assigned } for ALL units, because the Set contains the truth for everything.
-    const updates = allUnits.map(u => ({
-        unitId: u.id,
-        assigned: selectedUnitIds.has(u.id)
+  const handleToggleCourse = (courseId: string, checked: boolean) => {
+    setSelectedCourses((currentCourses) => {
+      const nextCourses = new Map(currentCourses);
+
+      if (checked) {
+        nextCourses.set(courseId, nextCourses.get(courseId) ?? false);
+      } else {
+        nextCourses.delete(courseId);
+      }
+
+      return nextCourses;
+    });
+  };
+
+  const handleToggleCoordinator = (courseId: string, checked: boolean) => {
+    setSelectedCourses((currentCourses) => {
+      const nextCourses = new Map(currentCourses);
+      nextCourses.set(courseId, checked);
+      return nextCourses;
+    });
+  };
+
+  const handleSave = async () => {
+    const courseAssignments = Array.from(selectedCourses.entries()).map(([courseId, isCoordinator]) => ({
+      courseId,
+      isCoordinator,
     }));
 
-    onSave(updates);
-    onClose();
-    toast.success(`Updated unit assignments for ${teacher?.name}`);
+    await onSave(Array.from(selectedUnitIds), courseAssignments);
   };
 
-  if (!teacher) return null;
-
-  const currentCourseUnits = allUnits.filter(u => u.courseId === selectedCourseId);
+  if (!user) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[640px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <DialogHeader>
-          <DialogTitle>Assign Units to Teacher</DialogTitle>
+          <DialogTitle>Assign Courses and Units</DialogTitle>
           <DialogDescription>
-            Select the curricular units for <strong>{teacher.name}</strong>.
+            Select the curricular units for <strong>{user.fullName || user.email}</strong>.
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-4 py-4">
+          <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+            <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 font-medium text-sm text-slate-500">
+              Course access
+            </div>
+            <div className="grid gap-2 p-4 bg-white dark:bg-slate-900">
+              {courses.map((course) => {
+                const isAssigned = selectedCourses.has(course.id);
+                const isCoordinator = selectedCourses.get(course.id) ?? false;
+
+                return (
+                  <div
+                    key={course.id}
+                    className="grid grid-cols-[1fr_auto] gap-3 rounded-lg border border-slate-100 dark:border-slate-800 p-3"
+                  >
+                    <label className="flex items-center gap-3">
+                      <Checkbox
+                        checked={isAssigned}
+                        onCheckedChange={(checked) => handleToggleCourse(course.id, Boolean(checked))}
+                      />
+                      <span className="text-sm font-medium text-slate-900 dark:text-slate-200">
+                        {course.name} ({course.abbreviation})
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
+                      <Checkbox
+                        checked={isCoordinator}
+                        disabled={!isAssigned}
+                        onCheckedChange={(checked) => handleToggleCoordinator(course.id, Boolean(checked))}
+                      />
+                      Coordinator
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Select Course</Label>
-            <Select 
-                value={selectedCourseId} 
-                onValueChange={setSelectedCourseId}
-            >
-                <SelectTrigger>
-                    <SelectValue placeholder="Select course" />
-                </SelectTrigger>
-                <SelectContent>
-                    {mockCourses.map(course => (
-                        <SelectItem key={course.id} value={course.id}>{course.name} ({course.abbreviation})</SelectItem>
-                    ))}
-                </SelectContent>
+            <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select course" />
+              </SelectTrigger>
+              <SelectContent>
+                {courses.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.name} ({course.abbreviation})
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </div>
 
           <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-             <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 font-medium text-sm text-slate-500">
-                Available Units in {mockCourses.find(c => c.id === selectedCourseId)?.abbreviation}
-             </div>
-             <ScrollArea className="h-[300px] p-4 bg-white dark:bg-slate-900">
-                {currentCourseUnits.length === 0 ? (
-                    <div className="text-center text-slate-500 py-8">No units found in this course.</div>
-                ) : (
-                    <div className="space-y-3">
-                        {currentCourseUnits.map(unit => {
-                            const isAssigned = selectedUnitIds.has(unit.id);
-                            return (
-                                <div key={unit.id} className="flex items-start space-x-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md transition-colors">
-                                    <Checkbox 
-                                        id={unit.id} 
-                                        checked={isAssigned}
-                                        onCheckedChange={(checked) => handleToggleUnit(unit.id, checked as boolean)}
-                                    />
-                                    <div className="grid gap-1.5 leading-none">
-                                        <label
-                                            htmlFor={unit.id}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                        >
-                                            {unit.name}
-                                        </label>
-                                        <div className="flex gap-2 text-xs text-slate-500">
-                                            <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal">
-                                                Year {unit.year}
-                                            </Badge>
-                                            <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal">
-                                                S{unit.semester}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-             </ScrollArea>
+            <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-200 dark:border-slate-800 font-medium text-sm text-slate-500">
+              Available Units{currentCourse ? ` in ${currentCourse.abbreviation}` : ''}
+            </div>
+            <ScrollArea className="h-[320px] p-4 bg-white dark:bg-slate-900">
+              {currentCourseUnits.length === 0 ? (
+                <div className="text-center text-slate-500 py-8">No units found in this course.</div>
+              ) : (
+                <div className="space-y-3">
+                  {currentCourseUnits.map((unit) => {
+                    const isAssigned = selectedUnitIds.has(unit.id);
+
+                    return (
+                      <div
+                        key={unit.id}
+                        className="flex items-start space-x-3 p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md transition-colors"
+                      >
+                        <Checkbox
+                          id={unit.id}
+                          checked={isAssigned}
+                          onCheckedChange={(checked) => handleToggleUnit(unit.id, Boolean(checked))}
+                        />
+                        <div className="grid gap-1.5 leading-none">
+                          <label
+                            htmlFor={unit.id}
+                            className="text-sm font-medium leading-none cursor-pointer text-slate-900 dark:text-slate-200"
+                          >
+                            {unit.name}
+                          </label>
+                          <div className="flex gap-2 text-xs text-slate-500">
+                            <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal">
+                              Year {unit.year}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal">
+                              S{unit.semester}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal">
+                              {unit.ects} ECTS
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </ScrollArea>
           </div>
-          
+
           <div className="text-sm text-slate-500">
-            Total units assigned: {selectedUnitIds.size}
+            Total courses assigned: {selectedCourses.size} · Total units assigned: {selectedUnitIds.size}
           </div>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white">Save Assignments</Button>
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSaving}>
+            {isSaving ? 'Saving...' : 'Save Assignments'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

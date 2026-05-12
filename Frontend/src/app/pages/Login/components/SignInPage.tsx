@@ -22,6 +22,7 @@ import { toast } from "sonner@2.0.3";
 import { useLanguage } from '../../../providers/LanguageContext';
 import { ModeToggle } from "../../../components/ui/theme-provider";
 import { requestMagicLink } from "../../../services/auth/authApi";
+import { getErrorMessage } from "../../../utils/errors";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,7 +62,7 @@ export const SignInPage = ({
       toast.success(t('auth.success_magic_link'));
     } catch (error) {
       setIsLoading(false);
-      toast.error(error instanceof Error ? error.message : 'Unable to send magic link.');
+      toast.error(getErrorMessage(error, 'Unable to send magic link.'));
     }
   };
 

@@ -1,35 +1,17 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Command, BookOpen, MapPin, FileText, ChevronRight, GraduationCap } from 'lucide-react';
+import { Search, BookOpen, MapPin, FileText, ChevronRight, GraduationCap } from 'lucide-react';
 import { Input } from '../components/ui/input';
-import { cn } from '../components/ui/utils';
-import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { useLanguage } from '../providers/LanguageContext';
-
-interface SearchResult {
-  id: string;
-  title: string;
-  type: 'course' | 'class' | 'request' | 'room';
-  subtitle?: string;
-}
-
-const mockResults: SearchResult[] = [
-  { id: '1', title: 'Software Engineering', type: 'course', subtitle: 'Unit Code: SE101' },
-  { id: '2', title: 'Databases I', type: 'course', subtitle: 'Unit Code: DB101' },
-  { id: '3', title: '2nd Year - Class A', type: 'class', subtitle: 'Computer Science' },
-  { id: '4', title: 'Lab 3', type: 'room', subtitle: 'Computer Lab' },
-  { id: '5', title: 'Room 204', type: 'room', subtitle: 'Lecture Hall' },
-  { id: '6', title: 'Request #R1', type: 'request', subtitle: 'Pending • Software Engineering' },
-];
+import { useGlobalSearchQuery } from '../services/search/searchQueries';
+import type { GlobalSearchResult, GlobalSearchResultType } from '../services/search/searchTypes';
 
 export const GlobalSearch = ({ onNavigate }: { onNavigate?: (type: string) => void }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
+  const { data: results = [], isFetching } = useGlobalSearchQuery(query);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -42,33 +24,21 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate?: (type: string) => vo
   }, []);
 
   useEffect(() => {
-    if (query.length > 0) {
-      const filtered = mockResults.filter(r => 
-        r.title.toLowerCase().includes(query.toLowerCase()) || 
-        r.subtitle?.toLowerCase().includes(query.toLowerCase()) ||
-        r.type.toLowerCase().includes(query.toLowerCase())
-      );
-      setResults(filtered);
+    if (query.trim().length > 0) {
       setIsOpen(true);
-    } else {
-      setResults([]);
     }
   }, [query]);
 
-  const handleSelect = (result: SearchResult) => {
+  const handleSelect = (result: GlobalSearchResult) => {
     setIsOpen(false);
     setQuery('');
-    if (onNavigate) {
-       if (result.type === 'course') onNavigate('courses');
-       if (result.type === 'class') onNavigate('courses');
-       if (result.type === 'request') onNavigate('requests');
-       if (result.type === 'room') onNavigate('classrooms');
-    }
+    onNavigate?.(result.path);
   };
 
-  const getIcon = (type: string) => {
+  const getIcon = (type: GlobalSearchResultType) => {
     switch (type) {
       case 'course': return <BookOpen className="w-4 h-4 text-blue-500" />;
+      case 'unit': return <BookOpen className="w-4 h-4 text-indigo-500" />;
       case 'class': return <GraduationCap className="w-4 h-4 text-purple-500" />;
       case 'request': return <FileText className="w-4 h-4 text-amber-500" />;
       case 'room': return <MapPin className="w-4 h-4 text-red-500" />;
@@ -78,6 +48,7 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate?: (type: string) => vo
 
   const groupedResults = {
     course: results.filter(r => r.type === 'course'),
+    unit: results.filter(r => r.type === 'unit'),
     class: results.filter(r => r.type === 'class'),
     request: results.filter(r => r.type === 'request'),
     room: results.filter(r => r.type === 'room'),
@@ -97,7 +68,11 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate?: (type: string) => vo
        
        {isOpen && (
          <div className="absolute top-full left-0 w-96 mt-2 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200 z-50">
-            {results.length === 0 && query.length > 0 ? (
+            {isFetching ? (
+               <div className="p-4 text-center text-sm text-slate-500">
+                  Searching...
+               </div>
+            ) : results.length === 0 && query.trim().length >= 2 ? (
                <div className="p-4 text-center text-sm text-slate-500">
                   {t('search.no_results').replace('{query}', query)}
                </div>
@@ -138,7 +113,7 @@ export const GlobalSearch = ({ onNavigate }: { onNavigate?: (type: string) => vo
                         items.length > 0 && (
                            <div key={type}>
                               <div className="px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                                 {type === 'class' ? 'Classes & Groups' : type + 's'}
+                                 {type === 'class' ? 'Classes & Groups' : type === 'unit' ? 'Curricular Units' : type + 's'}
                                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 px-1.5 rounded text-[9px]">{items.length}</span>
                               </div>
                               <div className="space-y-0.5">

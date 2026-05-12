@@ -13,6 +13,10 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
+### .NET build outputs ###
+bin/
+obj/
+
 ### JetBrains ###
 # User-specific stuff
 .idea/**/workspace.xml
@@ -394,6 +398,7 @@ x86/
 [Aa][Rr][Mm]64/
 bld/
 [Bb]in/
+[Bb]in?[Dd]ebug/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/

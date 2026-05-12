@@ -6,3 +6,6 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'CompensaCoreDB')\gexe
 
 SELECT 'CREATE DATABASE "CompensaAiDB"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'CompensaAiDB')\gexec
+
+SELECT 'CREATE DATABASE "CompensaNotificationsDB"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'CompensaNotificationsDB')\gexec

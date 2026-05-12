@@ -19,13 +19,14 @@ import {
   SelectValue, 
 } from '../../../components/ui/select';
 import { ClassGroup, CurricularUnit } from '../../../mocks/data';
-import { toast } from 'sonner@2.0.3';
+import type { PlatformUser } from '../../../services/users/userTypes';
 
 interface AddClassModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (classData: Omit<ClassGroup, 'id'>) => void;
+  onSave: (classData: Omit<ClassGroup, 'id'>) => void | Promise<void>;
   units: CurricularUnit[];
+  teachers: PlatformUser[];
 }
 
 interface FormData {
@@ -38,7 +39,8 @@ export const AddClassModal = ({
   isOpen, 
   onClose, 
   onSave, 
-  units
+  units,
+  teachers,
 }: AddClassModalProps) => {
   const { register, handleSubmit, reset, setValue } = useForm<FormData>();
 
@@ -47,22 +49,22 @@ export const AddClassModal = ({
       reset({
         name: '',
         unitId: '',
-        teacherId: 'u1' // Defaulting to current user for mock
+        teacherId: '',
       });
     }
   }, [isOpen, reset]);
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit = async (data: FormData) => {
     const classData: Omit<ClassGroup, 'id'> = {
       name: data.name,
       unitId: data.unitId,
       teacherId: data.teacherId,
     };
 
-    onSave(classData);
-    onClose();
-    toast.success("Class created successfully");
+    await onSave(classData);
   };
+
+  const getTeacherName = (teacher: PlatformUser) => teacher.fullName || teacher.email;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -104,13 +106,20 @@ export const AddClassModal = ({
           </div>
 
           <div className="space-y-2">
-             <Label htmlFor="teacherId" className="text-slate-700 dark:text-slate-300 font-semibold">Teacher ID</Label>
-             <Input 
-                id="teacherId" 
-                placeholder="u1"
-                {...register('teacherId', { required: true })}
-                className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg"
-             />
+             <Label htmlFor="teacherId" className="text-slate-700 dark:text-slate-300 font-semibold">Teacher</Label>
+             <Select onValueChange={(val) => setValue('teacherId', val)}>
+              <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
+                <SelectValue placeholder="Select teacher" />
+              </SelectTrigger>
+              <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
+                {teachers.map((teacher) => (
+                  <SelectItem key={teacher.id} value={teacher.id}>
+                    {getTeacherName(teacher)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <input type="hidden" {...register('teacherId', { required: true })} />
           </div>
 
           <DialogFooter className="pt-4 border-t border-slate-100 dark:border-slate-800 gap-2">

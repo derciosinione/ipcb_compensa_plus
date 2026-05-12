@@ -1,4 +1,5 @@
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router';
 import { Toaster } from 'sonner@2.0.3';
 import { LanguageProvider } from './LanguageContext';
@@ -9,12 +10,27 @@ interface AppProvidersProps {
 }
 
 export const AppProviders = ({ children }: AppProvidersProps) => {
+  const [queryClient] = React.useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+        },
+      }),
+  );
+
   return (
-    <ThemeProvider defaultTheme="light" storageKey="compensa-theme">
-      <LanguageProvider>
-        <Toaster richColors position="top-right" />
-        <BrowserRouter>{children}</BrowserRouter>
-      </LanguageProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider defaultTheme="light" storageKey="compensa-theme">
+        <LanguageProvider>
+          <Toaster richColors position="top-right" />
+          <BrowserRouter>{children}</BrowserRouter>
+        </LanguageProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 };

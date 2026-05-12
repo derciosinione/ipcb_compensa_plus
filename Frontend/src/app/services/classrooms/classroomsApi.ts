@@ -1,37 +1,18 @@
-import { apiRequest, coreApiBaseUrl } from '../api/httpClient';
-import { getStoredAccessToken } from '../auth/authSession';
+import { authenticatedApiRequest, buildApiPath, coreApiBaseUrl } from '../api/httpClient';
 import type { Classroom, UpsertClassroomRequest } from './classroomTypes';
 
-const getAccessToken = () => {
-  const accessToken = getStoredAccessToken();
-
-  if (!accessToken) {
-    throw new Error('You need to sign in again.');
-  }
-
-  return accessToken;
-};
-
 export const listClassrooms = async (search?: string) => {
-  const params = new URLSearchParams();
-
-  if (search?.trim()) {
-    params.set('search', search.trim());
-  }
-
-  const response = await apiRequest<Classroom[]>(
+  const response = await authenticatedApiRequest<Classroom[]>(
     coreApiBaseUrl,
-    `/api/classrooms${params.size ? `?${params.toString()}` : ''}`,
-    { accessToken: getAccessToken() },
+    buildApiPath('/api/classrooms', { search }),
   );
 
   return response.data ?? [];
 };
 
 export const createClassroom = async (request: UpsertClassroomRequest) => {
-  const response = await apiRequest<Classroom>(coreApiBaseUrl, '/api/classrooms', {
+  const response = await authenticatedApiRequest<Classroom>(coreApiBaseUrl, '/api/classrooms', {
     method: 'POST',
-    accessToken: getAccessToken(),
     body: JSON.stringify(request),
   });
 
@@ -39,9 +20,8 @@ export const createClassroom = async (request: UpsertClassroomRequest) => {
 };
 
 export const updateClassroom = async (id: string, request: UpsertClassroomRequest) => {
-  const response = await apiRequest<Classroom>(coreApiBaseUrl, `/api/classrooms/${id}`, {
+  const response = await authenticatedApiRequest<Classroom>(coreApiBaseUrl, `/api/classrooms/${id}`, {
     method: 'PUT',
-    accessToken: getAccessToken(),
     body: JSON.stringify(request),
   });
 
@@ -49,8 +29,7 @@ export const updateClassroom = async (id: string, request: UpsertClassroomReques
 };
 
 export const deleteClassroom = async (id: string) => {
-  await apiRequest<void>(coreApiBaseUrl, `/api/classrooms/${id}`, {
+  await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/classrooms/${id}`, {
     method: 'DELETE',
-    accessToken: getAccessToken(),
   });
 };

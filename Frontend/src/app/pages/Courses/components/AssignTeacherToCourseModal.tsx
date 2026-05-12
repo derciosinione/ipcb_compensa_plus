@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
 import { 
   Dialog, 
   DialogContent, 
@@ -19,24 +18,27 @@ import {
 } from '../../../components/ui/select';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '../../../components/ui/avatar';
-import { CurricularUnit, User, mockTeachers } from '../../../mocks/data';
+import { CurricularUnit } from '../../../mocks/data';
 import { toast } from 'sonner@2.0.3';
 import { Search } from 'lucide-react';
 import { Input } from '../../../components/ui/input';
 import { ScrollArea } from '../../../components/ui/scroll-area';
+import type { PlatformUser } from '../../../services/users/userTypes';
 
 interface AssignTeacherToCourseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { teacherId: string, unitId: string, roles: { regent: boolean, theoretical: boolean, practical: boolean } }) => void;
+  onSave: (data: { teacherId: string, unitId: string, roles: { regent: boolean, theoretical: boolean, practical: boolean } }) => void | Promise<void>;
   courseUnits: CurricularUnit[];
+  teachers: PlatformUser[];
 }
 
 export const AssignTeacherToCourseModal = ({ 
   isOpen, 
   onClose, 
   onSave,
-  courseUnits 
+  courseUnits,
+  teachers,
 }: AssignTeacherToCourseModalProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
@@ -58,12 +60,14 @@ export const AssignTeacherToCourseModal = ({
     }
   }, [isOpen]);
 
-  const filteredTeachers = mockTeachers.filter(t => 
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const getTeacherName = (teacher: PlatformUser) => teacher.fullName || teacher.email;
+
+  const filteredTeachers = teachers.filter(t => 
+    getTeacherName(t).toLowerCase().includes(searchTerm.toLowerCase()) || 
     t.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedTeacherId) {
         toast.error("Please select a teacher");
         return;
@@ -77,17 +81,14 @@ export const AssignTeacherToCourseModal = ({
         return;
     }
 
-    onSave({
+    await onSave({
         teacherId: selectedTeacherId,
         unitId: selectedUnitId,
         roles
     });
-    
-    onClose();
-    toast.success("Teacher assigned successfully");
   };
 
-  const selectedTeacher = mockTeachers.find(t => t.id === selectedTeacherId);
+  const selectedTeacher = teachers.find(t => t.id === selectedTeacherId);
   const selectedUnit = courseUnits.find(u => u.id === selectedUnitId);
 
   return (
@@ -128,11 +129,11 @@ export const AssignTeacherToCourseModal = ({
                                     }`}
                                 >
                                     <Avatar className="h-8 w-8">
-                                        <AvatarImage src={teacher.avatarUrl} />
-                                        <AvatarFallback>{teacher.name[0]}</AvatarFallback>
+                                        <AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(getTeacherName(teacher))}&background=random`} />
+                                        <AvatarFallback>{getTeacherName(teacher)[0]}</AvatarFallback>
                                     </Avatar>
                                     <div className="overflow-hidden">
-                                        <p className="text-sm font-medium truncate">{teacher.name}</p>
+                                        <p className="text-sm font-medium truncate">{getTeacherName(teacher)}</p>
                                         <p className="text-xs text-slate-500 truncate">{teacher.email}</p>
                                     </div>
                                 </div>
@@ -205,7 +206,7 @@ export const AssignTeacherToCourseModal = ({
                 {selectedTeacher && (
                     <div className="pt-2">
                         <p className="text-xs text-slate-500 mb-2">
-                            Assigning <strong>{selectedTeacher.name}</strong> to selected components.
+                            Assigning <strong>{getTeacherName(selectedTeacher)}</strong> to selected components.
                         </p>
                     </div>
                 )}
