@@ -1,8 +1,12 @@
 import logging
+from pythonjsonlogger import jsonlogger
+from datetime import datetime
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+import time
+import uuid
 from sqlalchemy import text
 from opentelemetry import trace, metrics, _logs
 from opentelemetry.sdk.trace import TracerProvider
@@ -43,12 +47,34 @@ logger_provider = LoggerProvider(resource=resource)
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter(endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317"), insecure=True)))
 _logs.set_logger_provider(logger_provider)
 
-# Add logging handler
-handler = LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
-logging.getLogger().addHandler(handler)
-logging.getLogger().setLevel(logging.INFO)
+# JSON Logging for Console (Loki)
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def add_fields(self, log_record, record, message_dict):
+        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+        log_record['timestamp'] = datetime.utcnow().isoformat() + 'Z'
+        log_record['level'] = record.levelname
+        log_record['service'] = 'compensa-notifications'
+        log_record['environment'] = os.getenv("ASPNETCORE_ENVIRONMENT", "Development")
+        log_record['event'] = log_record.get('event', 'notifications.log')
+        
+        # OpenTelemetry integration
+        current_span = trace.get_current_span()
+        if current_span.get_span_context().is_valid:
+            log_record['traceId'] = format(current_span.get_span_context().trace_id, '032x')
+            log_record['spanId'] = format(current_span.get_span_context().span_id, '016x')
 
-logging.basicConfig(level=logging.INFO)
+logHandler = logging.StreamHandler()
+formatter = CustomJsonFormatter('%(timestamp)s %(level)s %(name)s %(message)s')
+logHandler.setFormatter(formatter)
+
+# Override default loggers
+for logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error", "fastapi"):
+    l = logging.getLogger(logger_name)
+    l.handlers = [logHandler]
+    l.propagate = False
+
+logging.getLogger().addHandler(logHandler)
+logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def ensure_schema_compatibility(conn):
@@ -91,6 +117,34 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.middleware("http")
+async def structured_logging_middleware(request: Request, call_next):
+    start_time = time.time()
+    correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+    trace_id = format(trace.get_current_span().get_span_context().trace_id, '032x') if trace.get_current_span().get_span_context().is_valid else None
+    
+    response = await call_next(request)
+    
+    duration_ms = int((time.time() - start_time) * 1000)
+    
+    log_data = {
+        "event": "notifications.request.processed",
+        "correlationId": correlation_id,
+        "request": {
+            "method": request.method,
+            "path": request.url.path
+        },
+        "response": {
+            "statusCode": response.status_code,
+            "durationMs": duration_ms
+        }
+    }
+    
+    logging.info("Request processed", extra=log_data)
+    
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost"],
@@ -106,7 +160,7 @@ FastAPIInstrumentor.instrument_app(app)
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {
-        "status": "ok", 
+        "status": "Healthy", 
         "service": "compensa-notifications",
         "rabbitmq": "connected" if rabbitmq_client.connection and not rabbitmq_client.connection.is_closed else "disconnected"
     }

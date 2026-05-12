@@ -30,10 +30,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MassTransit;
 using OpenTelemetry.Resources;
-using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Serilog;
+using Serilog.Formatting.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,13 @@ var serviceName = "Compensa.Core.Api";
 var otelEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://otel-collector:4317";
 
 // Add OpenTelemetry
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new JsonFormatter())
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithTracing(tracing =>
@@ -57,14 +65,6 @@ builder.Services.AddOpenTelemetry()
             .AddRuntimeInstrumentation()
             .AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
     });
-
-builder.Logging.AddOpenTelemetry(options =>
-{
-    options.IncludeFormattedMessage = true;
-    options.IncludeScopes = true;
-    options.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
-    options.AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
-});
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -185,6 +185,7 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<StructuredLoggingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
