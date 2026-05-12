@@ -324,19 +324,6 @@ export const Layout = ({ children, user, onLogout, onRoleChange }: LayoutProps) 
                   <Button variant="outline" size="sm" className="w-full h-8">View Documentation</Button>
                </div>
                <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg text-sm">
-                  <h4 className="font-medium mb-1 dark:text-slate-200">Project Storyboard</h4>
-                  <p className="text-slate-500 dark:text-slate-400 mb-2">View the complete project storyboard in full screen mode.</p>
-                  <Button 
-                     variant="outline" 
-                     size="sm" 
-                     className="w-full h-8"
-                     asChild
-                     onClick={() => setShowHelp(false)}
-                  >
-                     <Link to={appPaths.fullStoryboard}>View Full Storyboard</Link>
-                  </Button>
-               </div>
-               <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg text-sm">
                   <h4 className="font-medium mb-1 dark:text-slate-200">Contact Support</h4>
                   <p className="text-slate-500 dark:text-slate-400 mb-2">Report a technical issue or request assistance.</p>
                   <Button variant="outline" size="sm" className="w-full h-8">Contact IT Department</Button>

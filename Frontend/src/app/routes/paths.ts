@@ -10,8 +10,6 @@ export const appPaths = {
   classrooms: '/classrooms',
   users: '/users',
   systemCalendar: '/system-calendar',
-  projectStoryboard: '/project-storyboard',
-  fullStoryboard: '/full-storyboard',
   aiConverter: '/ai-converter',
   profile: '/profile',
   settings: '/settings',

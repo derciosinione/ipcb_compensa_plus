@@ -33,11 +33,7 @@ const moveMap = {
   'BulkImportSchedulesSheet': 'pages/Courses/components/BulkImportSchedulesSheet.tsx',
   'AddClassModal': 'pages/Courses/components/AddClassModal.tsx',
   'AddScheduleModal': 'pages/Courses/components/AddScheduleModal.tsx',
-  'UserProfile': 'pages/Profile/components/UserProfile.tsx',
-  'FullProjectStoryboard': 'pages/FullStoryboard/components/FullProjectStoryboard.tsx',
-  'DesignSystem': 'pages/FullStoryboard/components/DesignSystem.tsx',
-  'HighFidelityMocks': 'pages/FullStoryboard/components/HighFidelityMocks.tsx',
-  'ProjectStoryboard': 'pages/ProjectStoryboard/components/ProjectStoryboard.tsx'
+  'UserProfile': 'pages/Profile/components/UserProfile.tsx'
 };
 
 function getRelativePath(fromPath, toPath) {

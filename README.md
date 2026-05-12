@@ -149,7 +149,6 @@ python3 -m py_compile Backend/CompensaAI/app/main.py Backend/Compensa.Notificati
 
 - Test coverage is still narrow; Core has schedule conflict tests, but broader service/controller/frontend/AI tests are still needed.
 - Coordinator request visibility should be tightened to only the courses they coordinate.
-- Some storyboard/design screens remain static presentation pages and are not part of the production data flow.
 - Production CI/CD, backup strategy, and deployment hardening still need to be finalized.
 
 ## Useful Documentation

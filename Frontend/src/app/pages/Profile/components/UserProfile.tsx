@@ -219,7 +219,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
               </Card>
            </div>
 
-           {/* Timeline Storyboard */}
+           {/* Activity timeline */}
            <Card className="border-none shadow-md ring-1 ring-slate-100 dark:ring-slate-800 bg-white dark:bg-slate-900">
               <CardHeader>
                  <CardTitle className="flex items-center gap-2">

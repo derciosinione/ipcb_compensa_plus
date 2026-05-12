@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router';
 import { AppShell } from '../layouts/AppShell';
-import { FullStoryboardPage, LoginPage, NotFoundPage } from '../pages';
+import { LoginPage, NotFoundPage } from '../pages';
 import { VerifyMagicLinkPage } from '../pages/Login/VerifyMagicLinkPage';
 import type { AuthView } from '../types/auth';
 import type { AuthenticatedUser, UserRole } from '../types/user';
@@ -49,15 +49,6 @@ export const AppRoutes = ({
         }
       />
       <Route path={appPaths.authVerify} element={<VerifyMagicLinkPage onAuthenticated={onLogin} />} />
-
-      <Route
-        path={appPaths.fullStoryboard}
-        element={
-          <ProtectedRoute isAuthenticated={canRenderProtectedShell}>
-            <FullStoryboardPage />
-          </ProtectedRoute>
-        }
-      />
 
       <Route
         element={
