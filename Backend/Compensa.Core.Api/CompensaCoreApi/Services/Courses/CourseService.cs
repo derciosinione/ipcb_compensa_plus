@@ -6,6 +6,7 @@ using CompensaCoreApi.Exceptions;
 using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Courses;
+using CompensaCoreApi.Services.Schedules;
 
 namespace CompensaCoreApi.Services.Courses;
 
@@ -476,8 +477,7 @@ public sealed class CourseService : ICourseService
 
     private static void ValidateSchedule(TimeOnly startTime, TimeOnly endTime)
     {
-        if (startTime >= endTime)
-            throw new InvalidOperationException("Schedule start time must be before end time.");
+        ScheduleConflictRule.ValidateRange(startTime, endTime);
     }
 
     private async Task EnsureScheduleHasNoConflictsAsync(

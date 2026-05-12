@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../../ui/avatar';
 import { Input } from '../../ui/input';
 import { Textarea } from '../../ui/textarea';
 import { Calendar, Clock, MapPin, Send, MessageSquare, User, Users, BookOpen, ArrowLeft, MoreHorizontal, AlertTriangle, Check, X as XIcon, Info } from 'lucide-react';
-import { ClassRequest, Comment } from '../../../mocks/data';
+import type { ClassRequest } from '../../../types/requests';
 import { cn } from '../../ui/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../ui/dropdown-menu';

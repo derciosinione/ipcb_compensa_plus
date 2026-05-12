@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
-import { kpiData } from '../../mocks/data';
 import {
   FileText,
   Clock,
@@ -20,6 +19,8 @@ import { CompensationChart } from './components/CompensationChart';
 import { StatCard } from '../../components/common/StatCard';
 import { useLanguage } from '../../providers/LanguageContext';
 import { useNotificationsQuery } from '../../services/notifications/notificationQueries';
+import { useDashboardSummaryQuery } from '../../services/dashboard/dashboardQueries';
+import type { DashboardWeekDay } from '../../services/dashboard/dashboardTypes';
 
 const EventCard = ({ title, time, room, type, isCompact = false }: { title: string, time: string, room?: string, type: 'class' | 'blocked' | 'holiday', isCompact?: boolean }) => {
    const variants = {
@@ -45,20 +46,21 @@ const EventCard = ({ title, time, room, type, isCompact = false }: { title: stri
    );
 }
 
-const WeeklyCalendar = () => {
+const WeeklyCalendar = ({ weekSchedule = [] }: { weekSchedule?: DashboardWeekDay[] }) => {
   const { t } = useLanguage();
   const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const scheduleByDate = new Map(weekSchedule.map((day) => [day.date, day]));
+  const today = format(new Date(), 'yyyy-MM-dd');
   const days = Array.from({ length: 5 }, (_, i) => {
     const date = addDays(start, i);
+    const dateKey = format(date, 'yyyy-MM-dd');
+    const schedule = scheduleByDate.get(dateKey);
+
     return {
       name: format(date, 'EEE'),
       date: format(date, 'd'),
-      active: i === 2, // Mock active state
-      events: i === 0 ? [{ title: 'Software Eng.', time: '09:00 - 11:00', type: 'class' }] :
-              i === 1 ? [{ title: 'Databases I', time: '14:00 - 16:00', type: 'class' }] :
-              i === 2 ? [{ title: 'Dept. Meeting', time: '10:00 - 11:00', type: 'blocked' }] :
-              i === 3 ? [] :
-              [{ title: 'Web Dev', time: '11:00 - 13:00', type: 'class' }]
+      active: dateKey === today,
+      events: schedule?.events ?? [],
     };
   });
 
@@ -96,10 +98,15 @@ const WeeklyCalendar = () => {
               </div>
               
               <div className="space-y-2 flex-1">
-                {/* @ts-ignore */}
-                {day.events.map((e, i) => (
-                  // @ts-ignore
-                  <EventCard key={i} title={e.title} time={e.time} type={e.type as any} isCompact />
+                {day.events.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    title={event.title}
+                    time={event.time}
+                    room={event.room}
+                    type="class"
+                    isCompact
+                  />
                 ))}
                 {day.events.length === 0 && (
                    <div className="h-16 rounded-lg border-2 border-dashed border-slate-100 dark:border-slate-800 flex items-center justify-center">
@@ -175,28 +182,31 @@ const QuickActions = () => {
 
 export const DashboardPage = () => {
   const { t } = useLanguage();
+  const { data: summary, isLoading } = useDashboardSummaryQuery();
+  const metrics = summary?.metrics;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           title={t('dashboard.total_requests')} 
-          value={kpiData.totalRequests} 
+          value={isLoading ? '...' : metrics?.totalRequests ?? 0}
           icon={FileText} 
-          trend="+12%"
-          trendUp={true}
+          trend={summary?.activeAcademicYear ?? undefined}
+          trendUp={Boolean(summary?.activeAcademicYear)}
           iconColor="text-blue-600"
           className="bg-white"
         />
         <StatCard 
           title={t('dashboard.pending')} 
-          value={kpiData.pending} 
+          value={isLoading ? '...' : metrics?.pendingRequests ?? 0}
           icon={Clock} 
           iconColor="text-amber-600"
           className="bg-white"
         />
         <StatCard 
           title={t('dashboard.compensated')} 
-          value={kpiData.compensated} 
+          value={isLoading ? '...' : metrics?.approvedRequests ?? 0}
           icon={CheckCircle2} 
           trend={t('dashboard.target_met')}
           trendUp={true}
@@ -209,21 +219,23 @@ export const DashboardPage = () => {
                  <MoreVertical className="w-6 h-6 text-white" />
               </div>
               <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider mb-2">{t('dashboard.quick_stat')}</p>
-              <div className="text-2xl font-bold mb-1">98%</div>
+              <div className="text-2xl font-bold mb-1">
+                {isLoading ? '...' : `${metrics?.classCoveragePercent ?? 0}%`}
+              </div>
               <p className="text-xs text-indigo-100/80">{t('dashboard.class_coverage')}</p>
            </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <CompensationChart />
+        <CompensationChart data={summary?.trends ?? []} isLoading={isLoading} />
         <div className="lg:col-span-1 h-full">
            <QuickActions />
         </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-         <WeeklyCalendar />
+         <WeeklyCalendar weekSchedule={summary?.weekSchedule} />
       </div>
     </div>
   );

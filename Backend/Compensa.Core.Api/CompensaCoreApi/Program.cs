@@ -16,7 +16,9 @@ using CompensaCoreApi.Services.AcademicYears;
 using CompensaCoreApi.Services.Classrooms;
 using CompensaCoreApi.Services.CompensationRequests;
 using CompensaCoreApi.Services.Courses;
+using CompensaCoreApi.Services.Dashboard;
 using CompensaCoreApi.Services.Schedules;
+using CompensaCoreApi.Services.Search;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -91,6 +93,8 @@ builder.Services.AddScoped<IUserUnitAssignmentService, UserUnitAssignmentService
 builder.Services.AddScoped<ICompensationRequestRepository, CompensationRequestRepository>();
 builder.Services.AddScoped<ICompensationRequestService, CompensationRequestService>();
 builder.Services.AddScoped<IScheduleAvailabilityService, ScheduleAvailabilityService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
 builder.Services.AddMassTransit(x =>
 {

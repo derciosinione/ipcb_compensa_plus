@@ -5,26 +5,9 @@ import { Bar, BarChart, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { BarChart as BarChartIcon } from 'lucide-react';
 import { useLanguage } from '../../../providers/LanguageContext';
 import { LoadingSpinner } from '../../../components/common/LoadingSpinner';
+import type { DashboardTrendPoint } from '../../../services/dashboard/dashboardTypes';
 
-const generateData = (year: string, t: (key: string) => string) => {
-  const base = year === '2024' ? 10 : 5;
-  const multiplier = year === '2024' ? 1.5 : 1;
-
-  return [
-    { id: 'jan', name: t('month.Jan'), total: Math.floor(4 * multiplier + base), approved: Math.floor(3 * multiplier + base), rejected: Math.floor(1 * multiplier) },
-    { id: 'feb', name: t('month.Feb'), total: Math.floor(8 * multiplier + base), approved: Math.floor(6 * multiplier + base), rejected: Math.floor(2 * multiplier) },
-    { id: 'mar', name: t('month.Mar'), total: Math.floor(12 * multiplier + base), approved: Math.floor(10 * multiplier + base), rejected: Math.floor(2 * multiplier) },
-    { id: 'apr', name: t('month.Apr'), total: Math.floor(9 * multiplier + base), approved: Math.floor(8 * multiplier + base), rejected: Math.floor(1 * multiplier) },
-    { id: 'may', name: t('month.May'), total: Math.floor(15 * multiplier + base), approved: Math.floor(12 * multiplier + base), rejected: Math.floor(3 * multiplier) },
-    { id: 'jun', name: t('month.Jun'), total: Math.floor(18 * multiplier + base), approved: Math.floor(16 * multiplier + base), rejected: Math.floor(2 * multiplier) },
-    { id: 'jul', name: t('month.Jul'), total: Math.floor(5 * multiplier + base), approved: Math.floor(4 * multiplier + base), rejected: Math.floor(1 * multiplier) },
-    { id: 'aug', name: t('month.Aug'), total: Math.floor(2 * multiplier + base), approved: Math.floor(2 * multiplier + base), rejected: 0 },
-    { id: 'sep', name: t('month.Sep'), total: Math.floor(14 * multiplier + base), approved: Math.floor(11 * multiplier + base), rejected: Math.floor(3 * multiplier) },
-    { id: 'oct', name: t('month.Oct'), total: Math.floor(20 * multiplier + base), approved: Math.floor(18 * multiplier + base), rejected: Math.floor(2 * multiplier) },
-    { id: 'nov', name: t('month.Nov'), total: Math.floor(24 * multiplier + base), approved: Math.floor(22 * multiplier + base), rejected: Math.floor(2 * multiplier) },
-    { id: 'dec', name: t('month.Dec'), total: Math.floor(10 * multiplier + base), approved: Math.floor(9 * multiplier + base), rejected: Math.floor(1 * multiplier) },
-  ];
-};
+type ChartPoint = DashboardTrendPoint & { id: string; name: string };
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   const { t } = useLanguage();
@@ -56,12 +39,20 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export const CompensationChart = () => {
+interface CompensationChartProps {
+  data: DashboardTrendPoint[];
+  isLoading?: boolean;
+}
+
+export const CompensationChart = ({ data, isLoading = false }: CompensationChartProps) => {
   const { t } = useLanguage();
-  const [year, setYear] = useState('2023');
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const data = generateData(year, t);
+  const chartData: ChartPoint[] = data.map((point) => ({
+    ...point,
+    id: point.period,
+    name: point.period,
+  }));
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -107,14 +98,12 @@ export const CompensationChart = () => {
             {t('chart.description')}
           </CardDescription>
         </div>
-        <Select value={year} onValueChange={setYear}>
+        <Select value="rolling-6" disabled>
            <SelectTrigger className="w-[120px] bg-slate-50 dark:bg-slate-800 border-none shadow-none h-9 text-xs font-medium">
              <SelectValue placeholder={t('chart.select_year')} />
            </SelectTrigger>
            <SelectContent>
-             <SelectItem value="2024">2024</SelectItem>
-             <SelectItem value="2023">2023</SelectItem>
-             <SelectItem value="2022">2022</SelectItem>
+             <SelectItem value="rolling-6">Last 6 months</SelectItem>
            </SelectContent>
         </Select>
       </CardHeader>
@@ -124,11 +113,19 @@ export const CompensationChart = () => {
            style={{ width: '100%', height: 350 }}
            className="min-w-0"
         >
-          {hasValidDimensions ? (
+          {isLoading || !hasValidDimensions ? (
+             <div className="flex h-full w-full items-center justify-center">
+                <LoadingSpinner size="sm" text={t('chart.loading')} />
+             </div>
+          ) : chartData.length === 0 ? (
+             <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+                No request data yet.
+             </div>
+          ) : (
              <BarChart 
                 width={dimensions.width} 
                 height={dimensions.height} 
-                data={data} 
+                data={chartData}
                 barGap={4} 
                 margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
              >
@@ -178,10 +175,6 @@ export const CompensationChart = () => {
                   animationDuration={1500}
                />
              </BarChart>
-          ) : (
-             <div className="flex h-full w-full items-center justify-center">
-                <LoadingSpinner size="sm" text={t('chart.loading')} />
-             </div>
           )}
         </div>
       </CardContent>

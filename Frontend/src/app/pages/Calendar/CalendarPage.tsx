@@ -33,7 +33,7 @@ import {
   TabsTrigger,
 } from "../../components/ui/tabs";
 import { cn } from '../../components/ui/utils';
-import { ClassRequest, holidays } from '../../mocks/data';
+import type { ClassRequest } from '../../types/requests';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../components/ui/tooltip';
 import { RequestDetailsPage } from '../../components/domain/requests/RequestDetailsPage';
 import { RequestForm } from '../../components/domain/requests/RequestForm';
@@ -69,6 +69,13 @@ type CalendarTimetableEvent = {
   yearGroup: string;
   classGroup: string;
 };
+
+type CalendarHoliday = {
+  date: string;
+  name: string;
+};
+
+const holidays: CalendarHoliday[] = [];
 
 const toClassRequest = (request: CompensationRequest): ClassRequest => ({
   id: request.id,
@@ -220,6 +227,10 @@ export const CalendarPage = ({ userRole = 'teacher', user }: CalendarPageProps) 
 
   const isHoliday = (date: Date) => !!holidays.find(h => h.date === formatDate(date));
   const getHoliday = (date: Date) => holidays.find(h => h.date === formatDate(date));
+  const toIsoDayOfWeek = (date: Date) => {
+    const day = date.getDay();
+    return day === 0 ? 7 : day;
+  };
 
   // --- Data Fetching ---
 
@@ -234,8 +245,7 @@ export const CalendarPage = ({ userRole = 'teacher', user }: CalendarPageProps) 
             return matchesDate && matchesCourse && matchesStatus;
         });
     } else if (calendarMode === 'timetable') {
-        // Mock logic: repeat weekly events
-        const dayOfWeek = date.getDay();
+        const dayOfWeek = toIsoDayOfWeek(date);
         return timetableEvents.filter(slot => {
             const matchesDay = slot.dayOfWeek === dayOfWeek;
             
@@ -261,7 +271,7 @@ export const CalendarPage = ({ userRole = 'teacher', user }: CalendarPageProps) 
         // If no room selected, return nothing or maybe everything? Let's require a room or type
         if (filterRoom === 'all' && filterRoomType === 'all') return [];
 
-        const dayOfWeek = date.getDay();
+        const dayOfWeek = toIsoDayOfWeek(date);
         
         // 1. Get Timetable Events for this room(s)
         const occupiedTimetableEvents = timetableEvents.filter(slot => {
@@ -285,9 +295,6 @@ export const CalendarPage = ({ userRole = 'teacher', user }: CalendarPageProps) 
             const roomDetails = classrooms.find(room => room.name === req.newRoom || room.id === req.newRoom);
             const roomMatches = filterRoom === 'all' || roomDetails?.id === filterRoom;
             const typeMatches = filterRoomType === 'all' || (roomDetails && roomDetails.type === filterRoomType);
-            
-            const isApproved = req.status === 'approved'; // Only show approved requests as "Occupied"
-            // Or maybe pending too? Let's show approved for strict occupancy
             
             return req.newDate === dateStr && roomMatches && typeMatches && req.status !== 'rejected';
         }).map(req => ({
