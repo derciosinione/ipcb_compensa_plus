@@ -18,3 +18,16 @@ export const verifyMagicLink = async (token: string) => {
 
   return response.data;
 };
+
+export const refreshAuthToken = async (accessToken: string, refreshToken: string) => {
+  const response = await apiRequest<VerifyMagicLinkResponse>(
+    identityApiBaseUrl,
+    '/api/auth/refresh',
+    {
+      method: 'POST',
+      body: JSON.stringify({ accessToken, refreshToken }),
+    }
+  );
+
+  return response.data;
+};

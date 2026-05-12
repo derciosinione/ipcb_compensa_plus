@@ -1,4 +1,5 @@
-import { getStoredAccessToken } from '../auth/authSession';
+import { getStoredAccessToken, getStoredAuthSession, saveAuthSession, clearAuthSession, mapVerifyResponseToSession } from '../auth/authSession';
+import type { VerifyMagicLinkResponse } from '../auth/authTypes';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -33,30 +34,53 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? 
 export const identityApiBaseUrl = API_BASE_URL;
 export const coreApiBaseUrl = API_BASE_URL;
 
+let refreshPromise: Promise<string | null> | null = null;
+
 export const apiRequest = async <T>(
   baseUrl: string,
   path: string,
   options: RequestOptions = {},
 ): Promise<ApiResponse<T>> => {
-  const headers = new Headers(options.headers);
-  const accessToken = options.accessToken ?? (options.authenticated ? getRequiredAccessToken() : undefined);
+  let accessToken = options.accessToken ?? (options.authenticated ? getStoredAccessToken() : undefined);
 
-  if (!headers.has('Content-Type') && options.body) {
-    headers.set('Content-Type', 'application/json');
+  // If authenticated but no access token (likely expired), try to refresh immediately
+  if (options.authenticated && !accessToken) {
+    accessToken = (await handleTokenRefresh()) ?? undefined;
+    if (!accessToken) {
+      throw new ApiError('Session expired. Please log in again.', 401);
+    }
   }
 
-  if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
-  }
+  const executeRequest = async (token?: string): Promise<Response> => {
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type') && options.body) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    return fetch(`${baseUrl}${path}`, { ...options, headers });
+  };
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  let response = await executeRequest(accessToken);
+
+  // Handle 401: Attempt to refresh and retry
+  if (response.status === 401 && options.authenticated) {
+    const newToken = await handleTokenRefresh();
+    if (newToken) {
+      response = await executeRequest(newToken);
+    }
+  }
 
   const payload = (await response.json().catch(() => undefined)) as ApiResponse<T> | undefined;
 
   if (!response.ok || payload?.success === false) {
+    // If we still get a 401 after retry, clear session
+    if (response.status === 401 && options.authenticated) {
+      clearAuthSession();
+      window.dispatchEvent(new Event('auth:logout'));
+    }
+
     throw new ApiError(
       payload?.message ?? `Request failed with status ${response.status}`,
       response.status,
@@ -64,7 +88,53 @@ export const apiRequest = async <T>(
     );
   }
 
-  return payload ?? { success: true, message: '' };
+  return payload ?? { success: true, message: '' } as ApiResponse<T>;
+};
+
+const handleTokenRefresh = async (): Promise<string | null> => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  const session = getStoredAuthSession();
+  if (!session?.refreshToken) {
+    return null;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${identityApiBaseUrl}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Refresh failed');
+      }
+
+      const payload = (await response.json()) as ApiResponse<VerifyMagicLinkResponse>;
+      if (!payload.success || !payload.data) {
+        throw new Error(payload.message || 'Refresh failed');
+      }
+
+      const newSession = mapVerifyResponseToSession(payload.data);
+      saveAuthSession(newSession);
+      
+      return newSession.accessToken;
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      clearAuthSession();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 };
 
 export const authenticatedApiRequest = <T>(
@@ -93,14 +163,4 @@ export const buildApiPath = (path: string, query?: Record<string, QueryValue>) =
   });
 
   return params.size ? `${path}?${params.toString()}` : path;
-};
-
-const getRequiredAccessToken = () => {
-  const accessToken = getStoredAccessToken();
-
-  if (!accessToken) {
-    throw new Error('You need to sign in again.');
-  }
-
-  return accessToken;
 };

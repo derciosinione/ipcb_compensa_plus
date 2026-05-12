@@ -17,6 +17,8 @@ const normalizeRole = (role: string): UserRole => {
 export const mapVerifyResponseToSession = (response: VerifyMagicLinkResponse): AuthSession => ({
   accessToken: response.accessToken,
   accessTokenExpiresAt: response.accessTokenExpiresAt,
+  refreshToken: response.refreshToken,
+  refreshTokenExpiresAt: response.refreshTokenExpiresAt,
   user: {
     id: response.userId,
     email: response.email ?? '',
@@ -54,9 +56,10 @@ export const getStoredAuthSession = (): AuthSession | null => {
 
   try {
     const session = JSON.parse(rawSession) as AuthSession;
-    const expiresAt = new Date(session.accessTokenExpiresAt).getTime();
+    const refreshTokenExpiresAt = new Date(session.refreshTokenExpiresAt).getTime();
 
-    if (!session.accessToken || Number.isNaN(expiresAt) || expiresAt <= Date.now()) {
+    // Only clear if the refresh token itself is expired or missing
+    if (!session.refreshToken || Number.isNaN(refreshTokenExpiresAt) || refreshTokenExpiresAt <= Date.now()) {
       clearAuthSession();
       return null;
     }
@@ -69,7 +72,17 @@ export const getStoredAuthSession = (): AuthSession | null => {
 };
 
 export const getStoredAccessToken = (): string | null => {
-  return getStoredAuthSession()?.accessToken ?? null;
+  const session = getStoredAuthSession();
+  if (!session) return null;
+
+  const accessTokenExpiresAt = new Date(session.accessTokenExpiresAt).getTime();
+  if (accessTokenExpiresAt <= Date.now()) {
+    // Access token is expired, but session is returned because refresh token is valid.
+    // The interceptor will handle the refresh.
+    return null; 
+  }
+
+  return session.accessToken;
 };
 
 export const clearAuthSession = () => {
