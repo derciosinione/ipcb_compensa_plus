@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router";
 import {
   ArrowLeft,
   CalendarRange,
@@ -19,33 +20,33 @@ import {
   Calendar,
   Upload,
 } from "lucide-react";
-import { Button } from "../../../components/ui/button";
-import { Badge } from "../../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   CardDescription,
-} from "../../../components/ui/card";
+} from "../../components/ui/card";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "../../../components/ui/tabs";
-import { Input } from "../../../components/ui/input";
+} from "../../components/ui/tabs";
+import { Input } from "../../components/ui/input";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from "../../../components/ui/avatar";
+} from "../../components/ui/avatar";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "../../../components/ui/accordion";
+} from "../../components/ui/accordion";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,55 +54,62 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
-import { Separator } from "../../../components/ui/separator";
+} from "../../components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
+import { Separator } from "../../components/ui/separator";
 import {
   Course as ViewCourse,
   CurricularUnit,
   ClassGroup,
   TimeSlot,
-} from "../../../types/academic";
-import { cn } from "../../../components/ui/utils";
+} from "../../types/academic";
+import { cn } from "../../components/ui/utils";
 import { toast } from "sonner";
-import { AddCurricularUnitModal } from "./AddCurricularUnitModal";
-import { AddClassModal } from "./AddClassModal";
-import { AssignTeachersModal } from "./AssignTeachersModal";
-import { AssignTeacherToCourseModal } from "./AssignTeacherToCourseModal";
-import { ClassDetailsView } from "../../../components/domain/requests/ClassDetailsView";
-import { BulkImportSchedulesSheet } from "./BulkImportSchedulesSheet";
+import { AddCurricularUnitModal } from "./components/AddCurricularUnitModal";
+import { AddClassModal } from "./components/AddClassModal";
+import { AssignTeachersModal } from "./components/AssignTeachersModal";
+import { AssignTeacherToCourseModal } from "./components/AssignTeacherToCourseModal";
+import { ClassDetailsView } from "../../components/domain/requests/ClassDetailsView";
+import { BulkImportSchedulesSheet } from "./components/BulkImportSchedulesSheet";
 import {
   createClassGroup,
   createClassSchedule,
   createCurricularUnit,
   createCurricularUnitComponent,
+  deleteClassGroup,
   deleteClassSchedule,
   deleteCurricularUnit,
   getCourseDetails,
   updateClassSchedule,
   updateCurricularUnit,
   updateCurricularUnitComponent,
-} from "../../../services/courses/coursesApi";
-import { getErrorMessage } from "../../../utils/errors";
+} from "../../services/courses/coursesApi";
+import { getErrorMessage } from "../../utils/errors";
 import type {
   Course as ApiCourse,
   ClassGroup as ApiClassGroup,
   ClassSchedule as ApiClassSchedule,
   CurricularUnit as ApiCurricularUnit,
-} from "../../../services/courses/courseTypes";
-import { listUsers } from "../../../services/users/usersApi";
-import type { PlatformUser } from "../../../services/users/userTypes";
-import { listClassrooms } from "../../../services/classrooms/classroomsApi";
-import type { Classroom } from "../../../services/classrooms/classroomTypes";
-import { getActiveAcademicYear } from "../../../services/academicYears/academicYearsApi";
-import type { AcademicYear } from "../../../services/academicYears/academicYearTypes";
+} from "../../services/courses/courseTypes";
+import { listUsers } from "../../services/users/usersApi";
+import type { PlatformUser } from "../../services/users/userTypes";
+import { listClassrooms } from "../../services/classrooms/classroomsApi";
+import type { Classroom } from "../../services/classrooms/classroomTypes";
+import type { AcademicYear } from "../../services/academicYears/academicYearTypes";
+import { useAcademicYear } from "../../providers/AcademicYearContext";
+import type { User } from "../../types/user";
 
 interface CourseDetailsPageProps {
-  courseId: string;
-  course?: ApiCourse;
-  userRole: "coordinator" | "teacher" | "admin";
-  userId: string;
-  userEmail: string;
-  onBack: () => void;
+  user: User;
 }
 
 const toDetailsCourse = (course: ApiCourse): ViewCourse => ({
@@ -149,7 +157,7 @@ const toCourseUnit = (unit: ApiCurricularUnit): CourseUnit => ({
 const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
   id: group.id,
   name: group.name,
-  unitId: group.curricularUnitId,
+  year: group.year,
   teacherId: group.teacherId,
 });
 
@@ -171,6 +179,7 @@ const toTimeSlot = (
     startTime: schedule.startTime.slice(0, 5),
     endTime: schedule.endTime.slice(0, 5),
     unit: unit?.name ?? schedule.curricularUnitId,
+    curricularUnitId: schedule.curricularUnitId,
     type: schedule.componentType === "Practical" ? "practical" : "theoretical",
     room: classroom?.name ?? schedule.classroomId,
     course: schedule.courseId,
@@ -180,16 +189,20 @@ const toTimeSlot = (
 };
 
 export const CourseDetailsPage = ({
-  courseId,
-  course: apiCourse,
-  userRole,
-  userId,
-  userEmail,
-  onBack,
+  user,
 }: CourseDetailsPageProps) => {
-  const [course, setCourse] = useState<ViewCourse | undefined>(
-    apiCourse ? toDetailsCourse(apiCourse) : undefined,
-  );
+  const { id: courseId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  if (!courseId) {
+    throw new Error("Course ID is required");
+  }
+
+  const userRole = user.role as "coordinator" | "teacher" | "admin";
+  const userId = user.id;
+  const userEmail = user.email;
+
+  const [course, setCourse] = useState<ViewCourse | undefined>(undefined);
 
   const [localUnits, setLocalUnits] = useState<CourseUnit[]>([]);
   const [localClasses, setLocalClasses] = useState<ClassGroup[]>([]);
@@ -203,11 +216,19 @@ export const CourseDetailsPage = ({
   >(undefined);
   const [teachers, setTeachers] = useState<PlatformUser[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
+  const { selectedYear: currentAcademicYear } = useAcademicYear();
 
   const [searchTerm, setSearchTerm] = useState("");
 
   // Modal State
   const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+  const [isClassDetailsOpen, setIsClassDetailsOpen] = useState(false);
+  const [deleteConfig, setDeleteConfig] = useState<{
+    type: "unit" | "class" | "schedule";
+    id: string;
+    title: string;
+    description: string;
+  } | null>(null);
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [isAssignTeacherModalOpen, setIsAssignTeacherModalOpen] =
     useState(false);
@@ -228,12 +249,13 @@ export const CourseDetailsPage = ({
   const [selectedYear, setSelectedYear] = useState<number>(1);
 
   const loadCourseDetails = useCallback(async () => {
-    const [details, loadedUsers, loadedClassrooms, loadedAcademicYear] =
+    if (!currentAcademicYear) return;
+
+    const [details, loadedUsers, loadedClassrooms] =
       await Promise.all([
-        getCourseDetails(courseId),
+        getCourseDetails(courseId, currentAcademicYear.id),
         listUsers(),
         listClassrooms(),
-        getActiveAcademicYear(),
       ]);
 
     if (!details) {
@@ -256,8 +278,8 @@ export const CourseDetailsPage = ({
     );
     setTeachers(loadedUsers.filter((user) => user.roles.includes("Teacher")));
     setClassrooms(loadedClassrooms);
-    setActiveAcademicYear(loadedAcademicYear ?? undefined);
-  }, [courseId]);
+    setActiveAcademicYear(currentAcademicYear ?? undefined);
+  }, [courseId, currentAcademicYear]);
 
   useEffect(() => {
     let isMounted = true;
@@ -309,9 +331,6 @@ export const CourseDetailsPage = ({
 
   // 3. Get Classes for visible units
   const visibleClasses = localClasses.filter((cls) => {
-    const unit = courseUnits.find((u) => u.id === cls.unitId);
-    if (!unit) return false;
-
     if (userRole === "coordinator" || userRole === "admin") return true;
     return cls.teacherId === userId;
   });
@@ -355,14 +374,13 @@ export const CourseDetailsPage = ({
     setIsUnitModalOpen(true);
   };
 
-  const handleDeleteUnit = async (unitId: string) => {
-    try {
-      await deleteCurricularUnit(courseId, unitId);
-      setLocalUnits((prev) => prev.filter((u) => u.id !== unitId));
-      toast.success("Curricular unit deleted");
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to delete curricular unit."));
-    }
+  const handleDeleteUnit = (unit: CurricularUnit) => {
+    setDeleteConfig({
+      type: "unit",
+      id: unit.id,
+      title: "Delete Curricular Unit",
+      description: `Are you sure you want to delete "${unit.name}"? This action cannot be undone and may affect associated classes and schedules.`,
+    });
   };
 
   const handleViewUnit = (unit: CurricularUnit) => {
@@ -533,7 +551,7 @@ export const CourseDetailsPage = ({
   const handleSaveClass = async (classData: Omit<ClassGroup, "id">) => {
     try {
       const created = await createClassGroup(courseId, {
-        curricularUnitId: classData.unitId,
+        year: classData.year,
         name: classData.name,
         teacherId: classData.teacherId,
         isActive: true,
@@ -548,6 +566,42 @@ export const CourseDetailsPage = ({
       toast.success("Class created successfully");
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to save class group."));
+    }
+  };
+
+  const handleDeleteClass = (classId: string) => {
+    const cls = localClasses.find((c) => c.id === classId);
+    setDeleteConfig({
+      type: "class",
+      id: classId,
+      title: "Delete Class Group",
+      description: `Are you sure you want to delete class "${cls?.name || "this class"}"? This will also remove all its schedules.`,
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfig) return;
+
+    const { type, id } = deleteConfig;
+    setDeleteConfig(null);
+
+    try {
+      if (type === "unit") {
+        await deleteCurricularUnit(courseId, id);
+        setLocalUnits((prev) => prev.filter((u) => u.id !== id));
+        toast.success("Curricular unit deleted");
+      } else if (type === "class") {
+        await deleteClassGroup(courseId, id);
+        setLocalClasses((prev) => prev.filter((c) => c.id !== id));
+        toast.success("Class deleted successfully");
+      } else if (type === "schedule") {
+        if (!selectedClass) return;
+        await deleteClassSchedule(courseId, selectedClass.id, id);
+        setLocalTimetable((prev) => prev.filter((s) => s.id !== id));
+        toast.success("Schedule deleted");
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, `Unable to delete ${type}.`));
     }
   };
 
@@ -579,17 +633,11 @@ export const CourseDetailsPage = ({
       return;
     }
 
-    const unit = localUnits.find((item) => item.id === selectedClass.unitId);
-
-    if (!unit) {
-      toast.error("Curricular unit not found for this class.");
-      return;
-    }
-
     try {
       const created = await createClassSchedule(courseId, selectedClass.id, {
         academicYearId: activeAcademicYear.id,
-        semester: unit.semester,
+        curricularUnitId: scheduleData.curricularUnitId,
+        semester: (localUnits.find(u => u.id === scheduleData.curricularUnitId)?.semester ?? 1) as 1 | 2,
         componentType:
           scheduleData.type === "practical" ? "Practical" : "Theoretical",
         dayOfWeek: scheduleData.dayOfWeek,
@@ -634,13 +682,6 @@ export const CourseDetailsPage = ({
       return;
     }
 
-    const unit = localUnits.find((item) => item.id === selectedClass.unitId);
-
-    if (!unit) {
-      toast.error("Curricular unit not found for this class.");
-      return;
-    }
-
     try {
       const updated = await updateClassSchedule(
         courseId,
@@ -648,7 +689,8 @@ export const CourseDetailsPage = ({
         id,
         {
           academicYearId: activeAcademicYear.id,
-          semester: unit.semester,
+          curricularUnitId: scheduleData.curricularUnitId,
+          semester: (localUnits.find(u => u.id === scheduleData.curricularUnitId)?.semester ?? 1) as 1 | 2,
           componentType:
             scheduleData.type === "practical" ? "Practical" : "Theoretical",
           dayOfWeek: scheduleData.dayOfWeek,
@@ -676,30 +718,23 @@ export const CourseDetailsPage = ({
     }
   };
 
-  const handleDeleteSchedule = async (id: string) => {
-    if (!selectedClass) return;
-
-    try {
-      await deleteClassSchedule(courseId, selectedClass.id, id);
-      setLocalTimetable((prev) => prev.filter((slot) => slot.id !== id));
-      toast.success("Schedule deleted successfully.");
-    } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to delete schedule."));
-    }
+  const handleDeleteSchedule = (id: string) => {
+    setDeleteConfig({
+      type: "schedule",
+      id,
+      title: "Delete Schedule Slot",
+      description: "Are you sure you want to remove this weekly schedule slot?",
+    });
   };
 
   // --- Render Logic ---
 
   if (selectedClass) {
-    const unit = localUnits.find((u) => u.id === selectedClass.unitId);
     const teacher = getTeacher(selectedClass.teacherId);
-
-    if (!unit) return <div>Unit not found error</div>;
 
     return (
       <ClassDetailsView
         classGroup={selectedClass}
-        unit={unit}
         teacher={teacher}
         schedules={localTimetable}
         allClasses={localClasses}
@@ -892,7 +927,7 @@ export const CourseDetailsPage = ({
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       className="text-red-600 focus:text-red-600"
-                                      onClick={() => handleDeleteUnit(unit.id)}
+                                      onClick={() => handleDeleteUnit(unit)}
                                     >
                                       <Trash2 className="w-4 h-4 mr-2" /> Delete
                                     </DropdownMenuItem>
@@ -940,7 +975,7 @@ export const CourseDetailsPage = ({
         isOpen={isClassModalOpen}
         onClose={() => setIsClassModalOpen(false)}
         onSave={handleSaveClass}
-        units={courseUnits}
+        durationYears={localCourse?.durationYears || 3}
         teachers={teachers}
       />
 
@@ -970,7 +1005,7 @@ export const CourseDetailsPage = ({
       {/* Navigation */}
       <Button
         variant="ghost"
-        onClick={onBack}
+        onClick={() => navigate(-1)}
         className="mb-4 pl-0 hover:pl-2 transition-all gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
       >
         <ArrowLeft className="w-4 h-4" /> Back to Courses
@@ -1184,132 +1219,241 @@ export const CourseDetailsPage = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visibleClasses.length === 0 ? (
-              <div className="col-span-full text-center py-16 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                <Users className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-400" />
-                <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">
-                  No classes found
-                </h3>
-                <p className="max-w-xs mx-auto mt-1 mb-4">
-                  {userRole !== "teacher"
-                    ? "There are no classes created for this course yet."
-                    : "You haven't been assigned to any classes in this course."}
-                </p>
-                {userRole !== "teacher" && (
-                  <Button
-                    onClick={handleAddClass}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Plus className="w-4 h-4 mr-2" /> Create First Class
-                  </Button>
-                )}
-              </div>
-            ) : (
-              visibleClasses
-                .filter((c) =>
-                  c.name.toLowerCase().includes(searchTerm.toLowerCase()),
-                )
-                .map((cls) => {
-                  const unit = localUnits.find((u) => u.id === cls.unitId);
-                  const teacher = getTeacher(cls.teacherId);
+          <div className="w-full space-y-4">
+            {(() => {
+              const normalizedSearch = searchTerm.trim().toLowerCase();
+              const searchableClasses = normalizedSearch
+                ? visibleClasses.filter((cls) =>
+                    cls.name.toLowerCase().includes(normalizedSearch),
+                  )
+                : visibleClasses;
 
-                  // Count schedule items for this class
-                  const scheduleCount = localTimetable.filter(
-                    (t) => t.classGroup === cls.name && t.unit === unit?.name,
-                  ).length;
+              // Group by Year
+              const classesByYear = searchableClasses.reduce(
+                (acc, cls) => {
+                  const year = cls.year || 0;
+                  if (!acc[year]) {
+                    acc[year] = [];
+                  }
+                  acc[year].push(cls);
+                  return acc;
+                },
+                {} as Record<number, ClassGroup[]>,
+              );
 
-                  return (
-                    <Card
-                      key={cls.id}
-                      className="hover:shadow-lg transition-all duration-300 cursor-pointer group border-slate-200 dark:border-slate-800"
+              const sortedYears = Object.keys(classesByYear)
+                .map(Number)
+                .sort((a, b) => a - b);
+
+              if (sortedYears.length === 0) {
+                return (
+                  <div className="col-span-full text-center py-16 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-400" />
+                    <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">
+                      No classes found
+                    </h3>
+                    <p className="max-w-xs mx-auto mt-1 mb-4">
+                      {userRole !== "teacher"
+                        ? "There are no classes created for this course yet."
+                        : "You haven't been assigned to any classes in this course."}
+                    </p>
+                    {userRole !== "teacher" && (
+                      <Button
+                        onClick={handleAddClass}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-2" /> Create First Class
+                      </Button>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <Accordion
+                  type="multiple"
+                  defaultValue={sortedYears.map((y) => `class-year-${y}`)}
+                  className="w-full space-y-4"
+                >
+                  {sortedYears.map((year) => (
+                    <AccordionItem
+                      key={year}
+                      value={`class-year-${year}`}
+                      className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 px-4 shadow-sm"
                     >
-                      <CardHeader className="pb-3">
-                        <div className="flex justify-between items-start">
-                          <Badge
-                            variant="default"
-                            className={cn(
-                              "mb-2 capitalize bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300",
-                            )}
-                          >
-                            Class
-                          </Badge>
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 -mr-2 -mt-2 text-slate-400 hover:text-slate-600"
-                              >
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  if (unit) {
-                                    setSelectedClass(cls);
-                                  } else {
-                                    toast.error("Unit not found");
-                                  }
-                                }}
-                              >
-                                <Calendar className="w-4 h-4 mr-2" /> View
-                                Details & Schedule
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>View Students</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600">
-                                Delete Class
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                        <CardTitle className="text-xl flex items-center gap-2">
-                          {cls.name}
-                        </CardTitle>
-                        <CardDescription className="line-clamp-1">
-                          Year {unit?.year || "?"} • Semester{" "}
-                          {unit?.semester || "?"}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {teacher && (
-                          <div className="flex items-center gap-2 mb-4 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                            <Avatar className="w-6 h-6">
-                              <AvatarImage src={getTeacherAvatarUrl(teacher)} />
-                              <AvatarFallback>
-                                {getTeacherInitial(teacher)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
-                              {getTeacherName(teacher)}
-                            </span>
+                      <AccordionTrigger className="hover:no-underline py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm">
+                            {year === 0 ? "?" : year}º
                           </div>
-                        )}
-                        <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
-                          <span>{scheduleCount} Weekly Slots</span>
-                          <Button
-                            variant="link"
-                            className="h-auto p-0 text-blue-600"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (unit) setSelectedClass(cls);
-                            }}
+                          <span className="font-semibold text-lg text-slate-900 dark:text-slate-100">
+                            {year === 0 ? "Unknown Year" : `Year ${year}`}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className="ml-2 font-normal text-slate-500 bg-slate-100 dark:bg-slate-800"
                           >
-                            View Details
-                          </Button>
+                            {classesByYear[year].length} Classes
+                          </Badge>
                         </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })
-            )}
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="pt-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {classesByYear[year].map((cls) => {
+                              const teacher = getTeacher(cls.teacherId);
+                                      const scheduleCount =
+                                        localTimetable.filter(
+                                          (t) => t.classGroup === cls.name,
+                                        ).length;
+
+                                      return (
+                                        <Card
+                                          key={cls.id}
+                                          onClick={() => {
+                                            setSelectedClass(cls);
+                                          }}
+                                          className="hover:shadow-md transition-all duration-300 cursor-pointer group border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                        >
+                                          <CardHeader className="pb-3 px-4 pt-4">
+                                            <div className="flex justify-between items-start">
+                                              <div className="flex items-center gap-2">
+                                                <Badge
+                                                  variant="default"
+                                                  className={cn(
+                                                    "capitalize bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300",
+                                                  )}
+                                                >
+                                                  Class Group
+                                                </Badge>
+                                              </div>
+
+                                              <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                    className="h-8 w-8 -mr-2 -mt-2 text-slate-400 hover:text-slate-600"
+                                                  >
+                                                    <MoreHorizontal className="w-4 h-4" />
+                                                  </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent
+                                                  align="end"
+                                                  className="w-48"
+                                                >
+                                                  <DropdownMenuLabel>
+                                                    Actions
+                                                  </DropdownMenuLabel>
+                                                  <DropdownMenuItem
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setSelectedClass(cls);
+                                                    }}
+                                                  >
+                                                    <Calendar className="w-4 h-4 mr-2" />{" "}
+                                                    Schedule
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem
+                                                    onClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                  >
+                                                    View Students
+                                                  </DropdownMenuItem>
+                                                  {(userRole ===
+                                                    "coordinator" ||
+                                                    userRole === "admin") && (
+                                                    <>
+                                                      <DropdownMenuSeparator />
+                                                      <DropdownMenuItem
+                                                        className="text-red-600 focus:text-red-600"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleDeleteClass(
+                                                            cls.id,
+                                                          );
+                                                        }}
+                                                      >
+                                                        <Trash2 className="w-4 h-4 mr-2" />{" "}
+                                                        Delete
+                                                      </DropdownMenuItem>
+                                                    </>
+                                                  )}
+                                                </DropdownMenuContent>
+                                              </DropdownMenu>
+                                            </div>
+                                            <CardTitle className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                                              {cls.name}
+                                            </CardTitle>
+                                          </CardHeader>
+                                          <CardContent className="px-4 pb-4">
+                                            {teacher && (
+                                              <div className="flex items-center gap-2 mb-3">
+                                                <Avatar className="w-5 h-5">
+                                                  <AvatarImage
+                                                    src={getTeacherAvatarUrl(
+                                                      teacher,
+                                                    )}
+                                                  />
+                                                  <AvatarFallback>
+                                                    {getTeacherInitial(teacher)}
+                                                  </AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
+                                                  {getTeacherName(teacher)}
+                                                </span>
+                                              </div>
+                                            )}
+                                            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                              <span className="flex items-center gap-1">
+                                                <CalendarRange className="w-3 h-3" />
+                                                {scheduleCount} Weekly Slots
+                                              </span>
+                                              <span className="text-blue-600 font-medium">
+                                                Manage
+                                              </span>
+                                            </div>
+                                          </CardContent>
+                                        </Card>
+                                      );
+                                })}
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+              );
+            })()}
           </div>
         </TabsContent>
       </Tabs>
+      <AlertDialog
+        open={deleteConfig !== null}
+        onOpenChange={(open) => !open && setDeleteConfig(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteConfig?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfig?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

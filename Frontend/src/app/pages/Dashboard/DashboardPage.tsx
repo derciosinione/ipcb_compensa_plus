@@ -26,6 +26,7 @@ import { StatCard } from "../../components/common/StatCard";
 import { useLanguage } from "../../providers/LanguageContext";
 import { useNotificationsQuery } from "../../services/notifications/notificationQueries";
 import { useDashboardSummaryQuery } from "../../services/dashboard/dashboardQueries";
+import { useAcademicYear } from "../../providers/AcademicYearContext";
 import type { DashboardWeekDay } from "../../services/dashboard/dashboardTypes";
 
 const EventCard = ({
@@ -251,7 +252,8 @@ const QuickActions = () => {
 
 export const DashboardPage = () => {
   const { t } = useLanguage();
-  const { data: summary, isLoading } = useDashboardSummaryQuery();
+  const { selectedYear } = useAcademicYear();
+  const { data: summary, isLoading } = useDashboardSummaryQuery(selectedYear?.id);
   const metrics = summary?.metrics;
 
   return (

@@ -2,7 +2,7 @@ using CompensaCoreApi.Contracts;
 using CompensaCoreApi.Domain.CompensationRequests;
 using CompensaCoreApi.Dtos.CompensationRequests;
 using CompensaCoreApi.Services.CompensationRequests;
-using System.Security.Claims;
+using CompensaCoreApi.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -28,12 +28,13 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromQuery] string? teacherUserId,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var requests = await _service.ListAsync(
             status,
             teacherUserId,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<CompensationRequestResponse>>.Ok("Compensation requests loaded.", requests));
     }
@@ -46,11 +47,12 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var request = await _service.GetByIdAsync(
             id,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request loaded.", request));
     }
@@ -63,12 +65,13 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromBody] CreateCompensationRequestRequest request,
         CancellationToken cancellationToken)
     {
-        var actorUserId = GetCurrentUserId();
+        var actorUserId = this.GetCurrentUserId();
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var created = await _service.CreateAsync(
             request,
             actorUserId,
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         var response = ApiResponse<CompensationRequestResponse>.Ok("Compensation request created.", created);
 
@@ -85,12 +88,13 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromBody] UpdateCompensationRequestRequest request,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var updated = await _service.UpdateAsync(
             id,
             request,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request updated.", updated));
     }
@@ -105,12 +109,13 @@ public sealed class CompensationRequestsController : ControllerBase
         [FromBody] UpdateCompensationRequestStatusRequest request,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var updated = await _service.UpdateStatusAsync(
             id,
             request,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         return Ok(ApiResponse<CompensationRequestResponse>.Ok("Compensation request status updated.", updated));
     }
@@ -123,11 +128,12 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         await _service.DeleteAsync(
             id,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
 
         return NoContent();
@@ -145,15 +151,16 @@ public sealed class CompensationRequestsController : ControllerBase
             return BadRequest(ApiResponse<object>.Fail("No file uploaded."));
 
         using var stream = file.OpenReadStream();
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var uploaded = await _service.UploadDocumentAsync(
             id,
             stream,
             file.FileName,
             file.ContentType,
             file.Length,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
 
         return CreatedAtAction(nameof(GetDocumentFile), new { id, documentId = uploaded.Id }, ApiResponse<CompensationRequestDocumentResponse>.Ok("Document uploaded.", uploaded));
@@ -166,11 +173,12 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var documents = await _service.ListDocumentsAsync(
             id,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<CompensationRequestDocumentResponse>>.Ok("Documents loaded.", documents));
     }
@@ -184,12 +192,13 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid documentId,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var (stream, fileName, contentType) = await _service.GetDocumentFileAsync(
             id,
             documentId,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
 
         return File(stream, contentType, fileName);
@@ -203,21 +212,16 @@ public sealed class CompensationRequestsController : ControllerBase
         Guid documentId,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         await _service.DeleteDocumentAsync(
             id,
             documentId,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
 
         return NoContent();
     }
 
-    private string GetCurrentUserId()
-    {
-        return User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue("sub")
-            ?? throw new InvalidOperationException("Authenticated user id was not found.");
-    }
 }

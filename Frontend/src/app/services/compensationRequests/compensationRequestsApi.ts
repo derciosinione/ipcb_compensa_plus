@@ -13,10 +13,11 @@ import type {
 export const listCompensationRequests = async (
   status?: CompensationRequestStatus,
   teacherUserId?: string,
+  academicYearId?: string,
 ) => {
   const response = await authenticatedApiRequest<CompensationRequest[]>(
     coreApiBaseUrl,
-    buildApiPath("/api/compensation-requests", { status, teacherUserId }),
+    buildApiPath("/api/compensation-requests", { status, teacherUserId, academicYearId }),
   );
 
   return response.data ?? [];

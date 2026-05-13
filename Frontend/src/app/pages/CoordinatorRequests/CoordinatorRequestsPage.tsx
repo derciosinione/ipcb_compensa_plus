@@ -21,6 +21,7 @@ import {
 } from "../../services/compensationRequests/compensationRequestsApi";
 import type { CompensationRequest } from "../../services/compensationRequests/compensationRequestTypes";
 import { getErrorMessage } from "../../utils/errors";
+import { useAcademicYear } from "../../providers/AcademicYearContext";
 
 interface CoordinatorRequestsPageProps {
   userRole?: "coordinator" | "admin" | "teacher";
@@ -75,20 +76,22 @@ export const CoordinatorRequestsPage = ({
     null,
   );
   const [requestToReject, setRequestToReject] = useState<string | null>(null);
+  const { selectedYear } = useAcademicYear();
 
   const isAdmin = userRole === "admin";
   const itemsPerPage = viewMode === "board" ? 6 : 10;
 
   const loadRequests = useCallback(async () => {
+    if (!selectedYear) return;
     try {
-      const loadedRequests = await listCompensationRequests();
+      const loadedRequests = await listCompensationRequests(undefined, undefined, selectedYear.id);
       setRequests(loadedRequests.map(toClassRequest));
     } catch (error) {
       toast.error(
         getErrorMessage(error, "Unable to load compensation requests."),
       );
     }
-  }, []);
+  }, [selectedYear]);
 
   const isNearDate = (dateStr: string) => {
     const today = new Date();

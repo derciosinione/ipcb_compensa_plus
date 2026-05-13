@@ -27,6 +27,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import { Label } from "../../components/ui/label";
 import {
   Select,
@@ -98,6 +108,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [roomToDelete, setRoomToDelete] = useState<Classroom | null>(null);
   const [editingClassroom, setEditingClassroom] = useState<Classroom | null>(
     null,
   );
@@ -238,16 +249,18 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
     }
   };
 
-  const handleDelete = async (classroom: Classroom) => {
-    if (!window.confirm(`Delete classroom ${classroom.name}?`)) {
-      return;
-    }
+  const handleDelete = (classroom: Classroom) => {
+    setRoomToDelete(classroom);
+  };
+
+  const executeDelete = async () => {
+    if (!roomToDelete) return;
+    const roomId = roomToDelete.id;
+    setRoomToDelete(null);
 
     try {
-      await deleteClassroom(classroom.id);
-      setClassrooms((current) =>
-        current.filter((item) => item.id !== classroom.id),
-      );
+      await deleteClassroom(roomId);
+      setClassrooms((current) => current.filter((item) => item.id !== roomId));
       toast.success("Classroom deleted.");
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to delete classroom."));
@@ -529,6 +542,30 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
           </form>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={roomToDelete !== null}
+        onOpenChange={(open) => !open && setRoomToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Classroom</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the classroom "
+              {roomToDelete?.name}"? This action is permanent and will remove
+              it from all existing schedules.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

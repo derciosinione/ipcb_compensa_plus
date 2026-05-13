@@ -84,7 +84,13 @@ public sealed class AuthService : IAuthService
             .Include(t => t.User)
             .FirstOrDefaultAsync(t => t.Token == refreshToken, cancellationToken);
 
-        if (storedToken == null || !storedToken.IsActive)
+        if (storedToken == null)
+            return null;
+
+        var isActuallyExpired = storedToken.IsExpired;
+        var wasRevokedLongAgo = storedToken.RevokedAt != null && storedToken.RevokedAt < DateTime.UtcNow.AddSeconds(-60);
+
+        if (isActuallyExpired || wasRevokedLongAgo)
             return null;
 
         // Revoke current token
@@ -120,6 +126,7 @@ public sealed class AuthService : IAuthService
             roleArray,
             tokens.AccessToken,
             tokens.ExpiresAt,
-            tokens.RefreshToken);
+            tokens.RefreshToken,
+            refreshTokenEntity.ExpiresAt);
     }
 }

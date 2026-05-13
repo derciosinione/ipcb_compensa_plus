@@ -212,7 +212,8 @@ export const AddScheduleModal = ({
         dayOfWeek: parseInt(dayOfWeek),
         startTime,
         endTime,
-        unit: selectedUnit.name, // Use selected unit
+        unit: selectedUnit.name,
+        curricularUnitId: selectedUnit.id,
         type: componentType,
         room,
         course: selectedUnit.courseId,

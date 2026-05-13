@@ -75,7 +75,7 @@ export interface CurricularUnit {
 export interface ClassGroup {
   id: string;
   courseId: string;
-  curricularUnitId: string;
+  year: number;
   name: string;
   teacherId: string;
   isActive: boolean;
@@ -97,7 +97,7 @@ export interface ClassSchedule {
 }
 
 export interface UpsertClassGroupRequest {
-  curricularUnitId: string;
+  year: number;
   name: string;
   teacherId: string;
   isActive: boolean;
@@ -105,6 +105,7 @@ export interface UpsertClassGroupRequest {
 
 export interface UpsertClassScheduleRequest {
   academicYearId: string;
+  curricularUnitId: string;
   semester: 1 | 2;
   componentType: UnitComponentType;
   dayOfWeek: number;

@@ -1,8 +1,10 @@
+export { AcademicYearsPage } from "./academicYears/AcademicYearsPage";
 export { AiConverterPage } from "./AiConverter/AiConverterPage";
 export { CalendarPage } from "./Calendar/CalendarPage";
 export { ClassroomsPage } from "./Classrooms/ClassroomsPage";
 export { CoordinatorRequestsPage } from "./CoordinatorRequests/CoordinatorRequestsPage";
 export { CoursesPage } from "./Courses/CoursesPage";
+export { CourseDetailsPage } from "./Courses/CourseDetailsPage";
 export { DashboardPage } from "./Dashboard/DashboardPage";
 export { LoginPage } from "./Login/LoginPage";
 export { NotFoundPage } from "./NotFound/NotFoundPage";

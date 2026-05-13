@@ -77,7 +77,7 @@ services:
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
-      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-60}
+      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-1440}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
       IdentitySeed__AdminFullName: ${IDENTITY_SEED_ADMIN_FULL_NAME:-Compensa Admin}

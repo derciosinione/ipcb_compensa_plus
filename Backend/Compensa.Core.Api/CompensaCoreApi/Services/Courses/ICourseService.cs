@@ -6,19 +6,25 @@ public interface ICourseService
 {
     Task<IReadOnlyCollection<CourseResponse>> ListAsync(
         string? search,
+        Guid? academicYearId,
         string actorUserId,
+        string actorUserEmail,
         bool isCoordinator,
         bool isAdmin,
         CancellationToken cancellationToken = default);
     Task<CourseResponse> GetByIdAsync(
         Guid id,
+        Guid? academicYearId,
         string actorUserId,
+        string actorUserEmail,
         bool isCoordinator,
         bool isAdmin,
         CancellationToken cancellationToken = default);
     Task<CourseDetailsResponse> GetDetailsAsync(
         Guid id,
+        Guid? academicYearId,
         string actorUserId,
+        string actorUserEmail,
         bool isCoordinator,
         bool isAdmin,
         CancellationToken cancellationToken = default);

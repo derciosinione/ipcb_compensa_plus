@@ -6,6 +6,7 @@ export interface TimeSlot {
   startTime: string;
   endTime: string;
   unit: string;
+  curricularUnitId: string;
   type: "theoretical" | "practical";
   room: string;
   course: string;
@@ -50,6 +51,6 @@ export interface CurricularUnit {
 export interface ClassGroup {
   id: string;
   name: string;
-  unitId: string;
+  year: number;
   teacherId: string;
 }

@@ -4,6 +4,7 @@ import {
   saveAuthSession,
   clearAuthSession,
   mapVerifyResponseToSession,
+  getStoredActiveRole,
 } from "../auth/authSession";
 import type { VerifyMagicLinkResponse } from "../auth/authTypes";
 
@@ -72,6 +73,12 @@ export const apiRequest = async <T>(
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
+    
+    const activeRole = getStoredActiveRole();
+    if (activeRole) {
+      headers.set("X-Active-Role", activeRole);
+    }
+
     return fetch(`${baseUrl}${path}`, { ...options, headers });
   };
 

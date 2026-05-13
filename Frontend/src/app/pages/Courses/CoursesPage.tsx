@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   BookOpen,
   GraduationCap,
@@ -27,6 +28,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
 import { Label } from "../../components/ui/label";
 import {
   Select,
@@ -51,8 +62,8 @@ import type {
   CourseDegreeType,
   UpsertCourseRequest,
 } from "../../services/courses/courseTypes";
-import { CourseDetailsPage } from "./components/CourseDetailsPage";
-import { getErrorMessage } from "../../utils/errors";
+import { appPaths } from "../../routes/paths";
+import { useAcademicYear } from "../../providers/AcademicYearContext";
 
 interface CoursesPageProps {
   user: User;
@@ -94,17 +105,20 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [formState, setFormState] = useState<CourseFormState>(initialFormState);
+  const navigate = useNavigate();
   const { t } = useLanguage();
+  const { selectedYear } = useAcademicYear();
 
   const isAdmin = user.role === "admin";
 
   const loadCourses = async () => {
+    if (!selectedYear) return;
     try {
       setIsLoading(true);
-      const result = await listCourses();
+      const result = await listCourses(undefined, selectedYear.id);
       setCourses(result);
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to load courses."));
@@ -115,7 +129,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
 
   useEffect(() => {
     loadCourses();
-  }, []);
+  }, [selectedYear]);
 
   const visibleCourses = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -234,14 +248,18 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
     }
   };
 
-  const handleDelete = async (course: Course) => {
-    if (!window.confirm(`Delete course ${course.name}?`)) {
-      return;
-    }
+  const handleDelete = (course: Course) => {
+    setCourseToDelete(course);
+  };
+
+  const executeDelete = async () => {
+    if (!courseToDelete) return;
+    const courseId = courseToDelete.id;
+    setCourseToDelete(null);
 
     try {
-      await deleteCourse(course.id);
-      setCourses((current) => current.filter((item) => item.id !== course.id));
+      await deleteCourse(courseId);
+      setCourses((current) => current.filter((item) => item.id !== courseId));
       toast.success("Course deleted.");
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to delete course."));
@@ -254,18 +272,6 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
     return t("courses.subtitle_teacher");
   };
 
-  if (selectedCourse) {
-    return (
-      <CourseDetailsPage
-        courseId={selectedCourse.id}
-        course={selectedCourse}
-        userRole={user.role as "coordinator" | "teacher" | "admin"}
-        userId={user.id}
-        userEmail={user.email}
-        onBack={() => setSelectedCourse(null)}
-      />
-    );
-  }
 
   return (
     <div className="flex flex-col h-full animate-in fade-in duration-500">
@@ -312,7 +318,7 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
           {visibleCourses.map((course) => (
             <div
               key={course.id}
-              onClick={() => setSelectedCourse(course)}
+              onClick={() => navigate(appPaths.courseDetails.replace(":id", course.id))}
               className="group relative bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col h-full"
             >
               <div className="h-32 overflow-hidden relative">
@@ -609,6 +615,30 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
           </form>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={courseToDelete !== null}
+        onOpenChange={(open) => !open && setCourseToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Course</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the course "
+              {courseToDelete?.name}"? This action is permanent and will remove
+              all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

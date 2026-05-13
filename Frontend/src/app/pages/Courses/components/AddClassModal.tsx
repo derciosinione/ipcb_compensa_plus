@@ -25,13 +25,13 @@ interface AddClassModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (classData: Omit<ClassGroup, "id">) => void | Promise<void>;
-  units: CurricularUnit[];
+  durationYears: number;
   teachers: PlatformUser[];
 }
 
 interface FormData {
   name: string;
-  unitId: string;
+  year: number;
   teacherId: string;
 }
 
@@ -39,16 +39,16 @@ export const AddClassModal = ({
   isOpen,
   onClose,
   onSave,
-  units,
+  durationYears,
   teachers,
 }: AddClassModalProps) => {
-  const { register, handleSubmit, reset, setValue } = useForm<FormData>();
+  const { register, handleSubmit, reset, setValue, watch } = useForm<FormData>();
 
   useEffect(() => {
     if (isOpen) {
       reset({
         name: "",
-        unitId: "",
+        year: 1,
         teacherId: "",
       });
     }
@@ -57,8 +57,8 @@ export const AddClassModal = ({
   const onSubmit = async (data: FormData) => {
     const classData: Omit<ClassGroup, "id"> = {
       name: data.name,
-      unitId: data.unitId,
-      teacherId: data.teacherId,
+      year: Number(data.year),
+      teacherId: data.teacherId || "",
     };
 
     await onSave(classData);
@@ -66,6 +66,8 @@ export const AddClassModal = ({
 
   const getTeacherName = (teacher: PlatformUser) =>
     teacher.fullName || teacher.email;
+
+  const years = Array.from({ length: durationYears }, (_, i) => i + 1);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -75,7 +77,7 @@ export const AddClassModal = ({
             Add New Class
           </DialogTitle>
           <DialogDescription className="text-slate-500 dark:text-slate-400">
-            Create a new class group for a curricular unit.
+            Create a new class group for the course.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,20 +98,20 @@ export const AddClassModal = ({
           </div>
 
           <div className="space-y-2">
-            <Label
-              htmlFor="unitId"
-              className="text-slate-700 dark:text-slate-300 font-semibold"
-            >
-              Curricular Unit
+            <Label className="text-slate-700 dark:text-slate-300 font-semibold">
+              Academic Year
             </Label>
-            <Select onValueChange={(val) => setValue("unitId", val)}>
+            <Select
+              defaultValue="1"
+              onValueChange={(val) => setValue("year", Number(val))}
+            >
               <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
-                <SelectValue placeholder="Select unit" />
+                <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
-                {units.map((unit) => (
-                  <SelectItem key={unit.id} value={unit.id}>
-                    {unit.name} (Year {unit.year})
+                {years.map((y) => (
+                  <SelectItem key={y} value={y.toString()}>
+                    Year {y}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -121,13 +123,14 @@ export const AddClassModal = ({
               htmlFor="teacherId"
               className="text-slate-700 dark:text-slate-300 font-semibold"
             >
-              Teacher
+              Teacher (Optional)
             </Label>
             <Select onValueChange={(val) => setValue("teacherId", val)}>
               <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
                 <SelectValue placeholder="Select teacher" />
               </SelectTrigger>
               <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
+                <SelectItem value="unassigned">None / Unassigned</SelectItem>
                 {teachers.map((teacher) => (
                   <SelectItem key={teacher.id} value={teacher.id}>
                     {getTeacherName(teacher)}
@@ -135,10 +138,6 @@ export const AddClassModal = ({
                 ))}
               </SelectContent>
             </Select>
-            <input
-              type="hidden"
-              {...register("teacherId", { required: true })}
-            />
           </div>
 
           <DialogFooter className="pt-4 border-t border-slate-100 dark:border-slate-800 gap-2">

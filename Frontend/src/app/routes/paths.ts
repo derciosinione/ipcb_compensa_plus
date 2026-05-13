@@ -7,6 +7,7 @@ export const appPaths = {
   calendar: "/calendar",
   notifications: "/notifications",
   courses: "/courses",
+  courseDetails: "/courses/:id",
   classrooms: "/classrooms",
   users: "/users",
   systemCalendar: "/system-calendar",
@@ -14,6 +15,7 @@ export const appPaths = {
   profile: "/profile",
   settings: "/settings",
   preferences: "/preferences",
+  academicYears: "/academic-years",
 } as const;
 
 export type AppPath = (typeof appPaths)[keyof typeof appPaths];

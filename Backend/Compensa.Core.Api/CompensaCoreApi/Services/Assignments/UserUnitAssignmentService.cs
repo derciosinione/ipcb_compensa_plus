@@ -1,26 +1,36 @@
 using System.Collections.Generic;
 using System.Linq;
 using CompensaCoreApi.Domain.Assignments;
+using CompensaCoreApi.Domain.Courses;
 using CompensaCoreApi.Dtos.Assignments;
 using CompensaCoreApi.Repositories.Assignments;
+using CompensaCoreApi.Repositories.Courses;
+using CompensaCoreApi.Repositories.AcademicYears;
 
 namespace CompensaCoreApi.Services.Assignments;
 
 public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
 {
     private readonly IUserUnitAssignmentRepository _repository;
+    private readonly ICourseRepository _courseRepository;
+    private readonly IAcademicYearRepository _academicYearRepository;
 
-    public UserUnitAssignmentService(IUserUnitAssignmentRepository repository)
+    public UserUnitAssignmentService(
+        IUserUnitAssignmentRepository repository,
+        ICourseRepository courseRepository,
+        IAcademicYearRepository academicYearRepository)
     {
         _repository = repository;
+        _courseRepository = courseRepository;
+        _academicYearRepository = academicYearRepository;
     }
 
     public async Task<UserAcademicAssignmentsResponse> ListByUserAsync(
         string userId,
         CancellationToken cancellationToken = default)
     {
-        var unitAssignments = await _repository.ListByUserAsync(userId, cancellationToken);
-        var courseAssignments = await _repository.ListCoursesByUserAsync(userId, cancellationToken);
+        var unitAssignments = await _repository.ListByUserAsync(userId, cancellationToken: cancellationToken);
+        var courseAssignments = await _repository.ListCoursesByUserAsync(userId, cancellationToken: cancellationToken);
 
         var courseIds = courseAssignments.Select(c => c.CourseId)
             .Concat(unitAssignments.Select(u => u.CourseId))
@@ -68,17 +78,26 @@ public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
         if (courses.Count != requestedCourseIds.Length)
             throw new InvalidOperationException("One or more courses do not exist.");
 
+        var activeYear = await _academicYearRepository.GetActiveAsync(cancellationToken);
+        var unitOfferings = activeYear != null
+            ? await _courseRepository.ListUnitOfferingsAsync(unitIds, activeYear.Id, cancellationToken)
+            : new List<CurricularUnitOffering>();
+
         var now = DateTimeOffset.UtcNow;
         var unitAssignments = units
-            .Select(unit => new UserUnitAssignment
+            .Select(unit =>
             {
-                UserId = normalizedUserId,
-                UserEmail = normalizedEmail,
-                CourseId = unit.CourseId,
-                CurricularUnitId = unit.Id,
-                IsResponsible = unit.ResponsibleTeacherId == normalizedUserId,
-                CreatedAt = now,
-                UpdatedAt = now
+                var offering = unitOfferings.FirstOrDefault(o => o.CurricularUnitId == unit.Id);
+                return new UserUnitAssignment
+                {
+                    UserId = normalizedUserId,
+                    UserEmail = normalizedEmail,
+                    CourseId = unit.CourseId,
+                    CurricularUnitId = unit.Id,
+                    IsResponsible = offering?.ResponsibleTeacherId == normalizedUserId,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
             })
             .ToArray();
 

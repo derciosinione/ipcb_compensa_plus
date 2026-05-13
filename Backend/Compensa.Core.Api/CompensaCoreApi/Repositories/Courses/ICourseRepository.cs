@@ -9,8 +9,17 @@ public interface ICourseRepository
     Task<Course?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Course>> ListCoordinatedByAsync(string coordinatorUserId, CancellationToken cancellationToken = default);
     Task<Course?> GetByAbbreviationAsync(string abbreviation, CancellationToken cancellationToken = default);
+    
+    Task<CourseOffering?> GetOfferingAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CourseOffering>> ListOfferingsAsync(Guid academicYearId, CancellationToken cancellationToken = default);
+    
     Task<IReadOnlyCollection<CurricularUnit>> ListUnitsAsync(Guid courseId, CancellationToken cancellationToken = default);
     Task<CurricularUnit?> GetUnitByIdAsync(Guid courseId, Guid unitId, CancellationToken cancellationToken = default);
+    
+    Task<CurricularUnitOffering?> GetUnitOfferingAsync(Guid unitId, Guid academicYearId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CurricularUnitOffering>> ListUnitOfferingsAsync(Guid academicYearId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CurricularUnitOffering>> ListUnitOfferingsAsync(IReadOnlyCollection<Guid> unitIds, Guid academicYearId, CancellationToken cancellationToken = default);
+    
     Task<IReadOnlyCollection<CurricularUnitComponent>> ListComponentsAsync(Guid courseId, CancellationToken cancellationToken = default);
     Task<CurricularUnitComponent?> GetComponentByIdAsync(Guid courseId, Guid unitId, Guid componentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<UserUnitAssignment>> ListUnitAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default);
@@ -33,6 +42,10 @@ public interface ICourseRepository
     Task AddComponentAsync(CurricularUnitComponent component, CancellationToken cancellationToken = default);
     Task AddClassGroupAsync(ClassGroup classGroup, CancellationToken cancellationToken = default);
     Task AddClassScheduleAsync(ClassSchedule schedule, CancellationToken cancellationToken = default);
+    
+    Task AddOfferingAsync(CourseOffering offering, CancellationToken cancellationToken = default);
+    Task AddUnitOfferingAsync(CurricularUnitOffering offering, CancellationToken cancellationToken = default);
+    
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task DeleteAsync(Course course, CancellationToken cancellationToken = default);
     Task DeleteUnitAsync(CurricularUnit unit, CancellationToken cancellationToken = default);

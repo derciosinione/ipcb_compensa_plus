@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router";
 import { Toaster } from "sonner";
 import { LanguageProvider } from "./LanguageContext";
 import { ThemeProvider } from "../components/ui/theme-provider";
+import { AcademicYearProvider } from "./AcademicYearContext";
 
 interface AppProvidersProps {
   children: React.ReactNode;
@@ -27,8 +28,10 @@ export const AppProviders = ({ children }: AppProvidersProps) => {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light" storageKey="compensa-theme">
         <LanguageProvider>
-          <Toaster richColors position="top-right" />
-          <BrowserRouter>{children}</BrowserRouter>
+          <AcademicYearProvider>
+            <Toaster richColors position="top-right" />
+            <BrowserRouter>{children}</BrowserRouter>
+          </AcademicYearProvider>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>

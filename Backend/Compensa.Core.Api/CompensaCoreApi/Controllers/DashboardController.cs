@@ -1,6 +1,7 @@
 using CompensaCoreApi.Contracts;
 using CompensaCoreApi.Dtos.Dashboard;
 using CompensaCoreApi.Services.Dashboard;
+using CompensaCoreApi.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,7 +24,12 @@ public sealed class DashboardController : ControllerBase
     public async Task<ActionResult<ApiResponse<DashboardSummaryResponse>>> GetSummary(
         CancellationToken cancellationToken)
     {
-        var summary = await _service.GetSummaryAsync(cancellationToken);
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
+        var summary = await _service.GetSummaryAsync(
+            this.GetCurrentUserId(),
+            isCoordinator,
+            isAdmin,
+            cancellationToken);
         return Ok(ApiResponse<DashboardSummaryResponse>.Ok("Dashboard summary loaded.", summary));
     }
 }

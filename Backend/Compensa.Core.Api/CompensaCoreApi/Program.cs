@@ -140,7 +140,7 @@ builder.Services.AddScoped<IDocumentStorageService, LocalDocumentStorageService>
 
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = builder.Configuration["Redis__ConnectionString"] ?? "localhost:6379";
+    options.Configuration = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
     options.InstanceName = "CompensaCore_";
 });
 

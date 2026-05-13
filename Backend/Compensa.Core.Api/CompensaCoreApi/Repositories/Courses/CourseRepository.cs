@@ -46,9 +46,11 @@ public sealed class CourseRepository : ICourseRepository
 
     public async Task<IReadOnlyCollection<Course>> ListCoordinatedByAsync(string coordinatorUserId, CancellationToken cancellationToken = default)
     {
-        return await _context.Courses
+        return await _context.CourseOfferings
             .AsNoTracking()
-            .Where(course => course.CoordinatorUserId == coordinatorUserId)
+            .Where(offering => offering.CoordinatorUserId == coordinatorUserId)
+            .Select(offering => offering.Course!)
+            .Distinct()
             .ToArrayAsync(cancellationToken);
     }
 
@@ -58,6 +60,22 @@ public sealed class CourseRepository : ICourseRepository
         return _context.Courses.FirstOrDefaultAsync(
             course => course.Abbreviation.ToLower() == normalizedAbbreviation,
             cancellationToken);
+    }
+
+    public Task<CourseOffering?> GetOfferingAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default)
+    {
+        return _context.CourseOfferings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.CourseId == courseId && o.AcademicYearId == academicYearId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CourseOffering>> ListOfferingsAsync(Guid academicYearId, CancellationToken cancellationToken = default)
+    {
+        return await _context.CourseOfferings
+            .AsNoTracking()
+            .Where(o => o.AcademicYearId == academicYearId)
+            .Include(o => o.Course)
+            .ToArrayAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<CurricularUnit>> ListUnitsAsync(
@@ -81,6 +99,30 @@ public sealed class CourseRepository : ICourseRepository
         return _context.CurricularUnits.FirstOrDefaultAsync(
             unit => unit.CourseId == courseId && unit.Id == unitId,
             cancellationToken);
+    }
+
+    public Task<CurricularUnitOffering?> GetUnitOfferingAsync(Guid unitId, Guid academicYearId, CancellationToken cancellationToken = default)
+    {
+        return _context.CurricularUnitOfferings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.CurricularUnitId == unitId && o.AcademicYearId == academicYearId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CurricularUnitOffering>> ListUnitOfferingsAsync(Guid academicYearId, CancellationToken cancellationToken = default)
+    {
+        return await _context.CurricularUnitOfferings
+            .AsNoTracking()
+            .Where(o => o.AcademicYearId == academicYearId)
+            .Include(o => o.CurricularUnit)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CurricularUnitOffering>> ListUnitOfferingsAsync(IReadOnlyCollection<Guid> unitIds, Guid academicYearId, CancellationToken cancellationToken = default)
+    {
+        return await _context.CurricularUnitOfferings
+            .AsNoTracking()
+            .Where(o => o.AcademicYearId == academicYearId && unitIds.Contains(o.CurricularUnitId))
+            .ToArrayAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(
@@ -247,6 +289,18 @@ public sealed class CourseRepository : ICourseRepository
     public async Task AddClassScheduleAsync(ClassSchedule schedule, CancellationToken cancellationToken = default)
     {
         _context.ClassSchedules.Add(schedule);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddOfferingAsync(CourseOffering offering, CancellationToken cancellationToken = default)
+    {
+        _context.CourseOfferings.Add(offering);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddUnitOfferingAsync(CurricularUnitOffering offering, CancellationToken cancellationToken = default)
+    {
+        _context.CurricularUnitOfferings.Add(offering);
         await _context.SaveChangesAsync(cancellationToken);
     }
 

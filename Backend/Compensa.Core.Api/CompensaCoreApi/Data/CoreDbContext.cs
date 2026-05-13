@@ -21,6 +21,8 @@ public sealed class CoreDbContext : DbContext
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CurricularUnit> CurricularUnits => Set<CurricularUnit>();
     public DbSet<CurricularUnitComponent> CurricularUnitComponents => Set<CurricularUnitComponent>();
+    public DbSet<CourseOffering> CourseOfferings => Set<CourseOffering>();
+    public DbSet<CurricularUnitOffering> CurricularUnitOfferings => Set<CurricularUnitOffering>();
     public DbSet<ClassGroup> ClassGroups => Set<ClassGroup>();
     public DbSet<ClassSchedule> ClassSchedules => Set<ClassSchedule>();
     public DbSet<CourseTeacherAssignment> CourseTeacherAssignments => Set<CourseTeacherAssignment>();
@@ -129,12 +131,12 @@ public sealed class CoreDbContext : DbContext
             entity.HasOne<ClassGroup>()
                 .WithMany()
                 .HasForeignKey(request => request.ClassGroupId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<ClassSchedule>()
                 .WithMany()
                 .HasForeignKey(request => request.OriginalClassScheduleId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne<Classroom>()
                 .WithMany()
@@ -220,17 +222,6 @@ public sealed class CoreDbContext : DbContext
                 .HasMaxLength(32)
                 .IsRequired();
 
-            entity.Property(course => course.Description)
-                .HasMaxLength(1000)
-                .IsRequired();
-
-            entity.Property(course => course.CoordinatorUserId)
-                .HasMaxLength(128);
-
-            entity.Property(course => course.ImageUrl)
-                .HasMaxLength(1000)
-                .IsRequired();
-
             entity.HasIndex(course => course.Abbreviation)
                 .IsUnique();
         });
@@ -243,14 +234,6 @@ public sealed class CoreDbContext : DbContext
 
             entity.Property(unit => unit.Name)
                 .HasMaxLength(200)
-                .IsRequired();
-
-            entity.Property(unit => unit.ResponsibleTeacherId)
-                .HasMaxLength(128)
-                .IsRequired();
-
-            entity.Property(unit => unit.ResponsibleTeacherEmail)
-                .HasMaxLength(256)
                 .IsRequired();
 
             entity.HasIndex(unit => new { unit.CourseId, unit.Name })
@@ -310,10 +293,9 @@ public sealed class CoreDbContext : DbContext
                 .IsRequired();
 
             entity.Property(group => group.TeacherId)
-                .HasMaxLength(128)
-                .IsRequired();
+                .HasMaxLength(128);
 
-            entity.HasIndex(group => new { group.CurricularUnitId, group.Name })
+            entity.HasIndex(group => new { group.CourseId, group.AcademicYearId, group.Year, group.Name })
                 .IsUnique();
 
             entity.HasOne<Course>()
@@ -321,9 +303,50 @@ public sealed class CoreDbContext : DbContext
                 .HasForeignKey(group => group.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne<CurricularUnit>()
+            entity.HasOne<AcademicYear>()
                 .WithMany()
-                .HasForeignKey(group => group.CurricularUnitId)
+                .HasForeignKey(group => group.AcademicYearId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CourseOffering>(entity =>
+        {
+            entity.ToTable("course_offerings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.ImageUrl).HasMaxLength(1000);
+            entity.Property(e => e.CoordinatorUserId).HasMaxLength(128);
+
+            entity.HasIndex(e => new { e.CourseId, e.AcademicYearId }).IsUnique();
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AcademicYear)
+                .WithMany()
+                .HasForeignKey(e => e.AcademicYearId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CurricularUnitOffering>(entity =>
+        {
+            entity.ToTable("curricular_unit_offerings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ResponsibleTeacherId).HasMaxLength(128);
+            entity.Property(e => e.ResponsibleTeacherEmail).HasMaxLength(256);
+
+            entity.HasIndex(e => new { e.CurricularUnitId, e.AcademicYearId }).IsUnique();
+
+            entity.HasOne(e => e.CurricularUnit)
+                .WithMany()
+                .HasForeignKey(e => e.CurricularUnitId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AcademicYear)
+                .WithMany()
+                .HasForeignKey(e => e.AcademicYearId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

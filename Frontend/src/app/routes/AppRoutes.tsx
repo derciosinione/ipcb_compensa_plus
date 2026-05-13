@@ -7,6 +7,7 @@ import type { AuthenticatedUser, UserRole } from "../types/user";
 import { appPaths } from "./paths";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { getProtectedRouteDefinitions } from "./routeConfig";
+import { PageTitle } from "../components/common/PageTitle";
 
 interface AppRoutesProps {
   authView: AuthView;
@@ -44,28 +45,36 @@ export const AppRoutes = ({
           isAuthenticated ? (
             <Navigate to={appPaths.dashboard} replace />
           ) : (
-            <LoginPage
-              authView={authView}
-              onAuthViewChange={onAuthViewChange}
-              onLogin={onLogin}
-            />
+            <PageTitle title={authView === "signin" ? "Sign In" : "Sign Up"}>
+              <LoginPage
+                authView={authView}
+                onAuthViewChange={onAuthViewChange}
+                onLogin={onLogin}
+              />
+            </PageTitle>
           )
         }
       />
       <Route
         path={appPaths.authVerify}
-        element={<VerifyMagicLinkPage onAuthenticated={onLogin} />}
+        element={
+          <PageTitle title="Verifying Access">
+            <VerifyMagicLinkPage onAuthenticated={onLogin} />
+          </PageTitle>
+        }
       />
 
       <Route
         element={
-          <ProtectedRoute isAuthenticated={canRenderProtectedShell}>
+          isAuthenticated && user ? (
             <AppShell
-              user={user!}
+              user={user}
               onLogout={onLogout}
               onRoleChange={onRoleChange}
             />
-          </ProtectedRoute>
+          ) : (
+            <Navigate to={appPaths.login} replace />
+          )
         }
       >
         <Route
@@ -82,7 +91,7 @@ export const AppRoutes = ({
                 user={user}
                 allowedRoles={route.allowedRoles}
               >
-                {route.element}
+                <PageTitle title={route.title}>{route.element}</PageTitle>
               </ProtectedRoute>
             }
           />

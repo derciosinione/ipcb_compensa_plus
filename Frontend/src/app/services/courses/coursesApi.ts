@@ -17,10 +17,10 @@ import type {
   UpsertCurricularUnitRequest,
 } from "./courseTypes";
 
-export const listCourses = async (search?: string) => {
+export const listCourses = async (search?: string, academicYearId?: string) => {
   const response = await authenticatedApiRequest<Course[]>(
     coreApiBaseUrl,
-    buildApiPath("/api/courses", { search }),
+    buildApiPath("/api/courses", { search, academicYearId }),
   );
 
   return response.data ?? [];
@@ -39,10 +39,10 @@ export const createCourse = async (request: UpsertCourseRequest) => {
   return response.data;
 };
 
-export const getCourseDetails = async (id: string) => {
+export const getCourseDetails = async (id: string, academicYearId?: string) => {
   const response = await authenticatedApiRequest<CourseDetails>(
     coreApiBaseUrl,
-    `/api/courses/${id}/details`,
+    buildApiPath(`/api/courses/${id}/details`, { academicYearId }),
   );
 
   return response.data;

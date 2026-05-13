@@ -36,10 +36,13 @@ export const mapVerifyResponseToSession = (
 export const mapSessionToUser = (session: AuthSession): AuthenticatedUser => {
   const roles = session.user.roles.map(normalizeRole);
   const storedActiveRole = getStoredActiveRole();
-  const activeRole =
-    storedActiveRole && roles.includes(storedActiveRole)
-      ? storedActiveRole
-      : (roles[0] ?? "teacher");
+  let activeRole = storedActiveRole;
+  
+  if (!activeRole || !roles.includes(activeRole)) {
+    activeRole = roles[0] ?? "teacher";
+    // Persist the default role so headers are sent correctly even on first load
+    saveActiveRole(activeRole);
+  }
 
   return {
     id: session.user.id,
@@ -107,7 +110,7 @@ export const saveActiveRole = (role: UserRole) => {
   localStorage.setItem(activeRoleStorageKey, role);
 };
 
-const getStoredActiveRole = (): UserRole | null => {
+export const getStoredActiveRole = (): UserRole | null => {
   const role = localStorage.getItem(activeRoleStorageKey);
 
   if (!role) {

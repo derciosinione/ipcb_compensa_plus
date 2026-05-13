@@ -53,10 +53,9 @@ import {
 } from "../config/navigation";
 import { appPaths, resolveAppPath } from "../routes/paths";
 import { type NotificationDto } from "../services/api/notificationsApi";
-import {
-  useMarkNotificationReadMutation,
-  useNotificationsQuery,
-} from "../services/notifications/notificationQueries";
+import { useMarkNotificationReadMutation, useNotificationsQuery } from "../services/notifications/notificationQueries";
+import { AcademicYearSelector } from "../components/AcademicYearSelector";
+import { useAcademicYear } from "../providers/AcademicYearContext";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -74,6 +73,7 @@ export const Layout = ({
   const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
+  const { selectedYear } = useAcademicYear();
   const currentPath = location.pathname;
 
   const [selectedNotification, setSelectedNotification] =
@@ -133,60 +133,65 @@ export const Layout = ({
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
-                  {sidebarItems.map((item) => (
-                    <SidebarMenuItem
-                      key={item.path}
-                      className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
-                    >
-                      <SidebarMenuButton
-                        asChild
-                        isActive={
-                          currentPath === item.path ||
-                          (currentPath === appPaths.root &&
-                            item.path === appPaths.dashboard)
-                        }
-                        tooltip={{
-                          children: item.label,
-                          className:
-                            "bg-slate-900 text-slate-50 border-slate-800 dark:bg-slate-100 dark:text-slate-900 font-medium",
-                        }}
-                        className={cn(
-                          "transition-all duration-200",
-                          "w-full justify-start",
-                          "group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl",
-                          currentPath === item.path
-                            ? "bg-blue-50 text-blue-600 font-medium dark:bg-blue-900/20 dark:text-blue-400 shadow-sm"
-                            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
-                        )}
+                  {sidebarItems.map((item) => {
+                    const isActive =
+                      currentPath === item.path ||
+                      (currentPath.startsWith(item.path + "/") &&
+                        item.path !== appPaths.root) ||
+                      (currentPath === appPaths.root &&
+                        item.path === appPaths.dashboard);
+
+                    return (
+                      <SidebarMenuItem
+                        key={item.path}
+                        className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
                       >
-                        <Link to={item.path}>
-                          <item.icon
-                            className={cn(
-                              "h-5 w-5 shrink-0 transition-colors",
-                              currentPath === item.path
-                                ? "text-blue-600 dark:text-blue-400"
-                                : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300",
-                            )}
-                          />
-                          <span className="group-data-[collapsible=icon]:hidden font-medium">
-                            {item.label}
-                          </span>
-                          {item.badge && (
-                            <SidebarMenuBadge
-                              className={cn(
-                                "ml-auto group-data-[collapsible=icon]:hidden",
-                                currentPath === item.path
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                                  : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
-                              )}
-                            >
-                              {item.badge}
-                            </SidebarMenuBadge>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          tooltip={{
+                            children: item.label,
+                            className:
+                              "bg-slate-900 text-slate-50 border-slate-800 dark:bg-slate-100 dark:text-slate-900 font-medium",
+                          }}
+                          className={cn(
+                            "transition-all duration-200",
+                            "w-full justify-start",
+                            "group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl",
+                            isActive
+                              ? "bg-blue-50 text-blue-600 font-medium dark:bg-blue-900/20 dark:text-blue-400 shadow-sm"
+                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
                           )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                        >
+                          <Link to={item.path}>
+                            <item.icon
+                              className={cn(
+                                "h-5 w-5 shrink-0 transition-colors",
+                                isActive
+                                  ? "text-blue-600 dark:text-blue-400"
+                                  : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300",
+                              )}
+                            />
+                            <span className="group-data-[collapsible=icon]:hidden font-medium">
+                              {item.label}
+                            </span>
+                            {item.badge && (
+                              <SidebarMenuBadge
+                                className={cn(
+                                  "ml-auto group-data-[collapsible=icon]:hidden",
+                                  isActive
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+                                )}
+                              >
+                                {item.badge}
+                              </SidebarMenuBadge>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -198,37 +203,51 @@ export const Layout = ({
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
-                    {adminItems.map((item) => (
-                      <SidebarMenuItem
-                        key={item.path}
-                        className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
-                      >
-                        <SidebarMenuButton
-                          asChild
-                          isActive={currentPath === item.path}
-                          tooltip={{
-                            children: item.label,
-                            className:
-                              "bg-slate-900 text-slate-50 border-slate-800 dark:bg-slate-100 dark:text-slate-900 font-medium",
-                          }}
-                          className={cn(
-                            "transition-all duration-200",
-                            "w-full justify-start",
-                            "group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl",
-                            currentPath === item.path
-                              ? "bg-blue-50 text-blue-600 font-medium dark:bg-blue-900/20 dark:text-blue-400 shadow-sm"
-                              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
-                          )}
+                    {adminItems.map((item) => {
+                      const isActive =
+                        currentPath === item.path ||
+                        (currentPath.startsWith(item.path + "/") &&
+                          item.path !== appPaths.root);
+
+                      return (
+                        <SidebarMenuItem
+                          key={item.path}
+                          className="group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
                         >
-                          <Link to={item.path}>
-                            <item.icon className="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400" />
-                            <span className="group-data-[collapsible=icon]:hidden font-medium">
-                              {item.label}
-                            </span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                          <SidebarMenuButton
+                            asChild
+                            isActive={isActive}
+                            tooltip={{
+                              children: item.label,
+                              className:
+                                "bg-slate-900 text-slate-50 border-slate-800 dark:bg-slate-100 dark:text-slate-900 font-medium",
+                            }}
+                            className={cn(
+                              "transition-all duration-200",
+                              "w-full justify-start",
+                              "group-data-[collapsible=icon]:!w-10 group-data-[collapsible=icon]:!h-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl",
+                              isActive
+                                ? "bg-blue-50 text-blue-600 font-medium dark:bg-blue-900/20 dark:text-blue-400 shadow-sm"
+                                : "text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100",
+                            )}
+                          >
+                            <Link to={item.path}>
+                              <item.icon
+                                className={cn(
+                                  "h-5 w-5 shrink-0 transition-colors",
+                                  isActive
+                                    ? "text-blue-600 dark:text-blue-400"
+                                    : "text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300",
+                                )}
+                              />
+                              <span className="group-data-[collapsible=icon]:hidden font-medium">
+                                {item.label}
+                              </span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
@@ -238,19 +257,7 @@ export const Layout = ({
           <SidebarFooter className="border-t border-slate-100 dark:border-slate-800 p-4 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             {/* Mobile Academic Year Info */}
             <div className="md:hidden mb-4 group-data-[collapsible=icon]:hidden">
-              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-1.5 uppercase font-bold tracking-wider">
-                  {t("header.academic_year")}
-                </p>
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                    2023/24
-                  </span>
-                  <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {t("header.active")}
-                  </span>
-                </div>
-              </div>
+              <AcademicYearSelector />
             </div>
 
             <SidebarMenu className="group-data-[collapsible=icon]:items-center">
@@ -284,12 +291,7 @@ export const Layout = ({
               <SidebarTrigger className="-ml-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100" />
               <div className="hidden md:block h-6 w-px bg-slate-200 dark:bg-slate-700" />
               <div className="hidden md:flex items-center text-sm text-slate-500 dark:text-slate-400">
-                <span className="font-medium text-slate-900 dark:text-slate-100 mr-2">
-                  {t("header.academic_year")} 2023/24
-                </span>
-                <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  {t("header.active")}
-                </span>
+                <AcademicYearSelector />
               </div>
             </div>
 

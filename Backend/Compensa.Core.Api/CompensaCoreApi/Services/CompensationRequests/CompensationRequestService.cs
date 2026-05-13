@@ -171,7 +171,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             null,
             compensationRequest);
 
-        var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
+        var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, academicYear.Id, cancellationToken);
         foreach (var coordinatorUserId in coordinatorUserIds)
         {
             await _publishEndpoint.Publish(new RequestCreatedEvent
@@ -316,7 +316,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             previousState,
             new { compensationRequest.Status, compensationRequest.DecisionComment });
 
-        var decisionCoordinatorIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
+        var decisionCoordinatorIds = await GetCourseCoordinatorUserIdsAsync(course, compensationRequest.AcademicYearId ?? Guid.Empty, cancellationToken);
         foreach (var coordinatorUserId in decisionCoordinatorIds.DefaultIfEmpty(actorUserId))
         {
             await _publishEndpoint.Publish(new RequestStatusUpdatedEvent
@@ -512,7 +512,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (isCoordinator && request.CourseId.HasValue)
         {
             var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
-            if (course != null && await CanCoordinateCourseAsync(actorUserId, course, cancellationToken))
+            if (course != null && await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId ?? Guid.Empty, cancellationToken))
             {
                 return true;
             }
@@ -531,12 +531,13 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
         if (course == null) return false;
         
-        return await CanCoordinateCourseAsync(actorUserId, course, cancellationToken);
+        return await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
     }
 
     private async Task<bool> HasCourseRelationshipAsync(
         string actorUserId,
         Guid? courseId,
+        Guid? academicYearId,
         CancellationToken cancellationToken)
     {
         if (!courseId.HasValue)
@@ -546,26 +547,32 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (course is null)
             return false;
 
-        if (course.CoordinatorUserId == actorUserId)
-            return true;
+        if (academicYearId.HasValue)
+        {
+            var offering = await _courseRepository.GetOfferingAsync(course.Id, academicYearId.Value, cancellationToken);
+            if (offering?.CoordinatorUserId == actorUserId)
+                return true;
+        }
 
-        var unitAssignments = await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken);
+        var unitAssignments = await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken: cancellationToken);
         if (unitAssignments.Any(assignment => assignment.CourseId == course.Id))
             return true;
 
-        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken);
         return courseAssignments.Any(assignment => assignment.CourseId == course.Id);
     }
 
     private async Task<bool> CanCoordinateCourseAsync(
         string actorUserId,
         Course course,
+        Guid academicYearId,
         CancellationToken cancellationToken)
     {
-        if (course.CoordinatorUserId == actorUserId)
+        var offering = await _courseRepository.GetOfferingAsync(course.Id, academicYearId, cancellationToken);
+        if (offering?.CoordinatorUserId == actorUserId)
             return true;
 
-        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken);
         return courseAssignments.Any(assignment => assignment.CourseId == course.Id && assignment.IsCoordinator);
     }
 
@@ -575,7 +582,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         CancellationToken cancellationToken)
     {
         var allowedRequests = new List<CompensationRequest>();
-        var coordinatedCourseIds = (await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken))
+        var coordinatedCourseIds = (await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken))
             .Where(a => a.IsCoordinator)
             .Select(a => a.CourseId)
             .ToList();
@@ -634,7 +641,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (request.TeacherUserId == actorUserId)
             return;
 
-        if (isCoordinator && await CanCoordinateCourseAsync(actorUserId, course, cancellationToken))
+        if (isCoordinator && await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId, cancellationToken))
             return;
 
         throw new ForbiddenException("You don't have permission to create requests for this course.");
@@ -721,8 +728,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (classGroup.TeacherId == request.TeacherUserId)
             return;
 
-        var assignments = await _assignmentRepository.ListByUserAsync(request.TeacherUserId, cancellationToken);
-        if (assignments.Any(assignment => assignment.CurricularUnitId == classGroup.CurricularUnitId))
+        var assignments = await _assignmentRepository.ListByUserAsync(request.TeacherUserId, cancellationToken: cancellationToken);
+        if (assignments.Any(assignment => assignment.CurricularUnitId == request.CurricularUnitId))
             return;
 
         throw new InvalidOperationException("Teacher is not assigned to the selected curricular unit or class group.");
@@ -747,10 +754,11 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken)
             ?? throw new NotFoundException($"Course '{request.CourseId}' was not found.");
 
-        if (course.CoordinatorUserId == actorUserId)
+        var offering = await _courseRepository.GetOfferingAsync(course.Id, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+        if (offering?.CoordinatorUserId == actorUserId)
             return;
 
-        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken);
         if (courseAssignments.Any(assignment => assignment.CourseId == request.CourseId && assignment.IsCoordinator))
             return;
 
@@ -759,6 +767,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
     private async Task<string[]> GetCourseCoordinatorUserIdsAsync(
         Course course,
+        Guid academicYearId,
         CancellationToken cancellationToken)
     {
         var assignmentCoordinatorIds = (await _courseRepository.ListCourseAssignmentsAsync(course.Id, cancellationToken))
@@ -766,8 +775,10 @@ public sealed class CompensationRequestService : ICompensationRequestService
             .Select(assignment => assignment.UserId)
             .Where(userId => !string.IsNullOrWhiteSpace(userId));
 
+        var offering = await _courseRepository.GetOfferingAsync(course.Id, academicYearId, cancellationToken);
+
         return assignmentCoordinatorIds
-            .Concat(string.IsNullOrWhiteSpace(course.CoordinatorUserId) ? [] : [course.CoordinatorUserId])
+            .Concat(string.IsNullOrWhiteSpace(offering?.CoordinatorUserId) ? [] : [offering!.CoordinatorUserId])
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }

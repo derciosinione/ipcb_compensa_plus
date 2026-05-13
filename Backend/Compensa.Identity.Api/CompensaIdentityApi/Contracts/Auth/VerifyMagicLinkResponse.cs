@@ -7,4 +7,5 @@ public sealed record VerifyMagicLinkResponse(
     IReadOnlyCollection<string> Roles,
     string AccessToken,
     DateTimeOffset AccessTokenExpiresAt,
-    string RefreshToken);
+    string RefreshToken,
+    DateTimeOffset RefreshTokenExpiresAt);

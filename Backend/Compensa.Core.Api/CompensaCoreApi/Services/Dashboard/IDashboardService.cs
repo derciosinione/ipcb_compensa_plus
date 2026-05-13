@@ -4,5 +4,9 @@ namespace CompensaCoreApi.Services.Dashboard;
 
 public interface IDashboardService
 {
-    Task<DashboardSummaryResponse> GetSummaryAsync(CancellationToken cancellationToken = default);
+    Task<DashboardSummaryResponse> GetSummaryAsync(
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
 }

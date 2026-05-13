@@ -126,16 +126,15 @@ public sealed class GlobalSearchService : IGlobalSearchService
         var classGroups = await (
                 from classGroup in _dbContext.ClassGroups.AsNoTracking()
                 join course in _dbContext.Courses.AsNoTracking() on classGroup.CourseId equals course.Id
-                join unit in _dbContext.CurricularUnits.AsNoTracking() on classGroup.CurricularUnitId equals unit.Id
                 where EF.Functions.ILike(classGroup.Name, likeQuery)
                 orderby classGroup.Name
                 select new
                 {
                     classGroup.Id,
                     classGroup.Name,
+                    classGroup.Year,
                     CourseId = course.Id,
-                    course.Abbreviation,
-                    UnitName = unit.Name
+                    course.Abbreviation
                 })
             .Take(ResultLimit)
             .ToListAsync(cancellationToken);
@@ -145,7 +144,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
                 classGroup.Id.ToString(),
                 "class",
                 classGroup.Name,
-                $"{classGroup.Abbreviation} · {classGroup.UnitName}",
+                $"{classGroup.Abbreviation} · Year {classGroup.Year}",
                 $"/courses/{classGroup.CourseId}"))
             .ToArray();
     }

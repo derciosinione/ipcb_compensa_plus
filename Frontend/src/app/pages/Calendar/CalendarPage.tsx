@@ -62,6 +62,7 @@ import { listClassrooms } from "../../services/classrooms/classroomsApi";
 import type { Classroom } from "../../services/classrooms/classroomTypes";
 import type { AuthenticatedUser } from "../../types/user";
 import { getErrorMessage } from "../../utils/errors";
+import { useAcademicYear } from "../../providers/AcademicYearContext";
 
 type CalendarMode = "requests" | "timetable" | "occupancy";
 type ViewType = "month" | "week" | "day";
@@ -203,24 +204,27 @@ export const CalendarPage = ({
 
   // Navigation State for Details
   const [showFullDetails, setShowFullDetails] = useState(false);
+  const { selectedYear } = useAcademicYear();
 
   const isAdmin = userRole === "admin";
 
   const loadCalendarData = useCallback(async () => {
     try {
+      if (!selectedYear) return;
       const [loadedClassrooms, loadedCourses, loadedRequests] =
         await Promise.all([
           listClassrooms(),
-          listCourses(),
+          listCourses(undefined, selectedYear.id),
           listCompensationRequests(
             undefined,
             userRole === "teacher" ? user.id : undefined,
+            selectedYear.id
           ),
         ]);
 
       const activeCourses = loadedCourses.filter((course) => course.isActive);
       const details = await Promise.all(
-        activeCourses.map((course) => getCourseDetails(course.id)),
+        activeCourses.map((course) => getCourseDetails(course.id, selectedYear.id)),
       );
 
       setClassrooms(loadedClassrooms.filter((room) => room.isActive));
@@ -236,7 +240,7 @@ export const CalendarPage = ({
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to load calendar data."));
     }
-  }, [user.id, userRole]);
+  }, [user.id, userRole, selectedYear]);
 
   useEffect(() => {
     void loadCalendarData();

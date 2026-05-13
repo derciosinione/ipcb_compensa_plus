@@ -11,6 +11,7 @@ import {
   Plus,
   User,
   Upload,
+  Layers,
 } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -39,7 +40,7 @@ import type { Classroom } from "../../../services/classrooms/classroomTypes";
 
 interface ClassDetailsViewProps {
   classGroup: ClassGroup;
-  unit: CurricularUnit;
+  unit?: CurricularUnit; // Optional now
   teacher?: PlatformUser;
   schedules: TimeSlot[];
   allClasses: ClassGroup[]; // needed for conflict check
@@ -93,8 +94,8 @@ export const ClassDetailsView = ({
     const schedulesWithContext = newSchedules.map((schedule) => ({
       ...schedule,
       classGroup: classGroup.name,
-      unit: unit.name,
-      course: unit.courseId,
+      unit: schedule.unit || "General",
+      course: classGroup.courseId,
     }));
 
     schedulesWithContext.forEach((schedule) => {
@@ -135,7 +136,7 @@ export const ClassDetailsView = ({
         onClose={() => setIsScheduleModalOpen(false)}
         onSave={handleSaveSchedule}
         classGroup={classGroup}
-        unit={unit}
+        unit={unit || courseUnits[0]}
         courseUnits={courseUnits}
         existingTimetable={schedules}
         allClasses={allClasses}
@@ -145,9 +146,9 @@ export const ClassDetailsView = ({
 
       <BulkImportSchedulesSheet
         open={isBulkImportOpen}
-        onOpenChange={setIsBulkImportOpen}
+        onOpenChange={isBulkImportOpen ? () => setIsBulkImportOpen(false) : () => setIsBulkImportOpen(true)}
         onImport={handleBulkImport}
-        courseName={unit.courseId.toUpperCase()}
+        courseName={classGroup.courseId.toUpperCase()}
       />
 
       {/* Header Navigation */}
@@ -177,7 +178,7 @@ export const ClassDetailsView = ({
                 variant="outline"
                 className="text-slate-500 border-slate-200 dark:border-slate-700"
               >
-                Semester {unit.semester}
+                Year {classGroup.year}
               </Badge>
               <Badge
                 variant="outline"
@@ -190,8 +191,8 @@ export const ClassDetailsView = ({
               {classGroup.name}
             </h1>
             <p className="text-slate-500 dark:text-slate-400 flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Curricular Unit
+              <Layers className="w-4 h-4" />
+              Academic Year {classGroup.year}
             </p>
           </div>
 
@@ -245,7 +246,7 @@ export const ClassDetailsView = ({
 
         {/* Filter schedules for THIS class group only */}
         {schedules.filter(
-          (s) => s.classGroup === classGroup.name && s.unit === unit.name,
+          (s) => s.classGroup === classGroup.name,
         ).length === 0 ? (
           <div className="text-center py-16 bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
             <Clock className="w-12 h-12 mx-auto text-slate-300 mb-3" />
@@ -277,7 +278,7 @@ export const ClassDetailsView = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {schedules
               .filter(
-                (s) => s.classGroup === classGroup.name && s.unit === unit.name,
+                (s) => s.classGroup === classGroup.name,
               )
               .sort(
                 (a, b) =>
@@ -304,7 +305,7 @@ export const ClassDetailsView = ({
                         {slot.type}
                       </Badge>
                       <CardTitle className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                        {getDayName(slot.dayOfWeek)}
+                        {slot.unit} · {getDayName(slot.dayOfWeek)}
                       </CardTitle>
                     </div>
                     {canManage && (

@@ -56,6 +56,7 @@ export const getAdminNavigationItems = ({
   t,
 }: NavigationContext): NavigationItem[] => [
   { path: appPaths.users, icon: Users, label: t("menu.users") },
+  { path: appPaths.academicYears, icon: Calendar, label: t("menu.academic_years") || "Academic Years" },
   { path: appPaths.systemCalendar, icon: Calendar, label: t("menu.holidays") },
   { path: appPaths.settings, icon: Settings, label: t("menu.settings") },
 ];

@@ -1,10 +1,10 @@
-import { authenticatedApiRequest, coreApiBaseUrl } from "../api/httpClient";
+import { authenticatedApiRequest, buildApiPath, coreApiBaseUrl } from "../api/httpClient";
 import type { DashboardSummary } from "./dashboardTypes";
 
-export const getDashboardSummary = async () => {
+export const getDashboardSummary = async (academicYearId?: string) => {
   const response = await authenticatedApiRequest<DashboardSummary>(
     coreApiBaseUrl,
-    "/api/dashboard/summary",
+    buildApiPath("/api/dashboard/summary", { academicYearId }),
   );
 
   return response.data;

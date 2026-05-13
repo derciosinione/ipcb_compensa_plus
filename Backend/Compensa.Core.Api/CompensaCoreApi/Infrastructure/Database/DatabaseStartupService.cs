@@ -218,15 +218,15 @@ public sealed class DatabaseStartupService : IHostedService
                 "Name" varchar(200) not null,
                 "Abbreviation" varchar(20) not null,
                 "Type" varchar(32) not null,
-                "Description" varchar(1000) not null,
                 "DurationYears" integer not null,
                 "TotalCredits" integer not null,
-                "CoordinatorUserId" varchar(128) null,
-                "ImageUrl" varchar(1000) not null,
                 "IsActive" boolean not null default true,
                 "CreatedAt" timestamp with time zone not null,
                 "UpdatedAt" timestamp with time zone not null
             );
+            alter table courses drop column if exists "Description";
+            alter table courses drop column if exists "CoordinatorUserId";
+            alter table courses drop column if exists "ImageUrl";
             create unique index if not exists "IX_courses_Abbreviation" on courses ("Abbreviation");
             """,
             cancellationToken);
@@ -238,35 +238,57 @@ public sealed class DatabaseStartupService : IHostedService
             return;
 
         var now = DateTimeOffset.UtcNow;
-        context.Courses.AddRange(
-            new Course
-            {
-                Name = "Computer Science Engineering",
-                Abbreviation = "LEI",
-                Type = CourseDegreeType.Licenciatura,
-                Description = "A comprehensive degree focused on software engineering, algorithms, and systems architecture.",
-                DurationYears = 3,
-                TotalCredits = 180,
-                CoordinatorUserId = "user-coord-1",
-                ImageUrl = "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=1000&auto=format&fit=crop",
-                CreatedAt = now,
-                UpdatedAt = now
-            },
-            new Course
-            {
-                Name = "Digital Design",
-                Abbreviation = "LD",
-                Type = CourseDegreeType.Licenciatura,
-                Description = "Focuses on user interface design, user experience, and visual communication.",
-                DurationYears = 3,
-                TotalCredits = 180,
-                CoordinatorUserId = "user-coord-1",
-                ImageUrl = "https://images.unsplash.com/photo-1545235617-9465d2a55698?q=80&w=1000&auto=format&fit=crop",
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+        var lei = new Course
+        {
+            Name = "Computer Science Engineering",
+            Abbreviation = "LEI",
+            Type = CourseDegreeType.Licenciatura,
+            DurationYears = 3,
+            TotalCredits = 180,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        
+        var ld = new Course
+        {
+            Name = "Digital Design",
+            Abbreviation = "LD",
+            Type = CourseDegreeType.Licenciatura,
+            DurationYears = 3,
+            TotalCredits = 180,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
 
+        context.Courses.AddRange(lei, ld);
         await context.SaveChangesAsync(cancellationToken);
+        
+        var activeYear = await context.AcademicYears.FirstOrDefaultAsync(y => y.IsActive, cancellationToken);
+        if (activeYear != null)
+        {
+            context.CourseOfferings.AddRange(
+                new CourseOffering
+                {
+                    CourseId = lei.Id,
+                    AcademicYearId = activeYear.Id,
+                    CoordinatorUserId = "user-coord-1",
+                    Description = "A comprehensive degree focused on software engineering, algorithms, and systems architecture.",
+                    ImageUrl = "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=1000&auto=format&fit=crop",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                },
+                new CourseOffering
+                {
+                    CourseId = ld.Id,
+                    AcademicYearId = activeYear.Id,
+                    CoordinatorUserId = "user-coord-1",
+                    Description = "Focuses on user interface design, user experience, and visual communication.",
+                    ImageUrl = "https://images.unsplash.com/photo-1545235617-9465d2a55698?q=80&w=1000&auto=format&fit=crop",
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            await context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     private static async Task EnsureCourseDetailsTablesAsync(CoreDbContext context, CancellationToken cancellationToken)
@@ -280,17 +302,46 @@ public sealed class DatabaseStartupService : IHostedService
                 "Year" integer not null,
                 "Semester" integer not null,
                 "Ects" integer not null,
-                "ResponsibleTeacherId" varchar(128) not null default '',
-                "ResponsibleTeacherEmail" varchar(256) not null default '',
                 "IsActive" boolean not null default true,
                 "CreatedAt" timestamp with time zone not null,
                 "UpdatedAt" timestamp with time zone not null,
                 constraint "FK_curricular_units_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade
             );
-            alter table curricular_units add column if not exists "ResponsibleTeacherId" varchar(128) not null default '';
-            alter table curricular_units add column if not exists "ResponsibleTeacherEmail" varchar(256) not null default '';
+            alter table curricular_units drop column if exists "ResponsibleTeacherId";
+            alter table curricular_units drop column if exists "ResponsibleTeacherEmail";
             create unique index if not exists "IX_curricular_units_CourseId_Name" on curricular_units ("CourseId", "Name");
             create index if not exists "IX_curricular_units_CourseId" on curricular_units ("CourseId");
+
+            create table if not exists course_offerings (
+                "Id" uuid primary key,
+                "CourseId" uuid not null,
+                "AcademicYearId" uuid not null,
+                "CoordinatorUserId" varchar(128) null,
+                "Description" varchar(1000) not null default '',
+                "ImageUrl" varchar(1000) not null default '',
+                "IsActive" boolean not null default true,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null,
+                constraint "FK_course_offerings_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade,
+                constraint "FK_course_offerings_academic_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete cascade
+            );
+            create unique index if not exists "IX_course_offerings_CourseId_AcademicYearId" on course_offerings ("CourseId", "AcademicYearId");
+
+            create table if not exists curricular_unit_offerings (
+                "Id" uuid primary key,
+                "CurricularUnitId" uuid not null,
+                "AcademicYearId" uuid not null,
+                "ResponsibleTeacherId" varchar(128) not null default '',
+                "ResponsibleTeacherEmail" varchar(256) not null default '',
+                "Year" integer not null,
+                "Semester" integer not null,
+                "IsActive" boolean not null default true,
+                "CreatedAt" timestamp with time zone not null,
+                "UpdatedAt" timestamp with time zone not null,
+                constraint "FK_curricular_unit_offerings_units_CurricularUnitId" foreign key ("CurricularUnitId") references curricular_units ("Id") on delete cascade,
+                constraint "FK_curricular_unit_offerings_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete cascade
+            );
+            create unique index if not exists "IX_curricular_unit_offerings_CurricularUnitId_AcademicYearId" on curricular_unit_offerings ("CurricularUnitId", "AcademicYearId");
 
             create table if not exists curricular_unit_components (
                 "Id" uuid primary key,
@@ -312,16 +363,18 @@ public sealed class DatabaseStartupService : IHostedService
             create table if not exists class_groups (
                 "Id" uuid primary key,
                 "CourseId" uuid not null,
-                "CurricularUnitId" uuid not null,
+                "AcademicYearId" uuid not null,
+                "Year" integer not null default 1,
                 "Name" varchar(80) not null,
-                "TeacherId" varchar(128) not null,
+                "TeacherId" varchar(128) not null default '',
                 "IsActive" boolean not null default true,
                 "CreatedAt" timestamp with time zone not null,
                 "UpdatedAt" timestamp with time zone not null,
                 constraint "FK_class_groups_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade,
-                constraint "FK_class_groups_curricular_units_CurricularUnitId" foreign key ("CurricularUnitId") references curricular_units ("Id") on delete cascade
+                constraint "FK_class_groups_academic_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete cascade
             );
-            create unique index if not exists "IX_class_groups_CurricularUnitId_Name" on class_groups ("CurricularUnitId", "Name");
+            alter table class_groups add column if not exists "AcademicYearId" uuid null;
+            create unique index if not exists "IX_class_groups_CourseId_AcademicYearId_Year_Name" on class_groups ("CourseId", "AcademicYearId", "Year", "Name");
             create index if not exists "IX_class_groups_CourseId" on class_groups ("CourseId");
 
             create table if not exists class_schedules (
@@ -465,6 +518,8 @@ public sealed class DatabaseStartupService : IHostedService
             return;
 
         var now = DateTimeOffset.UtcNow;
+        var activeYear = await context.AcademicYears.FirstOrDefaultAsync(y => y.IsActive, cancellationToken);
+        if (activeYear == null) return;
 
         if (!await context.CurricularUnits.AnyAsync(cancellationToken))
         {
@@ -476,8 +531,6 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
-                    ResponsibleTeacherId = "t1",
-                    ResponsibleTeacherEmail = "dercio.domingos@ipcbcampus.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -488,8 +541,6 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
-                    ResponsibleTeacherId = "t3",
-                    ResponsibleTeacherEmail = "monicac@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -500,8 +551,6 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 2,
                     Semester = 1,
                     Ects = 6,
-                    ResponsibleTeacherId = "t1",
-                    ResponsibleTeacherEmail = "dercio.domingos@ipcbcampus.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -512,8 +561,6 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 2,
                     Semester = 2,
                     Ects = 6,
-                    ResponsibleTeacherId = "t4",
-                    ResponsibleTeacherEmail = "matias@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -524,8 +571,6 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 3,
                     Semester = 2,
                     Ects = 15,
-                    ResponsibleTeacherId = "t5",
-                    ResponsibleTeacherEmail = "matias@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 },
@@ -536,8 +581,6 @@ public sealed class DatabaseStartupService : IHostedService
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
-                    ResponsibleTeacherId = "t5",
-                    ResponsibleTeacherEmail = "matias@ipcb.pt",
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -545,30 +588,46 @@ public sealed class DatabaseStartupService : IHostedService
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        var units = await context.CurricularUnits
-            .Where(unit => unit.CourseId == lei.Id || unit.CourseId == ld.Id)
-            .ToArrayAsync(cancellationToken);
-
-        foreach (var unit in units.Where(unit => string.IsNullOrWhiteSpace(unit.ResponsibleTeacherId)))
+        if (!await context.CurricularUnitOfferings.AnyAsync(cancellationToken))
         {
-            var (responsibleId, responsibleEmail) = unit.Name switch
+            var units = await context.CurricularUnits.ToArrayAsync(cancellationToken);
+            foreach (var unit in units)
             {
-                "Mathematics I" => ("t3", "monicac@ipcb.pt"),
-                "Web Development" => ("t4", "matias@ipcb.pt"),
-                "Final Project" => ("t5", "matias@ipcb.pt"),
-                "Design Principles" => ("t5", "matias@ipcb.pt"),
-                _ => ("t1", "dercio.domingos@ipcbcampus.pt")
-            };
+                var (responsibleId, responsibleEmail) = unit.Name switch
+                {
+                    "Mathematics I" => ("t3", "monicac@ipcb.pt"),
+                    "Web Development" => ("t4", "matias@ipcb.pt"),
+                    "Final Project" => ("t5", "matias@ipcb.pt"),
+                    "Design Principles" => ("t5", "matias@ipcb.pt"),
+                    _ => ("t1", "dercio.domingos@ipcbcampus.pt")
+                };
 
-            unit.ResponsibleTeacherId = responsibleId;
-            unit.ResponsibleTeacherEmail = responsibleEmail;
-            unit.UpdatedAt = now;
+                context.CurricularUnitOfferings.Add(new CurricularUnitOffering
+                {
+                    CurricularUnitId = unit.Id,
+                    AcademicYearId = activeYear.Id,
+                    ResponsibleTeacherId = responsibleId,
+                    ResponsibleTeacherEmail = responsibleEmail,
+                    Year = unit.Year,
+                    Semester = unit.Semester,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+            await context.SaveChangesAsync(cancellationToken);
         }
 
         if (!await context.CurricularUnitComponents.AnyAsync(cancellationToken))
         {
+            var units = await context.CurricularUnits.ToArrayAsync(cancellationToken);
+            var offerings = await context.CurricularUnitOfferings.ToArrayAsync(cancellationToken);
+            
             foreach (var unit in units)
             {
+                var offering = offerings.FirstOrDefault(o => o.CurricularUnitId == unit.Id);
+                var teacherId = offering?.ResponsibleTeacherId ?? "t1";
+                var teacherEmail = offering?.ResponsibleTeacherEmail ?? "dercio.domingos@ipcbcampus.pt";
+
                 context.CurricularUnitComponents.AddRange(
                     new CurricularUnitComponent
                     {
@@ -576,8 +635,8 @@ public sealed class DatabaseStartupService : IHostedService
                         CurricularUnitId = unit.Id,
                         Name = "Theoretical",
                         Type = UnitComponentType.Theoretical,
-                        ResponsibleTeacherId = unit.ResponsibleTeacherId,
-                        ResponsibleTeacherEmail = unit.ResponsibleTeacherEmail,
+                        ResponsibleTeacherId = teacherId,
+                        ResponsibleTeacherEmail = teacherEmail,
                         CreatedAt = now,
                         UpdatedAt = now
                     },
@@ -587,8 +646,8 @@ public sealed class DatabaseStartupService : IHostedService
                         CurricularUnitId = unit.Id,
                         Name = "Practical",
                         Type = UnitComponentType.Practical,
-                        ResponsibleTeacherId = unit.ResponsibleTeacherId,
-                        ResponsibleTeacherEmail = unit.ResponsibleTeacherEmail,
+                        ResponsibleTeacherId = teacherId,
+                        ResponsibleTeacherEmail = teacherEmail,
                         CreatedAt = now,
                         UpdatedAt = now
                     });
@@ -611,7 +670,8 @@ public sealed class DatabaseStartupService : IHostedService
             new ClassGroup
             {
                 CourseId = lei.Id,
-                CurricularUnitId = architecture.Id,
+                AcademicYearId = activeYear.Id,
+                Year = 2,
                 Name = "Class A",
                 TeacherId = "u1",
                 CreatedAt = now,
@@ -620,7 +680,8 @@ public sealed class DatabaseStartupService : IHostedService
             new ClassGroup
             {
                 CourseId = lei.Id,
-                CurricularUnitId = architecture.Id,
+                AcademicYearId = activeYear.Id,
+                Year = 2,
                 Name = "PL1",
                 TeacherId = "u1",
                 CreatedAt = now,
@@ -629,7 +690,8 @@ public sealed class DatabaseStartupService : IHostedService
             new ClassGroup
             {
                 CourseId = lei.Id,
-                CurricularUnitId = architecture.Id,
+                AcademicYearId = activeYear.Id,
+                Year = 2,
                 Name = "PL2",
                 TeacherId = "t5",
                 CreatedAt = now,

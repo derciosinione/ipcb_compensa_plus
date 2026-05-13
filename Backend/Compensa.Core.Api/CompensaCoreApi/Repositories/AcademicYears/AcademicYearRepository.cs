@@ -31,7 +31,40 @@ public sealed class AcademicYearRepository : IAcademicYearRepository
     public Task<AcademicYear?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return _context.AcademicYears
-            .AsNoTracking()
             .FirstOrDefaultAsync(year => year.Id == id, cancellationToken);
+    }
+
+    public async Task AddAsync(AcademicYear academicYear, CancellationToken cancellationToken = default)
+    {
+        if (academicYear.IsActive)
+        {
+            await DeactivateAllOthers(academicYear.Id, cancellationToken);
+        }
+
+        await _context.AcademicYears.AddAsync(academicYear, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(AcademicYear academicYear, CancellationToken cancellationToken = default)
+    {
+        if (academicYear.IsActive)
+        {
+            await DeactivateAllOthers(academicYear.Id, cancellationToken);
+        }
+
+        _context.AcademicYears.Update(academicYear);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task DeactivateAllOthers(Guid currentId, CancellationToken cancellationToken)
+    {
+        var otherActiveYears = await _context.AcademicYears
+            .Where(y => y.IsActive && y.Id != currentId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var year in otherActiveYears)
+        {
+            year.IsActive = false;
+        }
     }
 }
