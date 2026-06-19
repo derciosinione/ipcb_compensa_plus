@@ -8,6 +8,7 @@ export { CourseDetailsPage } from "./Courses/CourseDetailsPage";
 export { ClassDetailsPage } from "./Courses/ClassDetailsPage";
 export { DashboardPage } from "./Dashboard/DashboardPage";
 export { LoginPage } from "./Login/LoginPage";
+export { ImportSchedulesPage } from "./ImportSchedules/ImportSchedulesPage";
 export { NotFoundPage } from "./NotFound/NotFoundPage";
 export { NotificationsPage } from "./Notifications/NotificationsPage";
 export { PreferencesPage } from "./Preferences/PreferencesPage";

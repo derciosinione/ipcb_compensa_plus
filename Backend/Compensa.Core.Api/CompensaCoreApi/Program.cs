@@ -36,6 +36,7 @@ using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Serilog;
 using Serilog.Formatting.Json;
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -133,6 +134,7 @@ builder.Services.AddScoped<IUserUnitAssignmentService, UserUnitAssignmentService
 builder.Services.AddScoped<ICompensationRequestRepository, CompensationRequestRepository>();
 builder.Services.AddScoped<ICompensationRequestService, CompensationRequestService>();
 builder.Services.AddScoped<IScheduleAvailabilityService, ScheduleAvailabilityService>();
+builder.Services.AddScoped<ITimetableImportService, TimetableImportService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 builder.Services.AddScoped<IAuditService, AuditService>();

@@ -8,6 +8,7 @@ import {
   CoursesPage,
   CourseDetailsPage,
   DashboardPage,
+  ImportSchedulesPage,
   NotificationsPage,
   PreferencesPage,
   ProfilePage,
@@ -112,6 +113,12 @@ export const getProtectedRouteDefinitions = (
     element: <AcademicYearsPage />,
     title: "Academic Years",
     allowedRoles: adminOnly,
+  },
+  {
+    path: appPaths.importSchedules,
+    element: <ImportSchedulesPage />,
+    title: "Import Schedules",
+    allowedRoles: ["coordinator", "admin"],
   },
   {
     path: appPaths.preferences,

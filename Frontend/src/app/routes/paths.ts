@@ -17,6 +17,7 @@ export const appPaths = {
   settings: "/settings",
   preferences: "/preferences",
   academicYears: "/academic-years",
+  importSchedules: "/schedules/import",
 } as const;
 
 export type AppPath = (typeof appPaths)[keyof typeof appPaths];

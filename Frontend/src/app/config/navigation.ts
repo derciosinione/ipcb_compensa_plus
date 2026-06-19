@@ -30,27 +30,40 @@ interface NavigationContext {
 export const getMainNavigationItems = ({
   t,
   user,
-}: NavigationContext): NavigationItem[] => [
-  {
-    path: appPaths.dashboard,
-    icon: LayoutDashboard,
-    label: t("menu.dashboard"),
-  },
-  {
-    path: appPaths.requests,
-    icon: FileText,
-    label: user.role === "teacher" ? t("menu.my_requests") : t("menu.requests"),
-    badge: "3",
-  },
-  { path: appPaths.calendar, icon: CalendarDays, label: t("menu.calendar") },
-  { path: appPaths.courses, icon: BookOpen, label: t("menu.courses") },
-  { path: appPaths.classrooms, icon: MapPin, label: t("menu.classrooms") },
-  {
+}: NavigationContext): NavigationItem[] => {
+  const items: NavigationItem[] = [
+    {
+      path: appPaths.dashboard,
+      icon: LayoutDashboard,
+      label: t("menu.dashboard"),
+    },
+    {
+      path: appPaths.requests,
+      icon: FileText,
+      label: user.role === "teacher" ? t("menu.my_requests") : t("menu.requests"),
+      badge: "3",
+    },
+    { path: appPaths.calendar, icon: CalendarDays, label: t("menu.calendar") },
+    { path: appPaths.courses, icon: BookOpen, label: t("menu.courses") },
+    { path: appPaths.classrooms, icon: MapPin, label: t("menu.classrooms") },
+  ];
+
+  if (user.role === "admin" || user.role === "coordinator") {
+    items.push({
+      path: appPaths.importSchedules,
+      icon: Calendar,
+      label: t("menu.import_schedules"),
+    });
+  }
+
+  items.push({
     path: appPaths.aiConverter,
     icon: Sparkles,
     label: t("menu.ai_converter") || "AI Converter",
-  },
-];
+  });
+
+  return items;
+};
 
 export const getAdminNavigationItems = ({
   t,
