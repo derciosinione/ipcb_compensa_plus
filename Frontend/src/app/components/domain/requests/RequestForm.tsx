@@ -24,6 +24,8 @@ import {
   Trash2,
   Check,
   ChevronsUpDown,
+  ChevronLeft,
+  ChevronRight,
   X,
 } from "lucide-react";
 import {
@@ -61,6 +63,7 @@ interface RequestFormProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: any | any[]) => void;
   initialData?: any; // If provided, enables"Edit Mode"
+  user: AuthenticatedUser | null;
 }
 
 interface RequestFormData {
@@ -97,6 +100,7 @@ export const RequestForm = ({
   onOpenChange,
   onSubmit,
   initialData,
+  user,
 }: RequestFormProps) => {
   const [queue, setQueue] = useState<RequestFormData[]>([]);
   const [currentData, setCurrentData] =
@@ -111,6 +115,8 @@ export const RequestForm = ({
   const [conflictWarning, setConflictWarning] = useState(false);
   const [conflictMessage, setConflictMessage] = useState("");
   const [openCombobox, setOpenCombobox] = useState(false);
+  const [suggestedBaseDate, setSuggestedBaseDate] = useState<Date>(new Date());
+  const [compBaseDate, setCompBaseDate] = useState<Date>(new Date());
   const { t } = useLanguage();
 
   // Edit Mode Flag
@@ -230,12 +236,17 @@ export const RequestForm = ({
   };
 
   const availableClasses =
-    courseDetails?.classes.filter(
-      (group) => group.curricularUnitId === currentData.unit,
-    ) ?? [];
+    courseDetails?.classes.filter((group) => {
+      if (!currentData.unit) return true;
+      const unit = courseDetails.units.find((u) => u.id === currentData.unit);
+      return !unit || group.year === unit.year;
+    }) ?? [];
   const selectedClassGroupId = currentData.yearGroups[0];
   const availableSchedules = (courseDetails?.schedules ?? []).filter(
-    (schedule) => schedule.classGroupId === selectedClassGroupId,
+    (schedule) => 
+      schedule.classGroupId === selectedClassGroupId &&
+      schedule.curricularUnitId === currentData.unit &&
+      (currentData.componentType === "all" || schedule.componentType.toLowerCase() === currentData.componentType.toLowerCase())
   );
   const selectedSchedule = availableSchedules.find(
     (schedule) => schedule.id === currentData.originalRoom,
@@ -258,6 +269,19 @@ export const RequestForm = ({
     }
 
     const checkAvailability = async () => {
+      // 1. Check 8-hour limit locally first
+      const newDateObj = new Date(currentData.newDate);
+      const dayDetails = getDayDetails(newDateObj, selectedClassGroupId);
+      const compensationDuration = calculateDurationHours(currentData.originalTime);
+      const totalProjectedHours = dayDetails.totalHours + compensationDuration;
+
+      if (totalProjectedHours > 8) {
+        setConflictWarning(true);
+        setConflictMessage(`The class group already has ${Math.round(dayDetails.totalHours)} hours of classes on this day. Adding this compensation would total ${Math.round(totalProjectedHours)}h, exceeding the 8-hour daily limit.`);
+        return;
+      }
+
+      // 2. Then check for overlaps via API
       try {
         const availability = await checkScheduleAvailability({
           academicYearId: activeAcademicYear.id,
@@ -290,10 +314,124 @@ export const RequestForm = ({
     selectedSchedule,
   ]);
 
+  // Auto-select original schedule if only one is available
+  useEffect(() => {
+    if (availableSchedules.length === 1 && !currentData.originalRoom) {
+      const schedule = availableSchedules[0];
+      setCurrentData(prev => ({
+        ...prev,
+        originalRoom: schedule.id,
+        originalTime: `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`
+      }));
+      setSuggestedBaseDate(new Date());
+    }
+  }, [availableSchedules, currentData.originalRoom]);
+
   const getScheduleLabel = (schedule: ClassSchedule) => {
     const room = classrooms.find((item) => item.id === schedule.classroomId);
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return `${days[schedule.dayOfWeek] ?? "Day"} ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)} · ${room?.name ?? "Room"}`;
+  };
+
+  const getSuggestedDates = (dayOfWeek: number, baseDate: Date) => {
+    const dates: Date[] = [];
+    const base = new Date(baseDate);
+    base.setHours(0, 0, 0, 0);
+
+    // Get 4 dates around the baseDate
+    let current = new Date(base);
+    // Find the occurrence on or before the baseDate
+    while (current.getDay() !== dayOfWeek) {
+      current.setDate(current.getDate() - 1);
+    }
+    
+    // Add two past from current
+    const past1 = new Date(current);
+    past1.setDate(past1.getDate() - 7);
+    dates.push(past1);
+    dates.push(new Date(current));
+
+    // Add two future from current
+    for (let i = 1; i <= 2; i++) {
+      const future = new Date(current);
+      future.setDate(future.getDate() + (i * 7));
+      dates.push(future);
+    }
+
+    return dates.sort((a, b) => a.getTime() - b.getTime());
+  };
+
+  const calculateDurationHours = (timeRange: string) => {
+    if (!timeRange.includes("-")) return 0;
+    const [startStr, endStr] = timeRange.split("-");
+    const [startH, startM] = startStr.split(":").map(Number);
+    const [endH, endM] = endStr.split(":").map(Number);
+    return (endH * 60 + endM - (startH * 60 + startM)) / 60;
+  };
+
+  const getDayDetails = (date: Date, classGroupId: string) => {
+    const dayOfWeek = date.getDay();
+    const daySchedules = (courseDetails?.schedules ?? []).filter(
+      s => s.classGroupId === classGroupId && s.dayOfWeek === dayOfWeek
+    );
+    
+    let totalHours = 0;
+    daySchedules.forEach(s => {
+      const start = s.startTime.split(':').map(Number);
+      const end = s.endTime.split(':').map(Number);
+      totalHours += (end[0] * 60 + end[1] - (start[0] * 60 + start[1])) / 60;
+    });
+
+    return {
+      totalHours,
+      schedules: daySchedules
+    };
+  };
+
+  const getCompensationSuggestions = (baseDate: Date, originalDate?: string, classGroupId?: string) => {
+    const dates: { date: Date; hours: number; isConflict: boolean }[] = [];
+    const base = new Date(baseDate);
+    base.setHours(0, 0, 0, 0);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const start = originalDate ? new Date(originalDate) : today;
+    start.setHours(0, 0, 0, 0);
+
+    if (base < start) {
+      base.setTime(start.getTime());
+    }
+
+    let current = new Date(base);
+    if (current <= today) {
+       current.setDate(today.getDate() + 1);
+    }
+
+    const originalDuration = currentData.originalTime ? calculateDurationHours(currentData.originalTime) : 0;
+    const originalDateObj = originalDate ? new Date(originalDate) : null;
+    if (originalDateObj) originalDateObj.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 7 && dates.length < 5; i++) {
+      const dayDetails = classGroupId ? getDayDetails(current, classGroupId) : { totalHours: 0 };
+      
+      // If it's the same day of week as original, we subtract the original class hours (since it's being moved)
+      // Actually, let's keep it simple: just show the current base load + the new class
+      let projectedHours = dayDetails.totalHours;
+      
+      // If this suggestion is on the same DATE as the original class, it's probably not what they want, but let's allow it.
+      // If it's the same day of week, we might want to subtract the original class if it's in the base schedule.
+      
+      dates.push({
+        date: new Date(current),
+        hours: projectedHours + originalDuration,
+        isConflict: (projectedHours + originalDuration) > 8
+      });
+      
+      current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
   };
 
   const handleAddToQueue = () => {
@@ -573,11 +711,18 @@ export const RequestForm = ({
                             <SelectValue placeholder={t("form.select_unit")} />
                           </SelectTrigger>
                           <SelectContent>
-                            {(courseDetails?.units ?? []).map((unit) => (
-                              <SelectItem key={unit.id} value={unit.id}>
-                                {unit.name}
-                              </SelectItem>
-                            ))}
+                            {(courseDetails?.units ?? [])
+                              .filter(unit => 
+                                !user || 
+                                user.role !== "teacher" ||
+                                unit.teacherIds.includes(user.id) || 
+                                unit.responsibleTeacherId === user.id
+                              )
+                              .map((unit) => (
+                                <SelectItem key={unit.id} value={unit.id}>
+                                  {unit.name}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -698,15 +843,22 @@ export const RequestForm = ({
                               />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="all">
-                                All / Standard
-                              </SelectItem>
-                              <SelectItem value="theoretical">
-                                Theoretical
-                              </SelectItem>
-                              <SelectItem value="practical">
-                                Practical / Lab
-                              </SelectItem>
+                              {(!user || user.role !== "teacher") && (
+                                <SelectItem value="all">
+                                  All / Standard
+                                </SelectItem>
+                              )}
+                              {(courseDetails?.components ?? [])
+                                .filter(comp => 
+                                  comp.curricularUnitId === currentData.unit &&
+                                  (!user || user.role !== "teacher" || comp.responsibleTeacherId === user.id)
+                                )
+                                .map(comp => (
+                                  <SelectItem key={comp.id} value={comp.type.toLowerCase()}>
+                                    {comp.type}
+                                  </SelectItem>
+                                ))
+                              }
                             </SelectContent>
                           </Select>
                         </div>
@@ -772,6 +924,64 @@ export const RequestForm = ({
                             </svg>
                           </div>
                         </div>
+
+                        {selectedSchedule && (
+                          <div className="space-y-2 py-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Suggested Dates</span>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = new Date(suggestedBaseDate);
+                                    next.setDate(next.getDate() - 28);
+                                    setSuggestedBaseDate(next);
+                                  }}
+                                  className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
+                                  title="Previous month"
+                                >
+                                  <ChevronLeft className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = new Date(suggestedBaseDate);
+                                    next.setDate(next.getDate() + 28);
+                                    setSuggestedBaseDate(next);
+                                  }}
+                                  className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
+                                  title="Next month"
+                                >
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {getSuggestedDates(selectedSchedule.dayOfWeek, suggestedBaseDate).map((date) => {
+                                const dateStr = date.toISOString().split("T")[0];
+                                const isSelected = currentData.originalDate === dateStr;
+                                const isToday = new Date().toISOString().split("T")[0] === dateStr;
+                                
+                                return (
+                                  <button
+                                    key={dateStr}
+                                    type="button"
+                                    onClick={() => handleChange("originalDate", dateStr)}
+                                    className={cn(
+                                      "text-[10px] px-2 py-1 rounded-md transition-all border",
+                                      isSelected 
+                                        ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                        : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/50"
+                                    )}
+                                  >
+                                    {date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                                    {isToday && " (Today)"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                         <Input
                           type="text"
                           className="bg-white h-9"
@@ -795,6 +1005,7 @@ export const RequestForm = ({
                                 ? `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`
                                 : "",
                             }));
+                            setSuggestedBaseDate(new Date());
                           }}
                         >
                           <SelectTrigger className="bg-white h-9">
@@ -820,14 +1031,83 @@ export const RequestForm = ({
                         {t("form.new_schedule")}
                       </Badge>
                       <div className="space-y-2">
-                        <Input
-                          type="date"
-                          className="bg-white h-9 border-blue-200"
-                          value={currentData.newDate}
-                          onChange={(e) =>
-                            handleChange("newDate", e.target.value)
-                          }
-                        />
+                        <div className="relative">
+                          <Input
+                            type="date"
+                            className="bg-white h-9 border-blue-200 pr-10 cursor-pointer"
+                            value={currentData.newDate}
+                            onChange={(e) => handleChange("newDate", e.target.value)}
+                          />
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 py-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wider">Suggested Dates</span>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = new Date(compBaseDate);
+                                  next.setDate(next.getDate() - 7);
+                                  setCompBaseDate(next);
+                                }}
+                                className="p-1 hover:bg-blue-50 rounded text-blue-400 transition-colors"
+                              >
+                                <ChevronLeft className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = new Date(compBaseDate);
+                                  next.setDate(next.getDate() + 7);
+                                  setCompBaseDate(next);
+                                }}
+                                className="p-1 hover:bg-blue-50 rounded text-blue-400 transition-colors"
+                              >
+                                <ChevronRight className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {getCompensationSuggestions(compBaseDate, currentData.originalDate, selectedClassGroupId).map((item) => {
+                              const dateStr = item.date.toISOString().split("T")[0];
+                              const isSelected = currentData.newDate === dateStr;
+                              const isTomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split("T")[0] === dateStr;
+                              
+                              return (
+                                <button
+                                  key={dateStr}
+                                  type="button"
+                                  disabled={item.isConflict}
+                                  onClick={() => handleChange("newDate", dateStr)}
+                                  className={cn(
+                                    "text-[10px] px-2 py-1 rounded-md transition-all border flex flex-col items-center gap-0.5 min-w-[50px]",
+                                    isSelected 
+                                      ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                      : item.isConflict
+                                        ? "bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed"
+                                        : "bg-white border-blue-100 text-blue-600 hover:border-blue-300 hover:bg-blue-50/50"
+                                  )}
+                                  title={item.isConflict ? "Exceeds 8-hour daily limit" : `${Math.round(item.hours)}h total on this day`}
+                                >
+                                  <span>
+                                    {item.date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                                    {isTomorrow && " (Tmw)"}
+                                  </span>
+                                  <span className={cn(
+                                    "text-[8px] opacity-70 font-bold",
+                                    item.hours > 6 ? "text-orange-500" : ""
+                                  )}>
+                                    {Math.round(item.hours)}h
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
                         <Input
                           type="time"
                           className="bg-white h-9 border-blue-200"

@@ -57,7 +57,7 @@ public sealed class CompensationRequestAuthorizationTests
         var service = CreateService(
             repository,
             courses: [new Course { Id = relatedCourseId }, new Course { Id = unrelatedCourseId }],
-            courseAssignments: [new CourseTeacherAssignment { UserId = "coordinator", CourseId = relatedCourseId }]);
+            courseAssignments: [new CourseTeacherAssignment { UserId = "coordinator", CourseId = relatedCourseId, IsCoordinator = true }]);
 
         var response = await service.ListAsync(
             status: null,
@@ -95,8 +95,8 @@ public sealed class CompensationRequestAuthorizationTests
         var request = CreateRequest("owner-teacher", courseId);
         var service = CreateService(
             new CapturingCompensationRequestRepository([request]),
-            courses: [new Course { Id = courseId }]);
-        // Mocking the offering would be better, but let's see how the fake is implemented
+            courses: [new Course { Id = courseId }],
+            courseAssignments: [new CourseTeacherAssignment { UserId = "coordinator", CourseId = courseId, IsCoordinator = true }]);
 
         var response = await service.GetByIdAsync(
             request.Id,
@@ -245,9 +245,9 @@ public sealed class CompensationRequestAuthorizationTests
         public Task<IReadOnlyCollection<CurricularUnitComponent>> ListComponentsAsync(Guid courseId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<CurricularUnitComponent?> GetComponentByIdAsync(Guid courseId, Guid unitId, Guid componentId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyCollection<UserUnitAssignment>> ListUnitAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(Guid courseId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClassGroup?> GetClassGroupByIdAsync(Guid courseId, Guid classGroupId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(Guid courseId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClassSchedule?> GetClassScheduleByIdAsync(Guid scheduleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClassSchedule?> GetClassScheduleByIdAsync(Guid courseId, Guid classGroupId, Guid scheduleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyCollection<(ClassSchedule Schedule, ClassGroup ClassGroup)>> ListOverlappingSchedulesAsync(Guid academicYearId, int semester, int dayOfWeek, TimeOnly startTime, TimeOnly endTime, Guid? excludedScheduleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

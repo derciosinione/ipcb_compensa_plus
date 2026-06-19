@@ -127,11 +127,12 @@ public sealed class CourseRepository : ICourseRepository
 
     public async Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(
         Guid courseId,
+        Guid academicYearId,
         CancellationToken cancellationToken = default)
     {
         return await _context.ClassGroups
             .AsNoTracking()
-            .Where(group => group.CourseId == courseId)
+            .Where(group => group.CourseId == courseId && group.AcademicYearId == academicYearId)
             .OrderBy(group => group.Name)
             .ToArrayAsync(cancellationToken);
     }
@@ -148,11 +149,12 @@ public sealed class CourseRepository : ICourseRepository
 
     public async Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(
         Guid courseId,
+        Guid academicYearId,
         CancellationToken cancellationToken = default)
     {
         return await _context.ClassSchedules
             .AsNoTracking()
-            .Where(schedule => schedule.CourseId == courseId)
+            .Where(schedule => schedule.CourseId == courseId && schedule.AcademicYearId == academicYearId)
             .OrderBy(schedule => schedule.DayOfWeek)
             .ThenBy(schedule => schedule.StartTime)
             .ToArrayAsync(cancellationToken);

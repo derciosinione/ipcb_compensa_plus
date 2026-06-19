@@ -131,16 +131,16 @@ const toDetailsUnit = (unit: ApiCurricularUnit): CurricularUnit => ({
   year: unit.year,
   semester: unit.semester,
   ects: unit.ects,
-  teacherIds: unit.teacherIds,
+  teacherIds: unit.teacherIds || [],
   regentId: unit.responsibleTeacherId,
-  theoreticalTeacherId: unit.components.find(
+  theoreticalTeacherId: (unit.components || []).find(
     (component) => component.type === "Theoretical",
   )?.responsibleTeacherId,
-  practicalTeacherId: unit.components.find(
+  practicalTeacherId: (unit.components || []).find(
     (component) => component.type === "Practical",
   )?.responsibleTeacherId,
   component:
-    unit.components.length > 1 ? "All" : (unit.components[0]?.type ?? "All"),
+    (unit.components || []).length > 1 ? "All" : (unit.components?.[0]?.type ?? "All"),
 });
 
 type CourseUnit = CurricularUnit & {
@@ -151,7 +151,7 @@ type CourseUnit = CurricularUnit & {
 const toCourseUnit = (unit: ApiCurricularUnit): CourseUnit => ({
   ...toDetailsUnit(unit),
   responsibleTeacherEmail: unit.responsibleTeacherEmail,
-  components: unit.components,
+  components: unit.components || [],
 });
 
 const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
@@ -159,6 +159,7 @@ const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
   name: group.name,
   year: group.year,
   teacherId: group.teacherId,
+  academicYearId: group.academicYearId,
 });
 
 const toTimeSlot = (
@@ -176,8 +177,8 @@ const toTimeSlot = (
   return {
     id: schedule.id,
     dayOfWeek: schedule.dayOfWeek,
-    startTime: schedule.startTime.slice(0, 5),
-    endTime: schedule.endTime.slice(0, 5),
+    startTime: schedule.startTime ? schedule.startTime.slice(0, 5) : "",
+    endTime: schedule.endTime ? schedule.endTime.slice(0, 5) : "",
     unit: unit?.name ?? schedule.curricularUnitId,
     curricularUnitId: schedule.curricularUnitId,
     type: schedule.componentType === "Practical" ? "practical" : "theoretical",
@@ -262,14 +263,14 @@ export const CourseDetailsPage = ({
       return;
     }
 
-    const mappedUnits = details.units.map(toCourseUnit);
-    const mappedClasses = details.classes.map(toDetailsClassGroup);
+    const mappedUnits = (details.units || []).map(toCourseUnit);
+    const mappedClasses = (details.classes || []).map(toDetailsClassGroup);
 
     setCourse(toDetailsCourse(details.course));
     setLocalUnits(mappedUnits);
     setLocalClasses(mappedClasses);
     setLocalTimetable(
-      details.schedules.map((schedule) =>
+      (details.schedules || []).map((schedule) =>
         toTimeSlot(schedule, mappedClasses, mappedUnits, loadedClassrooms),
       ),
     );
@@ -326,7 +327,7 @@ export const CourseDetailsPage = ({
   // 2. Filter Units based on Role
   const visibleUnits = courseUnits.filter((unit) => {
     if (userRole === "coordinator" || userRole === "admin") return true;
-    return unit.teacherIds.includes(userId);
+    return (unit.teacherIds || []).includes(userId);
   });
 
   // 3. Get Classes for visible units
@@ -337,7 +338,7 @@ export const CourseDetailsPage = ({
 
   // 4. Get Teachers involved in this course
   const courseTeacherIds = Array.from(
-    new Set(courseUnits.flatMap((u) => u.teacherIds)),
+    new Set(courseUnits.flatMap((u) => u.teacherIds || [])),
   );
   const courseTeachers = teachers.filter(
     (teacher) =>
@@ -351,10 +352,12 @@ export const CourseDetailsPage = ({
   };
 
   const getTeacherName = (teacher: PlatformUser) =>
-    teacher.fullName || teacher.email;
+    teacher.fullName || teacher.email || "Unknown Teacher";
 
-  const getTeacherInitial = (teacher: PlatformUser) =>
-    getTeacherName(teacher).charAt(0).toUpperCase();
+  const getTeacherInitial = (teacher: PlatformUser) => {
+    const name = getTeacherName(teacher);
+    return name ? name.charAt(0).toUpperCase() : "?";
+  };
 
   const getTeacherAvatarUrl = (teacher: PlatformUser) => {
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(getTeacherName(teacher))}&background=random`;
@@ -415,7 +418,7 @@ export const CourseDetailsPage = ({
         throw new Error("Curricular unit response was empty.");
       }
 
-      const nextUnit = toDetailsUnit(saved);
+      const nextUnit = toCourseUnit(saved);
 
       if (editingUnit) {
         setLocalUnits((prev) =>
@@ -550,10 +553,16 @@ export const CourseDetailsPage = ({
 
   const handleSaveClass = async (classData: Omit<ClassGroup, "id">) => {
     try {
+      if (!currentAcademicYear) {
+        toast.error("No academic year selected.");
+        return;
+      }
+
       const created = await createClassGroup(courseId, {
         year: classData.year,
         name: classData.name,
         teacherId: classData.teacherId,
+        academicYearId: currentAcademicYear.id,
         isActive: true,
       });
 
@@ -729,25 +738,6 @@ export const CourseDetailsPage = ({
 
   // --- Render Logic ---
 
-  if (selectedClass) {
-    const teacher = getTeacher(selectedClass.teacherId);
-
-    return (
-      <ClassDetailsView
-        classGroup={selectedClass}
-        teacher={teacher}
-        schedules={localTimetable}
-        allClasses={localClasses}
-        courseUnits={courseUnits}
-        classrooms={classrooms}
-        onBack={() => setSelectedClass(null)}
-        onAddSchedule={handleAddSchedule}
-        onUpdateSchedule={handleUpdateSchedule}
-        onDeleteSchedule={handleDeleteSchedule}
-        userRole={userRole}
-      />
-    );
-  }
 
   const renderCurriculumByYear = () => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -975,7 +965,7 @@ export const CourseDetailsPage = ({
         isOpen={isClassModalOpen}
         onClose={() => setIsClassModalOpen(false)}
         onSave={handleSaveClass}
-        durationYears={localCourse?.durationYears || 3}
+        durationYears={course?.durationYears || 3}
         teachers={teachers}
       />
 
@@ -1311,7 +1301,7 @@ export const CourseDetailsPage = ({
                                         <Card
                                           key={cls.id}
                                           onClick={() => {
-                                            setSelectedClass(cls);
+                                            navigate(`/courses/${courseId}/classes/${cls.id}`);
                                           }}
                                           className="hover:shadow-md transition-all duration-300 cursor-pointer group border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                                         >
@@ -1351,7 +1341,7 @@ export const CourseDetailsPage = ({
                                                   <DropdownMenuItem
                                                     onClick={(e) => {
                                                       e.stopPropagation();
-                                                      setSelectedClass(cls);
+                                                      navigate(`/courses/${courseId}/classes/${cls.id}`);
                                                     }}
                                                   >
                                                     <Calendar className="w-4 h-4 mr-2" />{" "}

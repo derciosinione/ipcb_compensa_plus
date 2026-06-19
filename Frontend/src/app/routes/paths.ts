@@ -8,6 +8,7 @@ export const appPaths = {
   notifications: "/notifications",
   courses: "/courses",
   courseDetails: "/courses/:id",
+  classDetails: "/courses/:courseId/classes/:classId",
   classrooms: "/classrooms",
   users: "/users",
   systemCalendar: "/system-calendar",

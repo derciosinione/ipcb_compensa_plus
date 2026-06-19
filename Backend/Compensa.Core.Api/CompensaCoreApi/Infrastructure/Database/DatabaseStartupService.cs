@@ -373,7 +373,11 @@ public sealed class DatabaseStartupService : IHostedService
                 constraint "FK_class_groups_courses_CourseId" foreign key ("CourseId") references courses ("Id") on delete cascade,
                 constraint "FK_class_groups_academic_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete cascade
             );
+            alter table class_groups add column if not exists "Year" integer not null default 1;
             alter table class_groups add column if not exists "AcademicYearId" uuid null;
+            alter table class_groups drop constraint if exists "FK_class_groups_curricular_units_CurricularUnitId";
+            alter table class_groups drop column if exists "CurricularUnitId";
+            drop index if exists "IX_class_groups_CurricularUnitId_Name";
             create unique index if not exists "IX_class_groups_CourseId_AcademicYearId_Year_Name" on class_groups ("CourseId", "AcademicYearId", "Year", "Name");
             create index if not exists "IX_class_groups_CourseId" on class_groups ("CourseId");
 
@@ -413,6 +417,16 @@ public sealed class DatabaseStartupService : IHostedService
 
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
+            update class_groups set "AcademicYearId" = {activeAcademicYearId} where "AcademicYearId" is null;
+            alter table class_groups alter column "AcademicYearId" set not null;
+
+            do $$
+            begin
+                if not exists (select 1 from pg_constraint where conname = 'FK_class_groups_academic_years_AcademicYearId') then
+                    alter table class_groups add constraint "FK_class_groups_academic_years_AcademicYearId" foreign key ("AcademicYearId") references academic_years ("Id") on delete cascade;
+                end if;
+            end $$;
+
             update class_schedules set "AcademicYearId" = {activeAcademicYearId} where "AcademicYearId" is null;
             alter table class_schedules alter column "AcademicYearId" set not null;
             """,

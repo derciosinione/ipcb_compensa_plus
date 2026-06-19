@@ -15,5 +15,8 @@ public sealed class UpsertClassGroupRequest
     [StringLength(128)]
     public string TeacherId { get; init; } = string.Empty;
 
+    [Required]
+    public Guid AcademicYearId { get; init; }
+
     public bool IsActive { get; init; } = true;
 }

@@ -24,9 +24,9 @@ public interface ICourseRepository
     Task<CurricularUnitComponent?> GetComponentByIdAsync(Guid courseId, Guid unitId, Guid componentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<UserUnitAssignment>> ListUnitAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCourseAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(Guid courseId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default);
     Task<ClassGroup?> GetClassGroupByIdAsync(Guid courseId, Guid classGroupId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(Guid courseId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default);
     Task<ClassSchedule?> GetClassScheduleByIdAsync(Guid scheduleId, CancellationToken cancellationToken = default);
     Task<ClassSchedule?> GetClassScheduleByIdAsync(Guid courseId, Guid classGroupId, Guid scheduleId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<(ClassSchedule Schedule, ClassGroup ClassGroup)>> ListOverlappingSchedulesAsync(

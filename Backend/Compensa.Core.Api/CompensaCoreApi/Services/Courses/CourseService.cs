@@ -163,9 +163,9 @@ public sealed class CourseService : ICourseService
         var courseAssignments = await _repository.ListCourseAssignmentsAsync(id, cancellationToken);
         
         // Determine if user has full access to this course
-        bool hasFullAccess = isAdmin || 
-                           (isCoordinator && ((offering?.CoordinatorUserId == actorUserId) || 
-                                              courseAssignments.Any(a => a.UserId == actorUserId && a.IsCoordinator)));
+        bool hasFullAccess = isAdmin || (isCoordinator && 
+                           ((offering?.CoordinatorUserId == actorUserId) || 
+                            courseAssignments.Any(a => a.UserId == actorUserId && a.IsCoordinator)));
 
         var cacheKey = CacheKeys.CourseDetails(id, activeYearId.Value);
         var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
@@ -179,50 +179,60 @@ public sealed class CourseService : ICourseService
         var unitOfferings = await _repository.ListUnitOfferingsAsync(activeYearId.Value, cancellationToken);
         var components = await _repository.ListComponentsAsync(id, cancellationToken);
         var unitAssignments = await _repository.ListUnitAssignmentsAsync(id, cancellationToken);
-        var classes = (await _repository.ListClassGroupsAsync(id, cancellationToken))
-            .Where(c => c.AcademicYearId == activeYearId.Value)
-            .ToArray();
-        var schedules = (await _repository.ListClassSchedulesAsync(id, cancellationToken))
-            .Where(s => s.AcademicYearId == activeYearId.Value)
-            .ToArray();
+        var classes = await _repository.ListClassGroupsAsync(id, activeYearId.Value, cancellationToken);
+        var schedules = await _repository.ListClassSchedulesAsync(id, activeYearId.Value, cancellationToken);
 
         if (!hasFullAccess)
         {
             var userAssignments = unitAssignments
-                .Where(a => a.UserId == actorUserId || (a.UserEmail != "" && a.UserEmail.Equals(actorUserEmail, StringComparison.OrdinalIgnoreCase)))
+                .Where(a => a.UserId == actorUserId || (!string.IsNullOrEmpty(a.UserEmail) && string.Equals(a.UserEmail, actorUserEmail, StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
             var userAssignedUnitIds = userAssignments.Select(a => a.CurricularUnitId).ToHashSet();
-            
-            // Filter classes where the user is the teacher
-            var filteredClasses = classes
-                .Where(c => c.TeacherId == actorUserId)
-                .ToArray();
-            var filteredClassIds = filteredClasses.Select(c => c.Id).ToHashSet();
             
             // Filter components where the user is the responsible teacher
             var filteredComponents = components
                 .Where(c => c.ResponsibleTeacherId == actorUserId || (c.ResponsibleTeacherEmail != "" && c.ResponsibleTeacherEmail.Equals(actorUserEmail, StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
             
-            var teacherUnitIdsFromSchedules = schedules
-                .Where(s => filteredClassIds.Contains(s.ClassGroupId))
+            var responsibleUnitIds = unitOfferings
+                .Where(o => o.ResponsibleTeacherId == actorUserId || (!string.IsNullOrEmpty(o.ResponsibleTeacherEmail) && string.Equals(o.ResponsibleTeacherEmail, actorUserEmail, StringComparison.OrdinalIgnoreCase)))
+                .Select(o => o.CurricularUnitId)
+                .ToHashSet();
+
+            // Units the teacher is directly involved in
+            var myUnitIds = responsibleUnitIds
+                .Concat(userAssignedUnitIds)
+                .Concat(filteredComponents.Select(c => c.CurricularUnitId))
+                .ToHashSet();
+
+            // Classes where the teacher is the main group teacher
+            var mainTeacherClassIds = classes.Where(c => c.TeacherId == actorUserId).Select(c => c.Id).ToHashSet();
+            
+            // Classes that have schedules for the units the teacher is involved in
+            var classesWithMyUnitsSchedules = schedules
+                .Where(s => myUnitIds.Contains(s.CurricularUnitId))
+                .Select(s => s.ClassGroupId)
+                .ToHashSet();
+
+            // Final set of visible classes
+            var finalClassIds = mainTeacherClassIds.Concat(classesWithMyUnitsSchedules).ToHashSet();
+            
+            // Units taught in classes where the teacher is the main group teacher (they should see the whole schedule of their group)
+            var unitIdsFromMyClasses = schedules
+                .Where(s => mainTeacherClassIds.Contains(s.ClassGroupId))
                 .Select(s => s.CurricularUnitId)
                 .ToHashSet();
 
-            // Filter units: user is responsible, has assignment, teaches a class (via schedule), or responsible for a component
-            var filteredUnits = units.Where(u => {
-                var offering_u = unitOfferings.FirstOrDefault(o => o.CurricularUnitId == u.Id);
-                return (offering_u?.ResponsibleTeacherId == actorUserId) || 
-                       ((offering_u?.ResponsibleTeacherEmail ?? "") != "" && (offering_u?.ResponsibleTeacherEmail ?? "").Equals(actorUserEmail, StringComparison.OrdinalIgnoreCase)) ||
-                       userAssignedUnitIds.Contains(u.Id) ||
-                       teacherUnitIdsFromSchedules.Contains(u.Id) ||
-                       filteredComponents.Any(c => c.CurricularUnitId == u.Id);
-            }).ToArray();
-            
-            var filteredUnitIds = filteredUnits.Select(u => u.Id).ToHashSet();
+            // Final set of visible units
+            var finalUnitIds = myUnitIds.Concat(unitIdsFromMyClasses).ToHashSet();
 
-            // Filter schedules: only for the filtered classes
-            var filteredSchedules = schedules.Where(s => filteredClassIds.Contains(s.ClassGroupId)).ToArray();
+            var filteredUnits = units.Where(u => finalUnitIds.Contains(u.Id)).ToArray();
+            var filteredClasses = classes.Where(c => finalClassIds.Contains(c.Id)).ToArray();
+            
+            // Filter schedules: only for visible classes AND visible units
+            var filteredSchedules = schedules
+                .Where(s => finalClassIds.Contains(s.ClassGroupId) && finalUnitIds.Contains(s.CurricularUnitId))
+                .ToArray();
 
             units = filteredUnits;
             components = filteredComponents;
@@ -567,10 +577,19 @@ public sealed class CourseService : ICourseService
         CancellationToken cancellationToken = default)
     {
         await GetRequiredCourseAsync(courseId, cancellationToken);
+
+        // Check for existing class with same name and year in this academic year
+        var existingClasses = await _repository.ListClassGroupsAsync(courseId, request.AcademicYearId, cancellationToken);
+        if (existingClasses.Any(c => string.Equals(c.Name, request.Name.Trim(), StringComparison.OrdinalIgnoreCase) && c.Year == request.Year))
+        {
+            throw new InvalidOperationException($"A class group with name '{request.Name}' already exists for year {request.Year} in this academic year.");
+        }
+
         var now = DateTimeOffset.UtcNow;
         var classGroup = new ClassGroup
         {
             CourseId = courseId,
+            AcademicYearId = request.AcademicYearId,
             Year = request.Year,
             Name = request.Name.Trim(),
             TeacherId = request.TeacherId.Trim(),
@@ -595,6 +614,7 @@ public sealed class CourseService : ICourseService
         classGroup.Year = request.Year;
         classGroup.Name = request.Name.Trim();
         classGroup.TeacherId = request.TeacherId.Trim();
+        classGroup.AcademicYearId = request.AcademicYearId;
         classGroup.IsActive = request.IsActive;
         classGroup.UpdatedAt = DateTimeOffset.UtcNow;
 

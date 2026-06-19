@@ -4,6 +4,7 @@ import {
   AiConverterPage,
   CalendarPage,
   ClassroomsPage,
+  ClassDetailsPage,
   CoursesPage,
   CourseDetailsPage,
   DashboardPage,
@@ -63,6 +64,12 @@ export const getProtectedRouteDefinitions = (
     path: appPaths.courseDetails,
     element: <CourseDetailsPage user={user} />,
     title: "Course Details",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.classDetails,
+    element: <ClassDetailsPage user={user} />,
+    title: "Class Details",
     allowedRoles: staffRoles,
   },
   {

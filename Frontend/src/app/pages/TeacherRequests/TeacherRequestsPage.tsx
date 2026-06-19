@@ -495,6 +495,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
           onOpenChange={setIsFormOpen}
           onSubmit={editingRequest ? handleUpdateRequest : handleCreateRequest}
           initialData={editingRequest}
+          user={user}
         />
 
         <AlertDialog

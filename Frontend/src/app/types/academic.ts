@@ -53,4 +53,5 @@ export interface ClassGroup {
   name: string;
   year: number;
   teacherId: string;
+  academicYearId: string;
 }

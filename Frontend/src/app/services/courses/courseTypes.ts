@@ -78,6 +78,7 @@ export interface ClassGroup {
   year: number;
   name: string;
   teacherId: string;
+  academicYearId: string;
   isActive: boolean;
 }
 
@@ -100,6 +101,7 @@ export interface UpsertClassGroupRequest {
   year: number;
   name: string;
   teacherId: string;
+  academicYearId: string;
   isActive: boolean;
 }
 

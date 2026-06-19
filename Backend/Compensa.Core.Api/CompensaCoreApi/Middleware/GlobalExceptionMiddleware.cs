@@ -46,7 +46,7 @@ public sealed class GlobalExceptionMiddleware
         context.Response.ContentType = "application/json";
 
         var message = statusCode == HttpStatusCode.InternalServerError
-            ? "An unexpected error occurred."
+            ? $"An unexpected error occurred: {exception.Message}"
             : exception.Message;
 
         await context.Response.WriteAsJsonAsync(ApiResponse<object>.Fail(message));
