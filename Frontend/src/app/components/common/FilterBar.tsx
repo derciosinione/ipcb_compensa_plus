@@ -77,12 +77,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         {/* View Mode Toggle */}
         <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
           <Button
-            variant={viewMode === "board" ? "white" : "ghost"}
+            variant={viewMode === "board" ? "outline" : "ghost"}
             size="sm"
             className={cn(
-              "h-8 px-3 text-xs font-medium rounded-md",
+              "h-8 px-3 text-xs font-medium rounded-md border-none",
               viewMode === "board" &&
-                "shadow-sm text-blue-600 dark:text-blue-400 dark:bg-slate-700",
+                "shadow-sm text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700",
             )}
             onClick={() => onViewModeChange("board")}
           >
@@ -90,12 +90,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             Board
           </Button>
           <Button
-            variant={viewMode === "table" ? "white" : "ghost"}
+            variant={viewMode === "table" ? "outline" : "ghost"}
             size="sm"
             className={cn(
-              "h-8 px-3 text-xs font-medium rounded-md",
+              "h-8 px-3 text-xs font-medium rounded-md border-none",
               viewMode === "table" &&
-                "shadow-sm text-blue-600 dark:text-blue-400 dark:bg-slate-700",
+                "shadow-sm text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700",
             )}
             onClick={() => onViewModeChange("table")}
           >

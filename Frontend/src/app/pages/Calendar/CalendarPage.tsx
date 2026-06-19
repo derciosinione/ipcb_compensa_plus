@@ -786,25 +786,34 @@ export const CalendarPage = ({
           {/* View Type Toggle */}
           <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 flex mr-2">
             <Button
-              variant={viewType === "month" ? "white" : "ghost"}
+              variant={viewType === "month" ? "outline" : "ghost"}
               size="sm"
-              className="h-8 px-3"
+              className={cn(
+                "h-8 px-3 border-none",
+                viewType === "month" && "bg-white dark:bg-slate-700 shadow-sm"
+              )}
               onClick={() => setViewType("month")}
             >
               {t("calendar.month")}
             </Button>
             <Button
-              variant={viewType === "week" ? "white" : "ghost"}
+              variant={viewType === "week" ? "outline" : "ghost"}
               size="sm"
-              className="h-8 px-3"
+              className={cn(
+                "h-8 px-3 border-none",
+                viewType === "week" && "bg-white dark:bg-slate-700 shadow-sm"
+              )}
               onClick={() => setViewType("week")}
             >
               {t("calendar.week")}
             </Button>
             <Button
-              variant={viewType === "day" ? "white" : "ghost"}
+              variant={viewType === "day" ? "outline" : "ghost"}
               size="sm"
-              className="h-8 px-3"
+              className={cn(
+                "h-8 px-3 border-none",
+                viewType === "day" && "bg-white dark:bg-slate-700 shadow-sm"
+              )}
               onClick={() => setViewType("day")}
             >
               {t("calendar.day")}
