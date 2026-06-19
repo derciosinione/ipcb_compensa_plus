@@ -26,6 +26,7 @@ import {
   Download,
 } from "lucide-react";
 import type { ClassRequest, RequestDocument } from "../../../types/requests";
+import type { UserRole } from "../../../types/user";
 import { cn } from "../../ui/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import {
@@ -49,7 +50,7 @@ interface RequestDetailsPageProps {
   onUploadDocument?: (requestId: string, file: File) => Promise<void>;
   onDeleteDocument?: (requestId: string, documentId: string) => Promise<void>;
   onDownloadDocument?: (requestId: string, documentId: string) => void;
-  userRole?: "teacher" | "coordinator" | "admin";
+  userRole?: UserRole;
 }
 
 export const RequestDetailsPage = ({
