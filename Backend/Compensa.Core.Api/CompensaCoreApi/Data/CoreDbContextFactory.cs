@@ -9,7 +9,7 @@ public sealed class CoreDbContextFactory : IDesignTimeDbContextFactory<CoreDbCon
     {
         var connectionString =
             Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-            ?? "Host=localhost;Database=CompensaCoreDB;Username=compensa;Password=compensa_dev_password";
+            ?? "Host=localhost;Database=CompensaCoreDB;Username=compensa;Password=#compensaipcb2026!";
 
         var optionsBuilder = new DbContextOptionsBuilder<CoreDbContext>();
         optionsBuilder.UseNpgsql(connectionString);

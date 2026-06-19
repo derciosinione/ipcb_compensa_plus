@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compensa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-#compensaipcb2026!}
       POSTGRES_DB: ${POSTGRES_DB:-compensa}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -62,7 +62,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-#compensaipcb2026!}
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-info@kiaricode.com}
       Email__FromName: ${EMAIL_FROM_NAME:-Compensa+}
       Email__SmtpHost: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}
@@ -76,7 +76,7 @@ services:
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js=}
       Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-1440}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
@@ -109,12 +109,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${CORE_DB:-CompensaCoreDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${CORE_DB:-CompensaCoreDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-#compensaipcb2026!}
       Services__IdentityApi: http://identity-api:8080
       Services__CompensaAI: http://compensa-ai:8000
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js=}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
       Redis__ConnectionString: compensa-redis:6379
@@ -148,11 +148,11 @@ services:
     restart: unless-stopped
     environment:
       COMPENSA_AI_ENVIRONMENT: ${COMPENSA_AI_ENVIRONMENT:-development}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${AI_DB:-CompensaAiDB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-#compensaipcb2026!}@postgres:5432/${AI_DB:-CompensaAiDB}
       CORE_API_URL: http://core-api:8080
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js=}
       JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
       REDIS_URL: redis://compensa-redis:6379
@@ -180,8 +180,8 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${NOTIFICATIONS_DB:-CompensaNotificationsDB}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-#compensaipcb2026!}@postgres:5432/${NOTIFICATIONS_DB:-CompensaNotificationsDB}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js=}
       JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
       EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}

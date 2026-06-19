@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compensa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-#compensaipcb2026!}
       POSTGRES_DB: ${POSTGRES_DB:-compensa}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -44,8 +44,8 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${NOTIFICATIONS_DB:-CompensaNotificationsDB}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-#compensaipcb2026!}@postgres:5432/${NOTIFICATIONS_DB:-CompensaNotificationsDB}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js=}
       JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
       EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}
