@@ -542,6 +542,7 @@ public sealed class DatabaseStartupService : IHostedService
                 {
                     CourseId = lei.Id,
                     Name = "Programming Fundamentals",
+                    Abbreviation = "PF",
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
@@ -552,6 +553,7 @@ public sealed class DatabaseStartupService : IHostedService
                 {
                     CourseId = lei.Id,
                     Name = "Mathematics I",
+                    Abbreviation = "M1",
                     Year = 1,
                     Semester = 1,
                     Ects = 6,
@@ -562,6 +564,7 @@ public sealed class DatabaseStartupService : IHostedService
                 {
                     CourseId = lei.Id,
                     Name = "Software Architecture",
+                    Abbreviation = "SA",
                     Year = 2,
                     Semester = 1,
                     Ects = 6,
@@ -572,6 +575,7 @@ public sealed class DatabaseStartupService : IHostedService
                 {
                     CourseId = lei.Id,
                     Name = "Web Development",
+                    Abbreviation = "WD",
                     Year = 2,
                     Semester = 2,
                     Ects = 6,
@@ -582,6 +586,7 @@ public sealed class DatabaseStartupService : IHostedService
                 {
                     CourseId = lei.Id,
                     Name = "Final Project",
+                    Abbreviation = "FP",
                     Year = 3,
                     Semester = 2,
                     Ects = 15,
@@ -592,6 +597,7 @@ public sealed class DatabaseStartupService : IHostedService
                 {
                     CourseId = ld.Id,
                     Name = "Design Principles",
+                    Abbreviation = "DP",
                     Year = 1,
                     Semester = 1,
                     Ects = 6,

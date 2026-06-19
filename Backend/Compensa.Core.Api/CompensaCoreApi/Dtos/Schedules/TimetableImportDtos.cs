@@ -88,6 +88,8 @@ public sealed class TimetableImportConfirmRequest
     public List<CourseCreateDto> CoursesToCreate { get; set; } = [];
     public List<ClassGroupCreateDto> ClassGroupsToCreate { get; set; } = [];
     public List<CurricularUnitCreateDto> CurricularUnitsToCreate { get; set; } = [];
+    public List<CurricularUnitCreateDto> CurricularUnitsToUpdate { get; set; } = [];
+    public List<ClassroomCreateDto> ClassroomsToCreate { get; set; } = [];
 }
 
 public sealed class CourseCreateDto
@@ -95,6 +97,12 @@ public sealed class CourseCreateDto
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Abbreviation { get; set; } = string.Empty;
+}
+
+public sealed class ClassroomCreateDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 public sealed class ClassGroupCreateDto
@@ -121,7 +129,7 @@ public sealed class TimetableImportScheduleItem
     public Guid CourseId { get; set; }
     public Guid ClassGroupId { get; set; }
     public Guid CurricularUnitId { get; set; }
-    public Guid ClassroomId { get; set; }
+    public Guid? ClassroomId { get; set; }
     public string ComponentType { get; set; } = "All";
     public int DayOfWeek { get; set; }
     public string StartTime { get; set; } = string.Empty; // "HH:mm"

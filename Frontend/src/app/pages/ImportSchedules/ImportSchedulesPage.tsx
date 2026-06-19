@@ -243,7 +243,6 @@ export const ImportSchedulesPage = () => {
     setIsSaving(true);
     try {
       const items: any[] = [];
-      let missingMappings = 0;
 
       const generateGuid = () => {
         return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -255,114 +254,141 @@ export const ImportSchedulesPage = () => {
 
       const coursesToCreateMap: Record<string, { id: string; name: string; abbreviation: string }> = {};
       const classGroupsToCreateMap: Record<string, { id: string; courseId: string; name: string; year: number }> = {};
+      // New UCs to create (no match found in DB)
       const curricularUnitsToCreateMap: Record<string, { id: string; courseId: string; name: string; abbreviation: string; year: number; semester: number }> = {};
+      // Existing UCs to update abbreviation (matched in DB but abbreviation missing/different)
+      const curricularUnitsToUpdateMap: Record<string, { id: string; courseId: string; name: string; abbreviation: string; year: number; semester: number }> = {};
+      const classroomsToCreateMap: Record<string, { id: string; name: string }> = {};
 
-      // 1. Assign real GUIDs to any "CREATE_NEW" courses
+      // 1. Assign real GUIDs to any "CREATE_NEW" courses.
+      //    If no mapping is selected at all, default to CREATE_NEW (auto-create).
       previewData.courses.forEach((course) => {
-        const mappedCourseId = courseMappings[course.tempId];
+        const mappedCourseId = courseMappings[course.tempId] || "CREATE_NEW";
         if (mappedCourseId === "CREATE_NEW") {
-          const generatedId = generateGuid();
-          coursesToCreateMap[course.tempId] = {
-            id: generatedId,
-            name: course.name,
-            abbreviation: course.abbreviation
-          };
+          if (!coursesToCreateMap[course.tempId]) {
+            coursesToCreateMap[course.tempId] = {
+              id: generateGuid(),
+              name: course.name,
+              abbreviation: course.abbreviation,
+            };
+          }
         }
       });
 
-      // 2. Assign real GUIDs to any "CREATE_NEW" class groups
+      // 2. Assign real GUIDs to any "CREATE_NEW" class groups.
+      //    If no mapping, auto-create.
       previewData.courses.forEach((course) => {
         const mappedCourseId = coursesToCreateMap[course.tempId]?.id ?? courseMappings[course.tempId];
         if (!mappedCourseId) return;
 
         course.classes.forEach((cls) => {
-          const mappedClassGroupId = classMappings[cls.tempId];
+          const mappedClassGroupId = classMappings[cls.tempId] || "CREATE_NEW";
           if (mappedClassGroupId === "CREATE_NEW") {
-            const generatedId = generateGuid();
-            classGroupsToCreateMap[cls.tempId] = {
-              id: generatedId,
-              courseId: mappedCourseId,
-              name: cls.name,
-              year: cls.year
-            };
+            if (!classGroupsToCreateMap[cls.tempId]) {
+              classGroupsToCreateMap[cls.tempId] = {
+                id: generateGuid(),
+                courseId: mappedCourseId,
+                name: cls.name,
+                year: cls.year,
+              };
+            }
           }
         });
       });
 
-      // 3. Collect schedules and assign real GUIDs to any "CREATE_NEW" curricular units
+      // 3. Collect schedules, resolve UCs and classrooms
       previewData.courses.forEach((course) => {
         const mappedCourseId = coursesToCreateMap[course.tempId]?.id ?? courseMappings[course.tempId];
-        if (!mappedCourseId) {
-          missingMappings++;
-          return;
-        }
+        if (!mappedCourseId) return;
 
         course.classes.forEach((cls) => {
           const mappedClassGroupId = classGroupsToCreateMap[cls.tempId]?.id ?? classMappings[cls.tempId];
-          if (!mappedClassGroupId) {
-            missingMappings++;
-            return;
-          }
+          if (!mappedClassGroupId) return;
 
           cls.schedules.forEach((slot, sIdx) => {
             const override = slotOverrides[`${cls.tempId}_${sIdx}`];
+
+            // Resolve UC ID
             let finalUnitId =
               override?.matchedCurricularUnitId ??
               slot.matchedCurricularUnitId ??
-              "CREATE_NEW";
-            const finalClassroomId =
-              override?.matchedClassroomId ?? slot.matchedClassroomId;
+              null;
             const finalCompType = override?.componentType ?? slot.componentType;
             const finalDay = override?.dayOfWeek ?? slot.dayOfWeek;
             const finalStart = override?.startTime ?? slot.startTime;
             const finalEnd = override?.endTime ?? slot.endTime;
 
-            if (!finalUnitId || !finalClassroomId) {
-              // Skip slots that are not fully mapped (classroom or unit missing)
-              return;
-            }
+            // Resolve classroom ID (optional — slots can have no room)
+            let finalClassroomId: string | null =
+              override?.matchedClassroomId ??
+              slot.matchedClassroomId ??
+              null;
 
-            if (finalUnitId === "CREATE_NEW") {
-              const key = `${mappedCourseId}_${slot.curricularUnitAbbreviation}`;
-              if (!curricularUnitsToCreateMap[key]) {
-                curricularUnitsToCreateMap[key] = {
+            // If UC is unmatched → create new
+            if (!finalUnitId) {
+              const ucKey = `${mappedCourseId}_${slot.curricularUnitAbbreviation}`;
+              if (!curricularUnitsToCreateMap[ucKey]) {
+                curricularUnitsToCreateMap[ucKey] = {
                   id: generateGuid(),
                   courseId: mappedCourseId,
-                  name: slot.curricularUnitName,
+                  name: slot.curricularUnitName || slot.curricularUnitAbbreviation,
                   abbreviation: slot.curricularUnitAbbreviation,
                   year: cls.year,
-                  semester: selectedSemester
+                  semester: selectedSemester,
                 };
               }
-              finalUnitId = curricularUnitsToCreateMap[key].id;
+              finalUnitId = curricularUnitsToCreateMap[ucKey].id;
+            } else {
+              // UC already exists — queue abbreviation update if it has one
+              if (slot.curricularUnitAbbreviation) {
+                const ucUpdateKey = finalUnitId;
+                if (!curricularUnitsToUpdateMap[ucUpdateKey]) {
+                  curricularUnitsToUpdateMap[ucUpdateKey] = {
+                    id: finalUnitId,
+                    courseId: mappedCourseId,
+                    name: slot.curricularUnitName,
+                    abbreviation: slot.curricularUnitAbbreviation,
+                    year: cls.year,
+                    semester: selectedSemester,
+                  };
+                }
+              }
             }
+
+            // If classroom name is known but no match → auto-create classroom
+            if (!finalClassroomId && slot.classroomName) {
+              const roomKey = slot.classroomName.trim();
+              if (roomKey) {
+                if (!classroomsToCreateMap[roomKey]) {
+                  classroomsToCreateMap[roomKey] = {
+                    id: generateGuid(),
+                    name: roomKey,
+                  };
+                }
+                finalClassroomId = classroomsToCreateMap[roomKey].id;
+              }
+            }
+
+            // Skip slot if no UC (this should never happen now)
+            if (!finalUnitId) return;
 
             items.push({
               courseId: mappedCourseId,
               classGroupId: mappedClassGroupId,
               curricularUnitId: finalUnitId,
-              classroomId: finalClassroomId,
+              classroomId: finalClassroomId || null,
               componentType: finalCompType,
               dayOfWeek: finalDay,
-              startTime:
-                finalStart.length === 5 ? `${finalStart}:00` : finalStart,
+              startTime: finalStart.length === 5 ? `${finalStart}:00` : finalStart,
               endTime: finalEnd.length === 5 ? `${finalEnd}:00` : finalEnd,
             });
           });
         });
       });
 
-      if (missingMappings > 0) {
-        toast.error(
-          `Please map all courses and classes. There are ${missingMappings} unmatched entities.`,
-        );
-        setIsSaving(false);
-        return;
-      }
-
       if (items.length === 0) {
         toast.error(
-          "No valid schedules were mapped. Please make sure UCs and classrooms are selected.",
+          "Nenhuma aula válida encontrada. Verifique se os horários têm UCs e dados corretos.",
         );
         setIsSaving(false);
         return;
@@ -376,20 +402,22 @@ export const ImportSchedulesPage = () => {
         coursesToCreate: Object.values(coursesToCreateMap),
         classGroupsToCreate: Object.values(classGroupsToCreateMap),
         curricularUnitsToCreate: Object.values(curricularUnitsToCreateMap),
+        curricularUnitsToUpdate: Object.values(curricularUnitsToUpdateMap),
+        classroomsToCreate: Object.values(classroomsToCreateMap),
       };
 
       const res = await importSchedulesApi.confirmImport(requestPayload);
       if (res.success && res.data !== undefined) {
         setImportCount(res.data);
         setStep("success");
-        toast.success(`${res.data} schedules imported successfully!`);
+        toast.success(`${res.data} aulas importadas com sucesso!`);
       } else {
-        toast.error(res.message || "Failed to save imported schedules.");
+        toast.error(res.message || "Falha ao guardar os horários importados.");
       }
     } catch (error) {
       console.error(error);
       toast.error(
-        error instanceof Error ? error.message : "Error saving schedules.",
+        error instanceof Error ? error.message : "Erro ao guardar horários.",
       );
     } finally {
       setIsSaving(false);
@@ -899,7 +927,7 @@ export const ImportSchedulesPage = () => {
                             const selectedRoomId =
                               override?.matchedClassroomId ??
                               slot.matchedClassroomId ??
-                              "";
+                              (slot.classroomName ? "CREATE_NEW" : "");
                             const compType =
                               override?.componentType ?? slot.componentType;
                             const day = override?.dayOfWeek ?? slot.dayOfWeek;
@@ -975,10 +1003,19 @@ export const ImportSchedulesPage = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                       <SelectItem value="Theoretical">
-                                        Teórica (T)
+                                        T — Teórica
+                                      </SelectItem>
+                                      <SelectItem value="TheoreticalPractical">
+                                        TP — Teórico Prática
                                       </SelectItem>
                                       <SelectItem value="Practical">
-                                        Prática (P/TP)
+                                        P — Prática
+                                      </SelectItem>
+                                      <SelectItem value="PracticalLaboratorial">
+                                        PL — Prática Laboratorial
+                                      </SelectItem>
+                                      <SelectItem value="All">
+                                        Todas
                                       </SelectItem>
                                     </SelectContent>
                                   </Select>
@@ -1071,6 +1108,11 @@ export const ImportSchedulesPage = () => {
                                         <SelectValue placeholder="Associar Sala..." />
                                       </SelectTrigger>
                                       <SelectContent>
+                                        {slot.classroomName && (
+                                          <SelectItem value="CREATE_NEW" className="text-blue-600 dark:text-blue-400 font-semibold">
+                                            + Criar Nova Sala ({slot.classroomName})
+                                          </SelectItem>
+                                        )}
                                         {previewData.availableClassrooms.map(
                                           (room) => (
                                             <SelectItem
@@ -1154,7 +1196,8 @@ export const ImportSchedulesPage = () => {
                                   "CREATE_NEW";
                                 const rId =
                                   override?.matchedClassroomId ??
-                                  s.matchedClassroomId;
+                                  s.matchedClassroomId ??
+                                  (s.classroomName ? "CREATE_NEW" : "");
                                 return !!uId && !!rId;
                               }).length
                             );

@@ -117,8 +117,9 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var originalSchedule = await _courseRepository.GetClassScheduleByIdAsync(request.OriginalClassScheduleId, cancellationToken)
             ?? throw new NotFoundException($"Original class schedule '{request.OriginalClassScheduleId}' was not found.");
 
-        var originalRoom = await _classroomRepository.GetByIdAsync(originalSchedule.ClassroomId, cancellationToken)
-            ?? throw new NotFoundException($"Original classroom '{originalSchedule.ClassroomId}' was not found.");
+        var originalRoom = originalSchedule.ClassroomId.HasValue
+            ? await _classroomRepository.GetByIdAsync(originalSchedule.ClassroomId.Value, cancellationToken)
+            : null;
 
         var newRoom = await _classroomRepository.GetByIdAsync(request.NewClassroomId, cancellationToken)
             ?? throw new NotFoundException($"New classroom '{request.NewClassroomId}' was not found.");
@@ -148,7 +149,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             OriginalDate = request.OriginalDate,
             OriginalStartTime = originalSchedule.StartTime,
             OriginalEndTime = originalSchedule.EndTime,
-            OriginalRoom = originalRoom.Name,
+            OriginalRoom = originalRoom?.Name ?? "Sem Sala",
             NewDate = request.NewDate,
             NewStartTime = request.NewStartTime,
             NewEndTime = request.NewEndTime,

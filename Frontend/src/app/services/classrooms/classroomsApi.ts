@@ -48,3 +48,28 @@ export const deleteClassroom = async (id: string) => {
     method: "DELETE",
   });
 };
+
+export const deleteClassroomsBulk = async (ids: string[]) => {
+  await authenticatedApiRequest<void>(coreApiBaseUrl, "/api/classrooms/bulk", {
+    method: "DELETE",
+    body: JSON.stringify(ids),
+  });
+};
+
+export const getClassroomUsage = async (id: string) => {
+  const response = await authenticatedApiRequest<{ classroomId: string; associatedSchedulesCount: number }>(
+    coreApiBaseUrl,
+    `/api/classrooms/${id}/usage`,
+  );
+  return response.data;
+};
+
+export const getClassroomsUsageBulk = async (ids: string[]) => {
+  const response = await authenticatedApiRequest<{
+    usages: Array<{ classroomId: string; associatedSchedulesCount: number }>;
+  }>(coreApiBaseUrl, "/api/classrooms/usage-bulk", {
+    method: "POST",
+    body: JSON.stringify(ids),
+  });
+  return response.data?.usages ?? [];
+};

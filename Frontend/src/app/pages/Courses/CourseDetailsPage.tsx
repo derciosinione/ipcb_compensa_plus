@@ -127,6 +127,7 @@ const toDetailsCourse = (course: ApiCourse): ViewCourse => ({
 const toDetailsUnit = (unit: ApiCurricularUnit): CurricularUnit => ({
   id: unit.id,
   name: unit.name,
+  abbreviation: unit.abbreviation ?? "",
   courseId: unit.courseId,
   year: unit.year,
   semester: unit.semester,
@@ -401,6 +402,7 @@ export const CourseDetailsPage = ({
       unitData.regentId || editingUnit?.regentId || userId;
     const request = {
       name: unitData.name,
+      abbreviation: unitData.abbreviation || "",
       year: unitData.year,
       semester: unitData.semester,
       ects: unitData.ects,
@@ -458,6 +460,7 @@ export const CourseDetailsPage = ({
     try {
       await updateCurricularUnit(courseId, unitId, {
         name: unit.name,
+        abbreviation: unit.abbreviation,
         year: unit.year,
         semester: unit.semester,
         ects: unit.ects,
@@ -844,8 +847,15 @@ export const CourseDetailsPage = ({
                               onClick={() => handleViewUnit(unit)}
                               className="flex-1"
                             >
-                              <div className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
-                                {unit.name}
+                              <div className="flex items-center gap-2">
+                                {unit.abbreviation && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shrink-0">
+                                    {unit.abbreviation}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
+                                  {unit.name}
+                                </span>
                               </div>
                               <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-500">
                                 <Badge

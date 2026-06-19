@@ -37,6 +37,7 @@ export interface Course {
 export interface CurricularUnit {
   id: string;
   name: string;
+  abbreviation: string;
   courseId: string;
   year: number;
   semester: 1 | 2;

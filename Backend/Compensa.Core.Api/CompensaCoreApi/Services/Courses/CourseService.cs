@@ -376,6 +376,12 @@ public sealed class CourseService : ICourseService
         var course = await GetRequiredCourseAsync(courseId, cancellationToken);
         ValidateUnitBelongsToCourseYear(course, request.Year);
 
+        await EnsureUniqueUnitNameAsync(courseId, request.Name, excludedUnitId: null, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.Abbreviation))
+        {
+            await EnsureUniqueUnitAbbreviationAsync(courseId, request.Abbreviation, excludedUnitId: null, cancellationToken);
+        }
+
         var activeYear = await _academicYearRepository.GetActiveAsync(cancellationToken)
             ?? throw new NotFoundException("No active academic year found.");
 
@@ -384,6 +390,7 @@ public sealed class CourseService : ICourseService
         {
             CourseId = course.Id,
             Name = request.Name.Trim(),
+            Abbreviation = request.Abbreviation?.Trim() ?? string.Empty,
             Year = request.Year,
             Semester = request.Semester,
             Ects = request.Ects,
@@ -434,7 +441,18 @@ public sealed class CourseService : ICourseService
             ?? throw new NotFoundException("No active academic year found.");
 
         var unit = await GetRequiredUnitAsync(courseId, unitId, cancellationToken);
+
+        await EnsureUniqueUnitNameAsync(courseId, request.Name, unitId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.Abbreviation))
+        {
+            await EnsureUniqueUnitAbbreviationAsync(courseId, request.Abbreviation, unitId, cancellationToken);
+        }
+
         unit.Name = request.Name.Trim();
+        if (request.Abbreviation != null)
+        {
+            unit.Abbreviation = request.Abbreviation.Trim();
+        }
         unit.Year = request.Year;
         unit.Semester = request.Semester;
         unit.Ects = request.Ects;
@@ -916,6 +934,38 @@ public sealed class CourseService : ICourseService
             throw new InvalidOperationException($"Course abbreviation '{abbreviation}' already exists.");
     }
 
+    private async Task EnsureUniqueUnitAbbreviationAsync(
+        Guid courseId,
+        string abbreviation,
+        Guid? excludedUnitId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(abbreviation))
+            return;
+
+        var units = await _repository.ListUnitsAsync(courseId, cancellationToken);
+        var existing = units.FirstOrDefault(u => string.Equals(u.Abbreviation, abbreviation.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null && existing.Id != excludedUnitId)
+            throw new InvalidOperationException($"A curricular unit with abbreviation '{abbreviation}' already exists in this course.");
+    }
+
+    private async Task EnsureUniqueUnitNameAsync(
+        Guid courseId,
+        string name,
+        Guid? excludedUnitId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        var units = await _repository.ListUnitsAsync(courseId, cancellationToken);
+        var existing = units.FirstOrDefault(u => string.Equals(u.Name, name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null && existing.Id != excludedUnitId)
+            throw new InvalidOperationException($"A curricular unit with name '{name}' already exists in this course.");
+    }
+
     private static string? NormalizeOptional(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -961,6 +1011,7 @@ public sealed class CourseService : ICourseService
             unit.Id,
             unit.CourseId,
             unit.Name,
+            unit.Abbreviation,
             offering?.Year ?? unit.Year,
             offering?.Semester ?? unit.Semester,
             unit.Ects,

@@ -2,7 +2,25 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
-import { Building2, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  Plus,
+  Search,
+  Trash2,
+  LayoutGrid,
+  List,
+  AlertTriangle,
+} from "lucide-react";
+import { Checkbox } from "../../components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/ui/table";
 import {
   Card,
   CardContent,
@@ -51,6 +69,9 @@ import type { User } from "../../types/user";
 import {
   createClassroom,
   deleteClassroom,
+  deleteClassroomsBulk,
+  getClassroomUsage,
+  getClassroomsUsageBulk,
   listClassrooms,
   updateClassroom,
 } from "../../services/classrooms/classroomsApi";
@@ -115,6 +136,14 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
   const [formState, setFormState] =
     useState<ClassroomFormState>(initialFormState);
 
+  const [viewType, setViewType] = useState<"grid" | "table">("grid");
+  const [selectedRoomIds, setSelectedRoomIds] = useState<string[]>([]);
+  const [schedulesCountToDelete, setSchedulesCountToDelete] = useState<number | null>(null);
+  const [bulkSchedulesCount, setBulkSchedulesCount] = useState<number | null>(null);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [loadingRoomId, setLoadingRoomId] = useState<string | null>(null);
+  const [loadingBulk, setLoadingBulk] = useState(false);
+
   const roomPageSize = 6;
   const isAdmin = user.role === "admin";
 
@@ -136,7 +165,12 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
 
   useEffect(() => {
     setRoomPage(1);
+    setSelectedRoomIds([]);
   }, [searchTerm]);
+
+  useEffect(() => {
+    setSelectedRoomIds([]);
+  }, [roomPage, viewType]);
 
   const filteredClassrooms = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -249,8 +283,17 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
     }
   };
 
-  const handleDelete = (classroom: Classroom) => {
-    setRoomToDelete(classroom);
+  const handleDeleteClick = async (classroom: Classroom) => {
+    try {
+      setLoadingRoomId(classroom.id);
+      const usage = await getClassroomUsage(classroom.id);
+      setSchedulesCountToDelete(usage.associatedSchedulesCount);
+      setRoomToDelete(classroom);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao obter dados de uso da sala."));
+    } finally {
+      setLoadingRoomId(null);
+    }
   };
 
   const executeDelete = async () => {
@@ -261,11 +304,63 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
     try {
       await deleteClassroom(roomId);
       setClassrooms((current) => current.filter((item) => item.id !== roomId));
-      toast.success("Classroom deleted.");
+      setSelectedRoomIds((prev) => prev.filter((id) => id !== roomId));
+      toast.success("Sala eliminada com sucesso.");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to delete classroom."));
+      toast.error(getErrorMessage(error, "Não foi possível eliminar a sala."));
     }
   };
+
+  const handleBulkDeleteClick = async () => {
+    if (selectedRoomIds.length === 0) return;
+    try {
+      setLoadingBulk(true);
+      const usages = await getClassroomsUsageBulk(selectedRoomIds);
+      const totalSchedules = usages.reduce((sum, u) => sum + u.associatedSchedulesCount, 0);
+      setBulkSchedulesCount(totalSchedules);
+      setIsBulkDeleteOpen(true);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Erro ao obter dados de uso das salas selecionadas."));
+    } finally {
+      setLoadingBulk(false);
+    }
+  };
+
+  const executeBulkDelete = async () => {
+    if (selectedRoomIds.length === 0) return;
+    const idsToDelete = [...selectedRoomIds];
+    setIsBulkDeleteOpen(false);
+
+    try {
+      await deleteClassroomsBulk(idsToDelete);
+      setClassrooms((current) => current.filter((item) => !idsToDelete.includes(item.id)));
+      setSelectedRoomIds([]);
+      toast.success("Salas eliminadas com sucesso.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Não foi possível eliminar as salas."));
+    }
+  };
+
+  const handleSelectRoom = (roomId: string, checked: boolean) => {
+    setSelectedRoomIds((prev) =>
+      checked ? [...prev, roomId] : prev.filter((id) => id !== roomId)
+    );
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    const paginatedIds = paginatedRooms.map((room) => room.id);
+    if (checked) {
+      setSelectedRoomIds((prev) => {
+        const union = new Set([...prev, ...paginatedIds]);
+        return Array.from(union);
+      });
+    } else {
+      setSelectedRoomIds((prev) => prev.filter((id) => !paginatedIds.includes(id)));
+    }
+  };
+
+  const isAllSelected = paginatedRooms.length > 0 && paginatedRooms.every((room) => selectedRoomIds.includes(room.id));
+  const isSomeSelected = paginatedRooms.some((room) => selectedRoomIds.includes(room.id)) && !isAllSelected;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -288,7 +383,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
         )}
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="relative w-full max-w-[380px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input
@@ -298,12 +393,171 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
             onChange={(event) => setSearchTerm(event.target.value)}
           />
         </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          {isAdmin && selectedRoomIds.length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={handleBulkDeleteClick}
+              className="rounded-xl shadow-lg shadow-red-500/10"
+              disabled={loadingBulk}
+            >
+              {loadingBulk ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              Eliminar ({selectedRoomIds.length})
+            </Button>
+          )}
+          <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewType("grid")}
+              className={cn(
+                "h-9 w-9 rounded-lg transition-colors",
+                viewType === "grid"
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-350"
+              )}
+            >
+              <LayoutGrid className="h-4.5 w-4.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setViewType("table")}
+              className={cn(
+                "h-9 w-9 rounded-lg transition-colors",
+                viewType === "table"
+                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-350"
+              )}
+            >
+              <List className="h-4.5 w-4.5" />
+            </Button>
+          </div>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex min-h-[320px] items-center justify-center text-slate-500">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           Loading classrooms...
+        </div>
+      ) : viewType === "table" ? (
+        <div className="bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-250 dark:border-slate-800">
+                {isAdmin && (
+                  <TableHead className="w-[50px] text-center">
+                    <Checkbox
+                      checked={isAllSelected || (isSomeSelected ? "indeterminate" : false)}
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      aria-label="Select all classrooms"
+                    />
+                  </TableHead>
+                )}
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Name</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Type</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Capacity</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Features</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Status</TableHead>
+                {isAdmin && (
+                  <TableHead className="text-right font-semibold text-slate-700 dark:text-slate-300">Actions</TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedRooms.map((room) => (
+                <TableRow
+                  key={room.id}
+                  className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"
+                >
+                  {isAdmin && (
+                    <TableCell className="text-center">
+                      <Checkbox
+                        checked={selectedRoomIds.includes(room.id)}
+                        onCheckedChange={(checked) => handleSelectRoom(room.id, !!checked)}
+                        aria-label={`Select ${room.name}`}
+                      />
+                    </TableCell>
+                  )}
+                  <TableCell className="font-semibold text-slate-900 dark:text-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-slate-400" />
+                      {room.name}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    >
+                      {getClassroomTypeLabel(room.type)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-slate-650 dark:text-slate-350">{room.capacity} Seats</TableCell>
+                  <TableCell className="text-slate-650 dark:text-slate-350 max-w-[250px] truncate">
+                    <div className="flex flex-wrap gap-1">
+                      {room.features.slice(0, 3).map((feature) => (
+                        <span
+                          key={feature}
+                          className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 rounded text-[10px] text-slate-605 dark:text-slate-355 font-medium"
+                        >
+                          {feature}
+                        </span>
+                      ))}
+                      {room.features.length > 3 && (
+                        <span className="text-[10px] text-slate-405 font-medium">+{room.features.length - 3}</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "px-2.5 py-0.5 font-semibold rounded-full text-xs",
+                        room.isActive
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                          : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
+                      )}
+                    >
+                      {room.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  {isAdmin && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(room)}
+                          className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteClick(room)}
+                          className="text-slate-500 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          disabled={loadingRoomId !== null}
+                        >
+                          {loadingRoomId === room.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -356,10 +610,15 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleDelete(room)}
-                      className="w-full text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={() => handleDeleteClick(room)}
+                      className="w-full text-slate-500 dark:text-slate-400 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      disabled={loadingRoomId !== null}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      {loadingRoomId === room.id ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
                       Delete
                     </Button>
                   </div>
@@ -542,26 +801,71 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
           </form>
         </DialogContent>
       </Dialog>
+
       <AlertDialog
         open={roomToDelete !== null}
         onOpenChange={(open) => !open && setRoomToDelete(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Classroom</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the classroom "
-              {roomToDelete?.name}"? This action is permanent and will remove
-              it from all existing schedules.
+            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">Eliminar Sala</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Tem a certeza de que deseja eliminar a sala "<strong>{roomToDelete?.name}</strong>"? Esta ação é permanente.
+              </p>
+              {schedulesCountToDelete !== null && schedulesCountToDelete > 0 && (
+                <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
+                  <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">Aviso Importante</h4>
+                    <p className="text-xs mt-1 leading-relaxed text-amber-800 dark:text-amber-305">
+                      Esta sala tem <strong>{schedulesCountToDelete}</strong> turma(s)/aula(s) associada(s). Se a eliminar, estas turmas poderão ficar sem salas atribuídas.
+                    </p>
+                  </div>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={executeDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Delete
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">Eliminar Salas em Lote</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                Tem a certeza de que deseja eliminar as <strong>{selectedRoomIds.length}</strong> salas selecionadas? Esta ação é permanente.
+              </p>
+              {bulkSchedulesCount !== null && bulkSchedulesCount > 0 && (
+                <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
+                  <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">Aviso Importante</h4>
+                    <p className="text-xs mt-1 leading-relaxed text-amber-800 dark:text-amber-305">
+                      As salas selecionadas têm um total de <strong>{bulkSchedulesCount}</strong> turma(s)/aula(s) associada(s). Ao eliminá-las, estas turmas poderão ficar sem salas atribuídas.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeBulkDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

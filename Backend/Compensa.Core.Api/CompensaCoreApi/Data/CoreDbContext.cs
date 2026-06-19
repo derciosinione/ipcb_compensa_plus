@@ -236,7 +236,14 @@ public sealed class CoreDbContext : DbContext
                 .HasMaxLength(200)
                 .IsRequired();
 
+            entity.Property(unit => unit.Abbreviation)
+                .HasMaxLength(50)
+                .IsRequired();
+
             entity.HasIndex(unit => new { unit.CourseId, unit.Name })
+                .IsUnique();
+
+            entity.HasIndex(unit => new { unit.CourseId, unit.Abbreviation })
                 .IsUnique();
 
             entity.HasOne<Course>()
@@ -388,7 +395,7 @@ public sealed class CoreDbContext : DbContext
             entity.HasOne<Classroom>()
                 .WithMany()
                 .HasForeignKey(schedule => schedule.ClassroomId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<UserUnitAssignment>(entity =>

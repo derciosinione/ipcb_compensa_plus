@@ -75,6 +75,23 @@ public sealed class ClassroomService : IClassroomService
         await _repository.DeleteAsync(classroom, cancellationToken);
     }
 
+    public async Task DeleteBulkAsync(IEnumerable<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        foreach (var id in ids)
+        {
+            var classroom = await _repository.GetByIdAsync(id, cancellationToken);
+            if (classroom != null)
+            {
+                await _repository.DeleteAsync(classroom, cancellationToken);
+            }
+        }
+    }
+
+    public Task<int> GetSchedulesCountAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return _repository.GetSchedulesCountAsync(id, cancellationToken);
+    }
+
     private async Task<Classroom> GetRequiredClassroomAsync(Guid id, CancellationToken cancellationToken)
     {
         return await _repository.GetByIdAsync(id, cancellationToken)

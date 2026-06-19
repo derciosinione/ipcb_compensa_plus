@@ -13,5 +13,5 @@ public sealed record ClassScheduleResponse(
     int DayOfWeek,
     TimeOnly StartTime,
     TimeOnly EndTime,
-    Guid ClassroomId,
+    Guid? ClassroomId,
     bool IsActive);

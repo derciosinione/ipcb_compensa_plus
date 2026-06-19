@@ -27,10 +27,11 @@ export interface UpsertCourseRequest {
   isActive: boolean;
 }
 
-export type UnitComponentType = "Theoretical" | "Practical" | "All";
+export type UnitComponentType = "Theoretical" | "Practical" | "TheoreticalPractical" | "PracticalLaboratorial" | "All";
 
 export interface UpsertCurricularUnitRequest {
   name: string;
+  abbreviation?: string;
   year: number;
   semester: 1 | 2;
   ects: number;
@@ -62,6 +63,7 @@ export interface CurricularUnit {
   id: string;
   courseId: string;
   name: string;
+  abbreviation: string;
   year: number;
   semester: 1 | 2;
   ects: number;

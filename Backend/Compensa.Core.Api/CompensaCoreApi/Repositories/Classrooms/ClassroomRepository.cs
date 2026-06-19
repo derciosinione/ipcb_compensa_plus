@@ -66,4 +66,9 @@ public sealed class ClassroomRepository : IClassroomRepository
         _context.Classrooms.Remove(classroom);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public Task<int> GetSchedulesCountAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return _context.ClassSchedules.CountAsync(s => s.ClassroomId == id, cancellationToken);
+    }
 }

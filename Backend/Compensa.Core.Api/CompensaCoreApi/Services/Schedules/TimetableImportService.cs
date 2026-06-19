@@ -225,21 +225,18 @@ public sealed class TimetableImportService : ITimetableImportService
                     string teacherName = string.Empty;
                     string classroomName = string.Empty;
 
-                    if (cellLines.Count == 3)
+                    if (cellLines.Count >= 3)
                     {
-                        if (IsClassroomLike(cellLines[2], dbClassroomNames))
+                        var lastLine = cellLines[^1];
+                        if (IsClassroomLike(lastLine, dbClassroomNames))
                         {
-                            classroomName = cellLines[2];
+                            classroomName = lastLine;
+                            teacherName = string.Join(" ", cellLines.Skip(2).Take(cellLines.Count - 3));
                         }
                         else
                         {
-                            teacherName = cellLines[2];
+                            teacherName = string.Join(" ", cellLines.Skip(2));
                         }
-                    }
-                    else if (cellLines.Count >= 4)
-                    {
-                        teacherName = cellLines[2];
-                        classroomName = cellLines[3];
                     }
 
                     // Look up details in legend
@@ -260,11 +257,32 @@ public sealed class TimetableImportService : ITimetableImportService
                     var matchedClassroom = FindClassroom(classroomName, dbClassrooms);
 
                     // Mapped component type
-                    string componentType = "Practical";
-                    if (compTypeStr.StartsWith("T", StringComparison.OrdinalIgnoreCase) && 
-                        !compTypeStr.StartsWith("TP", StringComparison.OrdinalIgnoreCase))
+                    // TP = Teórico Prático, PL = Prática Laboratorial, T = Teórico, P = Prático
+                    string componentType;
+                    var compUpper = compTypeStr.Trim().ToUpperInvariant();
+                    if (compUpper == "TP" || compUpper == "T.P" || compUpper == "T.P.")
+                    {
+                        componentType = "TheoreticalPractical";
+                    }
+                    else if (compUpper == "PL" || compUpper == "P.L" || compUpper == "P.L.")
+                    {
+                        componentType = "PracticalLaboratorial";
+                    }
+                    else if (compUpper.StartsWith("T", StringComparison.OrdinalIgnoreCase) && !compUpper.StartsWith("TP", StringComparison.OrdinalIgnoreCase))
                     {
                         componentType = "Theoretical";
+                    }
+                    else if (compUpper.StartsWith("P", StringComparison.OrdinalIgnoreCase) && !compUpper.StartsWith("PL", StringComparison.OrdinalIgnoreCase))
+                    {
+                        componentType = "Practical";
+                    }
+                    else if (string.IsNullOrWhiteSpace(compUpper))
+                    {
+                        componentType = "All";
+                    }
+                    else
+                    {
+                        componentType = "TheoreticalPractical"; // Default for unrecognised types
                     }
 
                     // Calculate End Time based on rowspan span if needed
@@ -332,101 +350,339 @@ public sealed class TimetableImportService : ITimetableImportService
 
         var now = DateTimeOffset.UtcNow;
 
-        // 1. Create missing Courses
+        // 1. Create missing Courses (safe: also check by Abbreviation to avoid unique constraint violations)
+        var courseIdRemap = new Dictionary<Guid, Guid>();
+
         if (request.CoursesToCreate != null && request.CoursesToCreate.Count > 0)
         {
-            var existingIds = await _context.Courses
-                .Where(c => request.CoursesToCreate.Select(x => x.Id).Contains(c.Id))
-                .Select(c => c.Id)
+            var requestCourseIds = request.CoursesToCreate.Select(x => x.Id).ToList();
+            var requestCourseAbbrevs = request.CoursesToCreate.Select(x => x.Abbreviation.Trim()).ToList();
+
+            // Load existing courses matching either GUID or Abbreviation
+            var existingCourses = await _context.Courses
+                .Where(c => requestCourseIds.Contains(c.Id) || requestCourseAbbrevs.Contains(c.Abbreviation))
                 .ToListAsync(cancellationToken);
 
-            var newCourses = request.CoursesToCreate
-                .Where(c => !existingIds.Contains(c.Id))
-                .Select(c => new Course
+            var existingByGuidSet = existingCourses
+                .Where(c => requestCourseIds.Contains(c.Id))
+                .Select(c => c.Id)
+                .ToHashSet();
+
+            var coursesToInsert = new List<Course>();
+
+            foreach (var c in request.CoursesToCreate)
+            {
+                if (existingByGuidSet.Contains(c.Id))
+                {
+                    courseIdRemap[c.Id] = c.Id;
+                    continue;
+                }
+
+                var matchByAbbrev = existingCourses
+                    .FirstOrDefault(e => string.Equals(e.Abbreviation, c.Abbreviation.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                if (matchByAbbrev != null)
+                {
+                    courseIdRemap[c.Id] = matchByAbbrev.Id;
+                    continue;
+                }
+
+                var type = c.Abbreviation.Contains("CTeSP", StringComparison.OrdinalIgnoreCase) 
+                    ? CourseDegreeType.CTeSP 
+                    : c.Abbreviation.Contains("Mestrado", StringComparison.OrdinalIgnoreCase)
+                        ? CourseDegreeType.Mestrado
+                        : CourseDegreeType.Licenciatura;
+
+                coursesToInsert.Add(new Course
                 {
                     Id = c.Id,
-                    Name = c.Name,
-                    Abbreviation = c.Abbreviation,
-                    Type = c.Abbreviation.Contains("CTeSP", StringComparison.OrdinalIgnoreCase) 
-                        ? CourseDegreeType.CTeSP 
-                        : c.Abbreviation.Contains("Mestrado", StringComparison.OrdinalIgnoreCase)
-                            ? CourseDegreeType.Mestrado
-                            : CourseDegreeType.Licenciatura,
+                    Name = c.Name.Trim(),
+                    Abbreviation = c.Abbreviation.Trim(),
+                    Type = type,
                     DurationYears = 3,
                     TotalCredits = 180,
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                }).ToList();
+                });
+            }
 
-            if (newCourses.Count > 0)
+            if (coursesToInsert.Count > 0)
             {
-                _context.Courses.AddRange(newCourses);
+                _context.Courses.AddRange(coursesToInsert);
             }
         }
 
-        // 2. Create missing Class Groups
+        // 2. Create missing Class Groups (safe: also check by CourseId + Name to avoid unique constraint violations)
+        var classGroupIdRemap = new Dictionary<Guid, Guid>();
+
         if (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0)
         {
-            var existingIds = await _context.ClassGroups
-                .Where(cg => request.ClassGroupsToCreate.Select(x => x.Id).Contains(cg.Id))
-                .Select(cg => cg.Id)
+            var requestGroupIds = request.ClassGroupsToCreate.Select(x => x.Id).ToList();
+            
+            // Map CourseIds for database query using courseIdRemap
+            var queryCourseIds = request.ClassGroupsToCreate
+                .Select(cg => courseIdRemap.TryGetValue(cg.CourseId, out var rId) ? rId : cg.CourseId)
+                .Distinct()
+                .ToList();
+
+            // Load existing class groups for these course IDs and academic year
+            var existingClassGroups = await _context.ClassGroups
+                .Where(cg => queryCourseIds.Contains(cg.CourseId) && cg.AcademicYearId == request.AcademicYearId)
                 .ToListAsync(cancellationToken);
 
-            var newClassGroups = request.ClassGroupsToCreate
-                .Where(cg => !existingIds.Contains(cg.Id))
-                .Select(cg => new ClassGroup
+            var existingByGuidSet = existingClassGroups
+                .Where(cg => requestGroupIds.Contains(cg.Id))
+                .Select(cg => cg.Id)
+                .ToHashSet();
+
+            var groupsToInsert = new List<ClassGroup>();
+
+            foreach (var cg in request.ClassGroupsToCreate)
+            {
+                if (existingByGuidSet.Contains(cg.Id))
+                {
+                    classGroupIdRemap[cg.Id] = cg.Id;
+                    continue;
+                }
+
+                var resolvedCourseId = courseIdRemap.TryGetValue(cg.CourseId, out var rId) ? rId : cg.CourseId;
+
+                var match = existingClassGroups
+                    .FirstOrDefault(e => e.CourseId == resolvedCourseId &&
+                                         e.AcademicYearId == request.AcademicYearId &&
+                                         e.Year == cg.Year &&
+                                         string.Equals(e.Name, cg.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                if (match != null)
+                {
+                    classGroupIdRemap[cg.Id] = match.Id;
+                    continue;
+                }
+
+                groupsToInsert.Add(new ClassGroup
                 {
                     Id = cg.Id,
-                    CourseId = cg.CourseId,
+                    CourseId = resolvedCourseId,
                     AcademicYearId = request.AcademicYearId,
                     Year = cg.Year,
-                    Name = cg.Name,
+                    Name = cg.Name.Trim(),
                     TeacherId = string.Empty,
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                }).ToList();
+                });
+            }
 
-            if (newClassGroups.Count > 0)
+            if (groupsToInsert.Count > 0)
             {
-                _context.ClassGroups.AddRange(newClassGroups);
+                _context.ClassGroups.AddRange(groupsToInsert);
             }
         }
 
-        // 3. Create missing Curricular Units
+        // 3. Create missing Curricular Units (safe UPSERT: check by GUID and by (CourseId, Name/Abbreviation))
+        // ucIdRemap: maps a frontend-generated UC GUID → existing DB UC GUID when a match is found
+        var ucIdRemap = new Dictionary<Guid, Guid>();
+
         if (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0)
         {
-            var existingIds = await _context.CurricularUnits
-                .Where(cu => request.CurricularUnitsToCreate.Select(x => x.Id).Contains(cu.Id))
-                .Select(cu => cu.Id)
+            var requestUcIds = request.CurricularUnitsToCreate.Select(x => x.Id).ToList();
+            
+            // Map CourseIds for database query using courseIdRemap
+            var requestCourseIds = request.CurricularUnitsToCreate
+                .Select(x => courseIdRemap.TryGetValue(x.CourseId, out var rId) ? rId : x.CourseId)
+                .Distinct()
+                .ToList();
+
+            // Load all existing UCs in the affected courses (to detect name/abbreviation duplicates)
+            var existingInCourses = await _context.CurricularUnits
+                .Where(cu => requestCourseIds.Contains(cu.CourseId))
                 .ToListAsync(cancellationToken);
 
-            var newUnits = request.CurricularUnitsToCreate
-                .Where(cu => !existingIds.Contains(cu.Id))
-                .Select(cu => new CurricularUnit
+            var existingByGuidIds = existingInCourses
+                .Where(cu => requestUcIds.Contains(cu.Id))
+                .Select(cu => cu.Id)
+                .ToHashSet();
+
+            var unitsToInsert = new List<CurricularUnit>();
+
+            foreach (var cu in request.CurricularUnitsToCreate)
+            {
+                var resolvedCourseId = courseIdRemap.TryGetValue(cu.CourseId, out var rId) ? rId : cu.CourseId;
+
+                // Already exists by GUID → remap to itself (no insert needed)
+                if (existingByGuidIds.Contains(cu.Id))
+                {
+                    ucIdRemap[cu.Id] = cu.Id;
+                    continue;
+                }
+
+                var unitName   = !string.IsNullOrWhiteSpace(cu.Name) ? cu.Name.Trim() : cu.Abbreviation.Trim();
+                var unitAbbrev = cu.Abbreviation?.Trim() ?? string.Empty;
+
+                // Check if an existing UC with the same (CourseId + Name) already exists
+                var matchByName = existingInCourses
+                    .FirstOrDefault(e => e.CourseId == resolvedCourseId &&
+                                         string.Equals(e.Name, unitName, StringComparison.OrdinalIgnoreCase));
+
+                if (matchByName != null)
+                {
+                    // Remap frontend GUID → real existing GUID
+                    ucIdRemap[cu.Id] = matchByName.Id;
+
+                    // Update abbreviation if not yet set
+                    if (!string.IsNullOrWhiteSpace(unitAbbrev) && matchByName.Abbreviation != unitAbbrev)
+                    {
+                        matchByName.Abbreviation = unitAbbrev;
+                        matchByName.UpdatedAt = now;
+                    }
+                    continue;
+                }
+
+                // Check by (CourseId + Abbreviation) as fallback
+                if (!string.IsNullOrWhiteSpace(unitAbbrev))
+                {
+                    var matchByAbbrev = existingInCourses
+                        .FirstOrDefault(e => e.CourseId == resolvedCourseId &&
+                                             !string.IsNullOrWhiteSpace(e.Abbreviation) &&
+                                             string.Equals(e.Abbreviation, unitAbbrev, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchByAbbrev != null)
+                    {
+                        ucIdRemap[cu.Id] = matchByAbbrev.Id;
+
+                        // Update full name if currently empty
+                        if (!string.IsNullOrWhiteSpace(unitName) && string.IsNullOrWhiteSpace(matchByAbbrev.Name))
+                        {
+                            matchByAbbrev.Name = unitName;
+                            matchByAbbrev.UpdatedAt = now;
+                        }
+                        continue;
+                    }
+                }
+
+                // Truly new UC — insert it
+                unitsToInsert.Add(new CurricularUnit
                 {
                     Id = cu.Id,
-                    CourseId = cu.CourseId,
-                    Name = cu.Name,
+                    CourseId = resolvedCourseId,
+                    Name = unitName,
+                    Abbreviation = unitAbbrev,
                     Year = cu.Year,
                     Semester = cu.Semester,
                     Ects = 6,
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                }).ToList();
+                });
+            }
 
-            if (newUnits.Count > 0)
+            if (unitsToInsert.Count > 0)
             {
-                _context.CurricularUnits.AddRange(newUnits);
+                _context.CurricularUnits.AddRange(unitsToInsert);
             }
         }
 
-        // Save new entities to database
+        // 4. Create missing Classrooms (safe: also check by Name to avoid unique constraint violations)
+        var classroomIdRemap = new Dictionary<Guid, Guid>();
+
+        if (request.ClassroomsToCreate != null && request.ClassroomsToCreate.Count > 0)
+        {
+            var requestRoomIds = request.ClassroomsToCreate.Select(x => x.Id).ToList();
+            var requestRoomNames = request.ClassroomsToCreate.Select(x => x.Name.Trim()).ToList();
+
+            // Load existing rooms matching either GUID or Name
+            var existingRooms = await _context.Classrooms
+                .Where(r => requestRoomIds.Contains(r.Id) || requestRoomNames.Contains(r.Name))
+                .ToListAsync(cancellationToken);
+
+            var existingByGuidSet = existingRooms
+                .Where(r => requestRoomIds.Contains(r.Id))
+                .Select(r => r.Id)
+                .ToHashSet();
+
+            var roomsToInsert = new List<Classroom>();
+
+            foreach (var r in request.ClassroomsToCreate)
+            {
+                if (existingByGuidSet.Contains(r.Id))
+                {
+                    classroomIdRemap[r.Id] = r.Id;
+                    continue;
+                }
+
+                var matchByName = existingRooms
+                    .FirstOrDefault(e => string.Equals(e.Name, r.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+
+                if (matchByName != null)
+                {
+                    classroomIdRemap[r.Id] = matchByName.Id;
+                    continue;
+                }
+
+                var type = ClassroomType.Standard;
+                if (r.Name.StartsWith("LAB", StringComparison.OrdinalIgnoreCase) ||
+                    r.Name.StartsWith("L.", StringComparison.OrdinalIgnoreCase))
+                {
+                    type = ClassroomType.PcLab;
+                }
+                else if (r.Name.StartsWith("ANF", StringComparison.OrdinalIgnoreCase))
+                {
+                    type = ClassroomType.Amphitheater;
+                }
+
+                roomsToInsert.Add(new Classroom
+                {
+                    Id = r.Id,
+                    Name = r.Name.Trim(),
+                    Type = type,
+                    Capacity = 30,
+                    Features = [],
+                    IsActive = true,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+
+            if (roomsToInsert.Count > 0)
+            {
+                _context.Classrooms.AddRange(roomsToInsert);
+            }
+        }
+
+        // 3b. Update abbreviation on existing Curricular Units (if they were matched but have no abbreviation)
+        if (request.CurricularUnitsToUpdate != null && request.CurricularUnitsToUpdate.Count > 0)
+        {
+            var updateIds = request.CurricularUnitsToUpdate.Select(u => u.Id).ToList();
+            var existingUnits = await _context.CurricularUnits
+                .Where(cu => updateIds.Contains(cu.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var existing in existingUnits)
+            {
+                var dto = request.CurricularUnitsToUpdate.FirstOrDefault(u => u.Id == existing.Id);
+                if (dto == null) continue;
+
+                // Only update abbreviation if not already set or different
+                bool changed = false;
+                if (!string.IsNullOrWhiteSpace(dto.Abbreviation) && existing.Abbreviation != dto.Abbreviation)
+                {
+                    existing.Abbreviation = dto.Abbreviation;
+                    changed = true;
+                }
+                if (changed)
+                {
+                    existing.UpdatedAt = now;
+                }
+            }
+        }
+
+        // Save new entities and updates to database
         if ((request.CoursesToCreate != null && request.CoursesToCreate.Count > 0) || 
             (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0) || 
-            (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0))
+            (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0) ||
+            (request.CurricularUnitsToUpdate != null && request.CurricularUnitsToUpdate.Count > 0) ||
+            (request.ClassroomsToCreate != null && request.ClassroomsToCreate.Count > 0))
         {
             await _context.SaveChangesAsync(cancellationToken);
         }
@@ -457,15 +713,35 @@ public sealed class TimetableImportService : ITimetableImportService
                 ? compEnum
                 : UnitComponentType.Practical;
 
+            // Apply UC ID remapping: if the frontend-generated GUID was matched to an existing UC, use the real ID
+            var resolvedUnitId = ucIdRemap.TryGetValue(item.CurricularUnitId, out var remappedId)
+                ? remappedId
+                : item.CurricularUnitId;
+
+            // Apply Course ID remapping
+            var resolvedCourseId = courseIdRemap.TryGetValue(item.CourseId, out var remappedCourseId)
+                ? remappedCourseId
+                : item.CourseId;
+
+            // Apply ClassGroup ID remapping
+            var resolvedClassGroupId = classGroupIdRemap.TryGetValue(item.ClassGroupId, out var remappedGroupId)
+                ? remappedGroupId
+                : item.ClassGroupId;
+
+            // Apply Classroom ID remapping
+            var resolvedClassroomId = item.ClassroomId.HasValue && item.ClassroomId.Value != Guid.Empty
+                ? (classroomIdRemap.TryGetValue(item.ClassroomId.Value, out var remappedRoomId) ? remappedRoomId : item.ClassroomId.Value)
+                : (Guid?)null;
+
             var schedule = new ClassSchedule
             {
                 Id = Guid.NewGuid(),
-                CourseId = item.CourseId,
-                ClassGroupId = item.ClassGroupId,
-                CurricularUnitId = item.CurricularUnitId,
+                CourseId = resolvedCourseId,
+                ClassGroupId = resolvedClassGroupId,
+                CurricularUnitId = resolvedUnitId,
                 AcademicYearId = request.AcademicYearId,
                 Semester = request.Semester,
-                ClassroomId = item.ClassroomId,
+                ClassroomId = resolvedClassroomId,
                 ComponentType = componentType,
                 DayOfWeek = item.DayOfWeek,
                 StartTime = TimeOnly.Parse(item.StartTime),
@@ -646,11 +922,22 @@ public sealed class TimetableImportService : ITimetableImportService
     {
         var courseUnits = dbUnits.Where(u => u.CourseId == courseId).ToList();
 
-        // Exact name match
-        var match = courseUnits.FirstOrDefault(u => string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase));
+        // 1. Match by abbreviation/sigla prefix
+        if (!string.IsNullOrWhiteSpace(abbrev))
+        {
+            var abbrevMatch = courseUnits.FirstOrDefault(u => 
+                u.Name.StartsWith(abbrev + " -", StringComparison.OrdinalIgnoreCase) ||
+                u.Name.Equals(abbrev, StringComparison.OrdinalIgnoreCase));
+            if (abbrevMatch != null) return abbrevMatch;
+        }
+
+        // 2. Exact or suffix name match
+        var match = courseUnits.FirstOrDefault(u => 
+            string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase) ||
+            u.Name.EndsWith(" - " + name, StringComparison.OrdinalIgnoreCase));
         if (match != null) return match;
 
-        // Try fuzzy name match (e.g. "Programação Orientada a Objetos" vs "Programming Oriented Objects" or "Programação Orientada a Objectos")
+        // 3. Try fuzzy name match (e.g. "Programação Orientada a Objetos" vs "Programming Oriented Objects" or "Programação Orientada a Objectos")
         // Clean words and match
         var cleanTarget = CleanUnitName(name);
         match = courseUnits.FirstOrDefault(u => CleanUnitName(u.Name) == cleanTarget);
@@ -712,15 +999,23 @@ public sealed class TimetableImportService : ITimetableImportService
 
     private static bool IsClassroomLike(string line, HashSet<string> dbClassroomNames)
     {
-        if (dbClassroomNames.Contains(line.ToUpperInvariant())) return true;
+        var upperLine = line.ToUpperInvariant().Trim();
+        if (dbClassroomNames.Contains(upperLine)) return true;
+
+        // Matches letter + optional dot + digits (e.g. B2, D7, A8, B.1.1)
+        if (Regex.IsMatch(upperLine, @"^[A-Z]\.?\d+(\.\d+)*$")) return true;
         
-        return line.StartsWith("A.", StringComparison.OrdinalIgnoreCase) ||
-               line.StartsWith("C.", StringComparison.OrdinalIgnoreCase) ||
-               line.StartsWith("Lab", StringComparison.OrdinalIgnoreCase) ||
-               line.StartsWith("ANF", StringComparison.OrdinalIgnoreCase) ||
-               line.StartsWith("Sala", StringComparison.OrdinalIgnoreCase) ||
-               line.Equals("ANF B", StringComparison.OrdinalIgnoreCase) ||
-               line.Equals("ANF A", StringComparison.OrdinalIgnoreCase);
+        return upperLine.StartsWith("A.") ||
+               upperLine.StartsWith("B.") ||
+               upperLine.StartsWith("C.") ||
+               upperLine.StartsWith("D.") ||
+               upperLine.StartsWith("E.") ||
+               upperLine.StartsWith("LAB") ||
+               upperLine.StartsWith("ANF") ||
+               upperLine.StartsWith("SALA") ||
+               upperLine.StartsWith("AUDI") ||
+               upperLine.Equals("ANF B") ||
+               upperLine.Equals("ANF A");
     }
 
     private static bool IsTimetableHeader(List<ParsedCell> row)

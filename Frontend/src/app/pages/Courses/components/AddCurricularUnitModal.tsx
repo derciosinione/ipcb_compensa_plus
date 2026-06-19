@@ -30,6 +30,7 @@ interface AddCurricularUnitModalProps {
 }
 
 interface FormData {
+  abbreviation: string;
   name: string;
   semester: string;
   ects: string;
@@ -49,12 +50,14 @@ export const AddCurricularUnitModal = ({
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
+        setValue("abbreviation", initialData.abbreviation || "");
         setValue("name", initialData.name);
         setValue("semester", initialData.semester.toString());
         setValue("ects", initialData.ects.toString());
         setValue("component", initialData.component || "All");
       } else {
         reset({
+          abbreviation: "",
           name: "",
           semester: "1",
           ects: "6",
@@ -66,12 +69,13 @@ export const AddCurricularUnitModal = ({
 
   const onSubmit = async (data: FormData) => {
     const unitData: Omit<CurricularUnit, "id"> = {
-      name: data.name,
+      abbreviation: data.abbreviation.trim(),
+      name: data.name.trim(),
       courseId,
       year,
       semester: parseInt(data.semester) as 1 | 2,
       ects: parseInt(data.ects),
-      teacherIds: initialData ? initialData.teacherIds : [], // Preserve teachers if editing
+      teacherIds: initialData ? initialData.teacherIds : [],
       component: data.component,
     };
 
@@ -80,29 +84,49 @@ export const AddCurricularUnitModal = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] rounded-xl sm:rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl">
+      <DialogContent className="sm:max-w-[440px] rounded-xl sm:rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl">
         <DialogHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
           <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            {initialData ? "Edit Curricular Unit" : "Add Curricular Unit"}
+            {initialData ? "Editar Unidade Curricular" : "Adicionar Unidade Curricular"}
           </DialogTitle>
           <DialogDescription className="text-slate-500 dark:text-slate-400">
             {initialData
-              ? "Edit the details of the curricular unit."
-              : `Add a new curricular unit to Year ${year} of the course.`}
+              ? "Edite os detalhes da unidade curricular."
+              : `Adicione uma nova unidade curricular ao Ano ${year}.`}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-4">
+          {/* Abbreviation (Sigla) */}
+          <div className="space-y-2">
+            <Label
+              htmlFor="abbreviation"
+              className="text-slate-700 dark:text-slate-300 font-semibold"
+            >
+              Sigla (Abreviação)
+            </Label>
+            <Input
+              id="abbreviation"
+              placeholder="ex: LEET-MI"
+              {...register("abbreviation")}
+              className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus:ring-blue-500 focus:border-blue-500 rounded-lg font-mono uppercase"
+            />
+            <p className="text-[11px] text-slate-400">
+              Sigla identificadora, ex: LEET-CD, IPCB-SE
+            </p>
+          </div>
+
+          {/* Full Name */}
           <div className="space-y-2">
             <Label
               htmlFor="name"
               className="text-slate-700 dark:text-slate-300 font-semibold"
             >
-              Unit Name
+              Nome Completo da UC
             </Label>
             <Input
               id="name"
-              placeholder="e.g. Software Engineering"
+              placeholder="ex: Microcontroladores e Instrumentação"
               {...register("name", { required: true })}
               className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus:ring-blue-500 focus:border-blue-500 rounded-lg"
             />
@@ -114,7 +138,7 @@ export const AddCurricularUnitModal = ({
                 htmlFor="semester"
                 className="text-slate-700 dark:text-slate-300 font-semibold"
               >
-                Semester
+                Semestre
               </Label>
               <Select
                 onValueChange={(val) => setValue("semester", val)}
@@ -123,11 +147,11 @@ export const AddCurricularUnitModal = ({
                 }
               >
                 <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
-                  <SelectValue placeholder="Select semester" />
+                  <SelectValue placeholder="Selecione o semestre" />
                 </SelectTrigger>
                 <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
-                  <SelectItem value="1">Semester 1</SelectItem>
-                  <SelectItem value="2">Semester 2</SelectItem>
+                  <SelectItem value="1">Semestre 1</SelectItem>
+                  <SelectItem value="2">Semestre 2</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -137,7 +161,7 @@ export const AddCurricularUnitModal = ({
                 htmlFor="ects"
                 className="text-slate-700 dark:text-slate-300 font-semibold"
               >
-                ECTS Credits
+                Créditos ECTS
               </Label>
               <Input
                 id="ects"
@@ -154,7 +178,7 @@ export const AddCurricularUnitModal = ({
               htmlFor="component"
               className="text-slate-700 dark:text-slate-300 font-semibold"
             >
-              Component Type
+              Tipo de Componente
             </Label>
             <Select
               onValueChange={(val) =>
@@ -166,12 +190,12 @@ export const AddCurricularUnitModal = ({
               defaultValue={initialData ? initialData.component : "All"}
             >
               <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
-                <SelectValue placeholder="Select component type" />
+                <SelectValue placeholder="Selecione o tipo" />
               </SelectTrigger>
               <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
-                <SelectItem value="All">All (Theory + Practice)</SelectItem>
-                <SelectItem value="Theoretical">Theoretical Only</SelectItem>
-                <SelectItem value="Practical">Practical Only</SelectItem>
+                <SelectItem value="All">Todos (Teórica + Prática)</SelectItem>
+                <SelectItem value="Theoretical">Apenas Teórica</SelectItem>
+                <SelectItem value="Practical">Apenas Prática</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -183,13 +207,13 @@ export const AddCurricularUnitModal = ({
               onClick={onClose}
               className="rounded-lg border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               type="submit"
               className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500"
             >
-              {initialData ? "Save Changes" : "Create Unit"}
+              {initialData ? "Guardar Alterações" : "Criar Unidade"}
             </Button>
           </DialogFooter>
         </form>

@@ -76,12 +76,19 @@ export interface TimetableImportConfirmRequest {
   coursesToCreate?: CourseCreateDto[];
   classGroupsToCreate?: ClassGroupCreateDto[];
   curricularUnitsToCreate?: CurricularUnitCreateDto[];
+  curricularUnitsToUpdate?: CurricularUnitCreateDto[];
+  classroomsToCreate?: ClassroomCreateDto[];
 }
 
 export interface CourseCreateDto {
   id: string;
   name: string;
   abbreviation: string;
+}
+
+export interface ClassroomCreateDto {
+  id: string;
+  name: string;
 }
 
 export interface ClassGroupCreateDto {
@@ -104,7 +111,7 @@ export interface TimetableImportScheduleItem {
   courseId: string;
   classGroupId: string;
   curricularUnitId: string;
-  classroomId: string;
+  classroomId: string | null;
   componentType: string;
   dayOfWeek: number;
   startTime: string;

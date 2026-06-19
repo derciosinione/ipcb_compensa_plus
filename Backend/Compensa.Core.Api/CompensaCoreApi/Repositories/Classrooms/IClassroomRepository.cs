@@ -10,4 +10,5 @@ public interface IClassroomRepository
     Task AddAsync(Classroom classroom, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task DeleteAsync(Classroom classroom, CancellationToken cancellationToken = default);
+    Task<int> GetSchedulesCountAsync(Guid id, CancellationToken cancellationToken = default);
 }
