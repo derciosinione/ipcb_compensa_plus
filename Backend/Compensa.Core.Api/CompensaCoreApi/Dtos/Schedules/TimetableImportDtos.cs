@@ -85,7 +85,36 @@ public sealed class TimetableImportConfirmRequest
     public int Semester { get; set; }
     public List<TimetableImportScheduleItem> Schedules { get; set; } = [];
     public bool OverwriteExisting { get; set; } = true;
+    public List<CourseCreateDto> CoursesToCreate { get; set; } = [];
+    public List<ClassGroupCreateDto> ClassGroupsToCreate { get; set; } = [];
+    public List<CurricularUnitCreateDto> CurricularUnitsToCreate { get; set; } = [];
 }
+
+public sealed class CourseCreateDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Abbreviation { get; set; } = string.Empty;
+}
+
+public sealed class ClassGroupCreateDto
+{
+    public Guid Id { get; set; }
+    public Guid CourseId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Year { get; set; }
+}
+
+public sealed class CurricularUnitCreateDto
+{
+    public Guid Id { get; set; }
+    public Guid CourseId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Abbreviation { get; set; } = string.Empty;
+    public int Year { get; set; }
+    public int Semester { get; set; }
+}
+
 
 public sealed class TimetableImportScheduleItem
 {

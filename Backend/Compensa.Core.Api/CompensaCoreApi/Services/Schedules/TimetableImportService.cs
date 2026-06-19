@@ -330,6 +330,107 @@ public sealed class TimetableImportService : ITimetableImportService
             return 0;
         }
 
+        var now = DateTimeOffset.UtcNow;
+
+        // 1. Create missing Courses
+        if (request.CoursesToCreate != null && request.CoursesToCreate.Count > 0)
+        {
+            var existingIds = await _context.Courses
+                .Where(c => request.CoursesToCreate.Select(x => x.Id).Contains(c.Id))
+                .Select(c => c.Id)
+                .ToListAsync(cancellationToken);
+
+            var newCourses = request.CoursesToCreate
+                .Where(c => !existingIds.Contains(c.Id))
+                .Select(c => new Course
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Abbreviation = c.Abbreviation,
+                    Type = c.Abbreviation.Contains("CTeSP", StringComparison.OrdinalIgnoreCase) 
+                        ? CourseDegreeType.CTeSP 
+                        : c.Abbreviation.Contains("Mestrado", StringComparison.OrdinalIgnoreCase)
+                            ? CourseDegreeType.Mestrado
+                            : CourseDegreeType.Licenciatura,
+                    DurationYears = 3,
+                    TotalCredits = 180,
+                    IsActive = true,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                }).ToList();
+
+            if (newCourses.Count > 0)
+            {
+                _context.Courses.AddRange(newCourses);
+            }
+        }
+
+        // 2. Create missing Class Groups
+        if (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0)
+        {
+            var existingIds = await _context.ClassGroups
+                .Where(cg => request.ClassGroupsToCreate.Select(x => x.Id).Contains(cg.Id))
+                .Select(cg => cg.Id)
+                .ToListAsync(cancellationToken);
+
+            var newClassGroups = request.ClassGroupsToCreate
+                .Where(cg => !existingIds.Contains(cg.Id))
+                .Select(cg => new ClassGroup
+                {
+                    Id = cg.Id,
+                    CourseId = cg.CourseId,
+                    AcademicYearId = request.AcademicYearId,
+                    Year = cg.Year,
+                    Name = cg.Name,
+                    TeacherId = string.Empty,
+                    IsActive = true,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                }).ToList();
+
+            if (newClassGroups.Count > 0)
+            {
+                _context.ClassGroups.AddRange(newClassGroups);
+            }
+        }
+
+        // 3. Create missing Curricular Units
+        if (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0)
+        {
+            var existingIds = await _context.CurricularUnits
+                .Where(cu => request.CurricularUnitsToCreate.Select(x => x.Id).Contains(cu.Id))
+                .Select(cu => cu.Id)
+                .ToListAsync(cancellationToken);
+
+            var newUnits = request.CurricularUnitsToCreate
+                .Where(cu => !existingIds.Contains(cu.Id))
+                .Select(cu => new CurricularUnit
+                {
+                    Id = cu.Id,
+                    CourseId = cu.CourseId,
+                    Name = cu.Name,
+                    Year = cu.Year,
+                    Semester = cu.Semester,
+                    Ects = 6,
+                    IsActive = true,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                }).ToList();
+
+            if (newUnits.Count > 0)
+            {
+                _context.CurricularUnits.AddRange(newUnits);
+            }
+        }
+
+        // Save new entities to database
+        if ((request.CoursesToCreate != null && request.CoursesToCreate.Count > 0) || 
+            (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0) || 
+            (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0))
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         // Delete existing schedules for the imported class groups and semester if overwrite is enabled
         if (request.OverwriteExisting)
         {
@@ -348,7 +449,6 @@ public sealed class TimetableImportService : ITimetableImportService
             }
         }
 
-        var now = DateTimeOffset.UtcNow;
         var newSchedules = new List<ClassSchedule>();
 
         foreach (var item in request.Schedules)

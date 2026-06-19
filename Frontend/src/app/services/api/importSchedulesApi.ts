@@ -73,6 +73,31 @@ export interface TimetableImportConfirmRequest {
   semester: number;
   schedules: TimetableImportScheduleItem[];
   overwriteExisting: boolean;
+  coursesToCreate?: CourseCreateDto[];
+  classGroupsToCreate?: ClassGroupCreateDto[];
+  curricularUnitsToCreate?: CurricularUnitCreateDto[];
+}
+
+export interface CourseCreateDto {
+  id: string;
+  name: string;
+  abbreviation: string;
+}
+
+export interface ClassGroupCreateDto {
+  id: string;
+  courseId: string;
+  name: string;
+  year: number;
+}
+
+export interface CurricularUnitCreateDto {
+  id: string;
+  courseId: string;
+  name: string;
+  abbreviation: string;
+  year: number;
+  semester: number;
 }
 
 export interface TimetableImportScheduleItem {

@@ -178,13 +178,9 @@ export const ImportSchedulesPage = () => {
         const initialClassMaps: Record<string, string> = {};
 
         res.data.courses.forEach((course) => {
-          if (course.matchedCourseId) {
-            initialCourseMaps[course.tempId] = course.matchedCourseId;
-          }
+          initialCourseMaps[course.tempId] = course.matchedCourseId || "CREATE_NEW";
           course.classes.forEach((cls) => {
-            if (cls.matchedClassGroupId) {
-              initialClassMaps[cls.tempId] = cls.matchedClassGroupId;
-            }
+            initialClassMaps[cls.tempId] = cls.matchedClassGroupId || "CREATE_NEW";
           });
         });
 
@@ -249,16 +245,60 @@ export const ImportSchedulesPage = () => {
       const items: any[] = [];
       let missingMappings = 0;
 
-      // Loop through all courses, classes and schedules
+      const generateGuid = () => {
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          const v = c === "x" ? r : (r & 0x3) | 0x8;
+          return v.toString(16);
+        });
+      };
+
+      const coursesToCreateMap: Record<string, { id: string; name: string; abbreviation: string }> = {};
+      const classGroupsToCreateMap: Record<string, { id: string; courseId: string; name: string; year: number }> = {};
+      const curricularUnitsToCreateMap: Record<string, { id: string; courseId: string; name: string; abbreviation: string; year: number; semester: number }> = {};
+
+      // 1. Assign real GUIDs to any "CREATE_NEW" courses
       previewData.courses.forEach((course) => {
         const mappedCourseId = courseMappings[course.tempId];
+        if (mappedCourseId === "CREATE_NEW") {
+          const generatedId = generateGuid();
+          coursesToCreateMap[course.tempId] = {
+            id: generatedId,
+            name: course.name,
+            abbreviation: course.abbreviation
+          };
+        }
+      });
+
+      // 2. Assign real GUIDs to any "CREATE_NEW" class groups
+      previewData.courses.forEach((course) => {
+        const mappedCourseId = coursesToCreateMap[course.tempId]?.id ?? courseMappings[course.tempId];
+        if (!mappedCourseId) return;
+
+        course.classes.forEach((cls) => {
+          const mappedClassGroupId = classMappings[cls.tempId];
+          if (mappedClassGroupId === "CREATE_NEW") {
+            const generatedId = generateGuid();
+            classGroupsToCreateMap[cls.tempId] = {
+              id: generatedId,
+              courseId: mappedCourseId,
+              name: cls.name,
+              year: cls.year
+            };
+          }
+        });
+      });
+
+      // 3. Collect schedules and assign real GUIDs to any "CREATE_NEW" curricular units
+      previewData.courses.forEach((course) => {
+        const mappedCourseId = coursesToCreateMap[course.tempId]?.id ?? courseMappings[course.tempId];
         if (!mappedCourseId) {
           missingMappings++;
           return;
         }
 
         course.classes.forEach((cls) => {
-          const mappedClassGroupId = classMappings[cls.tempId];
+          const mappedClassGroupId = classGroupsToCreateMap[cls.tempId]?.id ?? classMappings[cls.tempId];
           if (!mappedClassGroupId) {
             missingMappings++;
             return;
@@ -266,8 +306,10 @@ export const ImportSchedulesPage = () => {
 
           cls.schedules.forEach((slot, sIdx) => {
             const override = slotOverrides[`${cls.tempId}_${sIdx}`];
-            const finalUnitId =
-              override?.matchedCurricularUnitId ?? slot.matchedCurricularUnitId;
+            let finalUnitId =
+              override?.matchedCurricularUnitId ??
+              slot.matchedCurricularUnitId ??
+              "CREATE_NEW";
             const finalClassroomId =
               override?.matchedClassroomId ?? slot.matchedClassroomId;
             const finalCompType = override?.componentType ?? slot.componentType;
@@ -278,6 +320,21 @@ export const ImportSchedulesPage = () => {
             if (!finalUnitId || !finalClassroomId) {
               // Skip slots that are not fully mapped (classroom or unit missing)
               return;
+            }
+
+            if (finalUnitId === "CREATE_NEW") {
+              const key = `${mappedCourseId}_${slot.curricularUnitAbbreviation}`;
+              if (!curricularUnitsToCreateMap[key]) {
+                curricularUnitsToCreateMap[key] = {
+                  id: generateGuid(),
+                  courseId: mappedCourseId,
+                  name: slot.curricularUnitName,
+                  abbreviation: slot.curricularUnitAbbreviation,
+                  year: cls.year,
+                  semester: selectedSemester
+                };
+              }
+              finalUnitId = curricularUnitsToCreateMap[key].id;
             }
 
             items.push({
@@ -316,6 +373,9 @@ export const ImportSchedulesPage = () => {
         semester: selectedSemester,
         schedules: items,
         overwriteExisting: overwriteExisting,
+        coursesToCreate: Object.values(coursesToCreateMap),
+        classGroupsToCreate: Object.values(classGroupsToCreateMap),
+        curricularUnitsToCreate: Object.values(curricularUnitsToCreateMap),
       };
 
       const res = await importSchedulesApi.confirmImport(requestPayload);
@@ -720,6 +780,9 @@ export const ImportSchedulesPage = () => {
                             <SelectValue placeholder="Selecione o Curso correspondente..." />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="CREATE_NEW" className="text-blue-600 dark:text-blue-400 font-semibold">
+                              + Criar Novo Curso ({activeCourse.abbreviation})
+                            </SelectItem>
                             {previewData.availableCourses.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.abbreviation} - {c.name}
@@ -763,6 +826,9 @@ export const ImportSchedulesPage = () => {
                             />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="CREATE_NEW" className="text-blue-600 dark:text-blue-400 font-semibold">
+                              + Criar Nova Turma ({activeClass.name})
+                            </SelectItem>
                             {/* Render available class groups for selected course */}
                             {/* In a real project, we load class groups for that course, or we let the user map to existing class groups */}
                             {/* For flexibility, we list class groups matching activeCourse.matchedCourseId or lets allow mapping to any */}
@@ -829,7 +895,7 @@ export const ImportSchedulesPage = () => {
                             const selectedUnitId =
                               override?.matchedCurricularUnitId ??
                               slot.matchedCurricularUnitId ??
-                              "";
+                              "CREATE_NEW";
                             const selectedRoomId =
                               override?.matchedClassroomId ??
                               slot.matchedClassroomId ??
@@ -875,6 +941,9 @@ export const ImportSchedulesPage = () => {
                                         <SelectValue placeholder="Associar UC..." />
                                       </SelectTrigger>
                                       <SelectContent>
+                                        <SelectItem value="CREATE_NEW" className="text-blue-600 dark:text-blue-400 font-semibold">
+                                          + Criar Nova UC ({slot.curricularUnitAbbreviation})
+                                        </SelectItem>
                                         {availableUnits.map((unit) => (
                                           <SelectItem
                                             key={unit.id}
@@ -1081,7 +1150,8 @@ export const ImportSchedulesPage = () => {
                                   slotOverrides[`${cl.tempId}_${idx}`];
                                 const uId =
                                   override?.matchedCurricularUnitId ??
-                                  s.matchedCurricularUnitId;
+                                  s.matchedCurricularUnitId ??
+                                  "CREATE_NEW";
                                 const rId =
                                   override?.matchedClassroomId ??
                                   s.matchedClassroomId;
