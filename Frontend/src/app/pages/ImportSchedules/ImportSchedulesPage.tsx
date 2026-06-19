@@ -186,6 +186,7 @@ export const ImportSchedulesPage = () => {
   // Get active course/class previews
   const activeCourse = previewData?.courses[activeCourseIndex];
   const activeClass = activeCourse?.classes[activeClassIndex];
+  const dbClassGroups = previewData?.availableClassGroups || [];
 
   // Lookup data helper
   const getCourseName = (tempId: string) => {

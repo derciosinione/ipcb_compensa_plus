@@ -7,7 +7,15 @@ export interface TimetableImportPreviewResponse {
   courses: CoursePreviewDto[];
   availableCourses: CourseLookupDto[];
   availableClassrooms: ClassroomLookupDto[];
+  availableClassGroups: ClassGroupLookupDto[];
 }
+
+export interface ClassGroupLookupDto {
+  id: string;
+  courseId: string;
+  name: string;
+}
+
 
 export interface CoursePreviewDto {
   tempId: string;

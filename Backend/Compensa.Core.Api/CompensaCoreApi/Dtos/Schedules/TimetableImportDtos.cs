@@ -12,6 +12,14 @@ public sealed class TimetableImportPreviewResponse
     public List<CoursePreviewDto> Courses { get; set; } = [];
     public List<CourseLookupDto> AvailableCourses { get; set; } = [];
     public List<ClassroomLookupDto> AvailableClassrooms { get; set; } = [];
+    public List<ClassGroupLookupDto> AvailableClassGroups { get; set; } = [];
+}
+
+public sealed class ClassGroupLookupDto
+{
+    public Guid Id { get; set; }
+    public Guid CourseId { get; set; }
+    public string Name { get; set; } = string.Empty;
 }
 
 public sealed class CoursePreviewDto
