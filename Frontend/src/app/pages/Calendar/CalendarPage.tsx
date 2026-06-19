@@ -1034,6 +1034,7 @@ export const CalendarPage = ({
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
         onSubmit={handleCreateRequest}
+        user={user}
       />
     </div>
   );
