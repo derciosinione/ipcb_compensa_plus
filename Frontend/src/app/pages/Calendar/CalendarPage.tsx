@@ -60,7 +60,7 @@ import type {
 } from "../../services/courses/courseTypes";
 import { listClassrooms } from "../../services/classrooms/classroomsApi";
 import type { Classroom } from "../../services/classrooms/classroomTypes";
-import type { AuthenticatedUser } from "../../types/user";
+import type { AuthenticatedUser, UserRole } from "../../types/user";
 import { getErrorMessage } from "../../utils/errors";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
 
@@ -68,7 +68,7 @@ type CalendarMode = "requests" | "timetable" | "occupancy";
 type ViewType = "month" | "week" | "day";
 
 interface CalendarPageProps {
-  userRole?: "teacher" | "coordinator" | "admin";
+  userRole?: UserRole;
   user: AuthenticatedUser;
 }
 

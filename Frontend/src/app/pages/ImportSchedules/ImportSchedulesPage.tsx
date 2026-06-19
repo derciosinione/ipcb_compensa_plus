@@ -6,31 +6,45 @@ import {
   AlertCircle,
   Trash2,
   Calendar,
-  ChevronRight,
   BookOpen,
-  MapPin,
   RefreshCw,
   AlertTriangle,
-  FileHtml,
-  Save,
   X,
-  Plus
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import { Checkbox } from "../../components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/ui/table";
 import { toast } from "sonner";
 import { useLanguage } from "../../providers/LanguageContext";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
-import { 
-  importSchedulesApi, 
-  type TimetableImportPreviewResponse, 
-  type CoursePreviewDto, 
+import {
+  importSchedulesApi,
+  type TimetableImportPreviewResponse,
+  type CoursePreviewDto,
   type ClassGroupPreviewDto,
-  type SchedulePreviewDto
+  type SchedulePreviewDto,
 } from "../../services/api/importSchedulesApi";
 
 const WEEKDAYS = [
@@ -40,7 +54,7 @@ const WEEKDAYS = [
   { value: 4, label: "Quinta" },
   { value: 5, label: "Sexta" },
   { value: 6, label: "Sábado" },
-  { value: 0, label: "Domingo" }
+  { value: 0, label: "Domingo" },
 ];
 
 export const ImportSchedulesPage = () => {
@@ -59,27 +73,37 @@ export const ImportSchedulesPage = () => {
   const [dragActive, setDragActive] = useState(false);
 
   // Preview state from backend
-  const [previewData, setPreviewData] = useState<TimetableImportPreviewResponse | null>(null);
-  
+  const [previewData, setPreviewData] =
+    useState<TimetableImportPreviewResponse | null>(null);
+
   // Local changes/overrides mapped by key
   // Course ID override: courseTempId -> courseId (database GUID)
-  const [courseMappings, setCourseMappings] = useState<Record<string, string>>({});
+  const [courseMappings, setCourseMappings] = useState<Record<string, string>>(
+    {},
+  );
   // Class Group ID override: classTempId -> classGroupId
-  const [classMappings, setClassMappings] = useState<Record<string, string>>({});
+  const [classMappings, setClassMappings] = useState<Record<string, string>>(
+    {},
+  );
   // Semester override
   const [selectedSemester, setSelectedSemester] = useState<number>(1);
   const [overwriteExisting, setOverwriteExisting] = useState<boolean>(true);
 
   // We also keep track of local overrides for schedule slots
   // Key format: `${classTempId}_${slotIndex}` -> { matchedCurricularUnitId, matchedClassroomId, componentType, dayOfWeek, startTime, endTime }
-  const [slotOverrides, setSlotOverrides] = useState<Record<string, {
-    matchedCurricularUnitId?: string;
-    matchedClassroomId?: string;
-    componentType?: string;
-    dayOfWeek?: number;
-    startTime?: string;
-    endTime?: string;
-  }>>({});
+  const [slotOverrides, setSlotOverrides] = useState<
+    Record<
+      string,
+      {
+        matchedCurricularUnitId?: string;
+        matchedClassroomId?: string;
+        componentType?: string;
+        dayOfWeek?: number;
+        startTime?: string;
+        endTime?: string;
+      }
+    >
+  >({});
 
   // Active view inside preview (which course & class we are inspecting)
   const [activeCourseIndex, setActiveCourseIndex] = useState<number>(0);
@@ -101,16 +125,16 @@ export const ImportSchedulesPage = () => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const droppedFiles = Array.from(e.dataTransfer.files).filter(
-        f => f.name.endsWith(".html") || f.name.endsWith(".htm")
+        (f) => f.name.endsWith(".html") || f.name.endsWith(".htm"),
       );
       if (droppedFiles.length === 0) {
         toast.error("Please drop only HTML or HTM files.");
         return;
       }
-      setFiles(prev => [...prev, ...droppedFiles]);
+      setFiles((prev) => [...prev, ...droppedFiles]);
     }
   };
 
@@ -118,15 +142,15 @@ export const ImportSchedulesPage = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const selectedFiles = Array.from(e.target.files).filter(
-        f => f.name.endsWith(".html") || f.name.endsWith(".htm")
+        (f) => f.name.endsWith(".html") || f.name.endsWith(".htm"),
       );
-      setFiles(prev => [...prev, ...selectedFiles]);
+      setFiles((prev) => [...prev, ...selectedFiles]);
     }
   };
 
   // Remove File from list
   const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Run preview analysis
@@ -139,7 +163,7 @@ export const ImportSchedulesPage = () => {
     setIsProcessing(true);
     try {
       const formData = new FormData();
-      files.forEach(f => formData.append("files", f));
+      files.forEach((f) => formData.append("files", f));
       if (selectedYear) {
         formData.append("academicYearId", selectedYear.id);
       }
@@ -148,26 +172,26 @@ export const ImportSchedulesPage = () => {
       if (res.success && res.data) {
         setPreviewData(res.data);
         setSelectedSemester(res.data.detectedSemester);
-        
+
         // Initialize mappings
         const initialCourseMaps: Record<string, string> = {};
         const initialClassMaps: Record<string, string> = {};
-        
-        res.data.courses.forEach(course => {
+
+        res.data.courses.forEach((course) => {
           if (course.matchedCourseId) {
             initialCourseMaps[course.tempId] = course.matchedCourseId;
           }
-          course.classes.forEach(cls => {
+          course.classes.forEach((cls) => {
             if (cls.matchedClassGroupId) {
               initialClassMaps[cls.tempId] = cls.matchedClassGroupId;
             }
           });
         });
-        
+
         setCourseMappings(initialCourseMaps);
         setClassMappings(initialClassMaps);
         setSlotOverrides({});
-        
+
         setActiveCourseIndex(0);
         setActiveClassIndex(0);
         setStep("preview");
@@ -177,7 +201,9 @@ export const ImportSchedulesPage = () => {
       }
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Error processing files.");
+      toast.error(
+        error instanceof Error ? error.message : "Error processing files.",
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -192,22 +218,25 @@ export const ImportSchedulesPage = () => {
   const getCourseName = (tempId: string) => {
     const courseId = courseMappings[tempId];
     if (!courseId) return "Unmatched Course";
-    return previewData?.availableCourses.find(c => c.id === courseId)?.name || "Selected Course";
+    return (
+      previewData?.availableCourses.find((c) => c.id === courseId)?.name ||
+      "Selected Course"
+    );
   };
 
   const updateSlotOverride = (
-    classTempId: string, 
-    slotIndex: number, 
-    field: string, 
-    value: any
+    classTempId: string,
+    slotIndex: number,
+    field: string,
+    value: any,
   ) => {
     const key = `${classTempId}_${slotIndex}`;
-    setSlotOverrides(prev => ({
+    setSlotOverrides((prev) => ({
       ...prev,
       [key]: {
         ...prev[key],
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
   };
 
@@ -221,14 +250,14 @@ export const ImportSchedulesPage = () => {
       let missingMappings = 0;
 
       // Loop through all courses, classes and schedules
-      previewData.courses.forEach(course => {
+      previewData.courses.forEach((course) => {
         const mappedCourseId = courseMappings[course.tempId];
         if (!mappedCourseId) {
           missingMappings++;
           return;
         }
 
-        course.classes.forEach(cls => {
+        course.classes.forEach((cls) => {
           const mappedClassGroupId = classMappings[cls.tempId];
           if (!mappedClassGroupId) {
             missingMappings++;
@@ -237,8 +266,10 @@ export const ImportSchedulesPage = () => {
 
           cls.schedules.forEach((slot, sIdx) => {
             const override = slotOverrides[`${cls.tempId}_${sIdx}`];
-            const finalUnitId = override?.matchedCurricularUnitId ?? slot.matchedCurricularUnitId;
-            const finalClassroomId = override?.matchedClassroomId ?? slot.matchedClassroomId;
+            const finalUnitId =
+              override?.matchedCurricularUnitId ?? slot.matchedCurricularUnitId;
+            const finalClassroomId =
+              override?.matchedClassroomId ?? slot.matchedClassroomId;
             const finalCompType = override?.componentType ?? slot.componentType;
             const finalDay = override?.dayOfWeek ?? slot.dayOfWeek;
             const finalStart = override?.startTime ?? slot.startTime;
@@ -256,21 +287,26 @@ export const ImportSchedulesPage = () => {
               classroomId: finalClassroomId,
               componentType: finalCompType,
               dayOfWeek: finalDay,
-              startTime: finalStart.length === 5 ? `${finalStart}:00` : finalStart,
-              endTime: finalEnd.length === 5 ? `${finalEnd}:00` : finalEnd
+              startTime:
+                finalStart.length === 5 ? `${finalStart}:00` : finalStart,
+              endTime: finalEnd.length === 5 ? `${finalEnd}:00` : finalEnd,
             });
           });
         });
       });
 
       if (missingMappings > 0) {
-        toast.error(`Please map all courses and classes. There are ${missingMappings} unmatched entities.`);
+        toast.error(
+          `Please map all courses and classes. There are ${missingMappings} unmatched entities.`,
+        );
         setIsSaving(false);
         return;
       }
 
       if (items.length === 0) {
-        toast.error("No valid schedules were mapped. Please make sure UCs and classrooms are selected.");
+        toast.error(
+          "No valid schedules were mapped. Please make sure UCs and classrooms are selected.",
+        );
         setIsSaving(false);
         return;
       }
@@ -279,7 +315,7 @@ export const ImportSchedulesPage = () => {
         academicYearId: selectedYear.id,
         semester: selectedSemester,
         schedules: items,
-        overwriteExisting: overwriteExisting
+        overwriteExisting: overwriteExisting,
       };
 
       const res = await importSchedulesApi.confirmImport(requestPayload);
@@ -292,7 +328,9 @@ export const ImportSchedulesPage = () => {
       }
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Error saving schedules.");
+      toast.error(
+        error instanceof Error ? error.message : "Error saving schedules.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -319,19 +357,27 @@ export const ImportSchedulesPage = () => {
                 {t("menu.import_schedules") || "Importar Horários"}
               </h2>
               <p className="text-slate-500 dark:text-slate-400 mt-1">
-                Faça o carregamento dos horários exportados em HTML para inserir no sistema.
+                Faça o carregamento dos horários exportados em HTML para inserir
+                no sistema.
               </p>
             </div>
             {selectedYear && (
               <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border px-3 py-1.5 rounded-lg shadow-sm">
-                <span className="text-xs text-slate-500 dark:text-slate-400">Ano Letivo:</span>
-                <Select value={selectedYear.id} onValueChange={setSelectedYearId}>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Ano Letivo:
+                </span>
+                <Select
+                  value={selectedYear.id}
+                  onValueChange={setSelectedYearId}
+                >
                   <SelectTrigger className="h-8 border-none bg-transparent p-0 text-sm font-semibold text-slate-800 dark:text-slate-200">
                     <SelectValue placeholder="Ano Letivo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {academicYears.map(year => (
-                      <SelectItem key={year.id} value={year.id}>{year.name}</SelectItem>
+                    {academicYears.map((year) => (
+                      <SelectItem key={year.id} value={year.id}>
+                        {year.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -347,7 +393,9 @@ export const ImportSchedulesPage = () => {
                 onDragLeave={handleDrag}
                 onDrop={handleDrop}
                 className={`flex flex-col items-center justify-center p-12 text-center cursor-pointer transition-colors ${
-                  dragActive ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-500" : ""
+                  dragActive
+                    ? "bg-blue-50/50 dark:bg-blue-950/20 border-blue-500"
+                    : ""
                 }`}
                 onClick={() => document.getElementById("file-upload")?.click()}
               >
@@ -358,7 +406,8 @@ export const ImportSchedulesPage = () => {
                   Arraste e solte seus ficheiros HTML aqui
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md">
-                  Selecione um ou mais ficheiros HTML exportados do GestHor/Cronológica para processar os horários.
+                  Selecione um ou mais ficheiros HTML exportados do
+                  GestHor/Cronológica para processar os horários.
                 </p>
                 <span className="text-xs text-blue-500 mt-4 font-semibold hover:underline">
                   Procurar Ficheiros
@@ -380,7 +429,12 @@ export const ImportSchedulesPage = () => {
               <CardHeader className="pb-3 border-b dark:border-slate-800">
                 <CardTitle className="text-base font-bold flex justify-between items-center">
                   <span>Ficheiros Selecionados ({files.length})</span>
-                  <Button variant="ghost" size="sm" className="text-red-500 h-8 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={() => setFiles([])}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-500 h-8 hover:bg-red-50 dark:hover:bg-red-950/20"
+                    onClick={() => setFiles([])}
+                  >
                     Limpar Todos
                   </Button>
                 </CardTitle>
@@ -396,11 +450,23 @@ export const ImportSchedulesPage = () => {
                         <FileText className="w-4 h-4" />
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-semibold truncate max-w-sm md:max-w-md">{file.name}</p>
-                        <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                        <p className="text-sm font-semibold truncate max-w-sm md:max-w-md">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-500" onClick={(e) => { e.stopPropagation(); removeFile(index); }}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-400 hover:text-red-500"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                    >
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
@@ -415,8 +481,12 @@ export const ImportSchedulesPage = () => {
               disabled={files.length === 0 || isProcessing}
               className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-5 px-6 shadow-lg shadow-blue-500/20"
             >
-              {isProcessing && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-              {isProcessing ? "A processar ficheiros..." : "Analisar e Pré-visualizar"}
+              {isProcessing && (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              {isProcessing
+                ? "A processar ficheiros..."
+                : "Analisar e Pré-visualizar"}
             </Button>
           </div>
         </div>
@@ -432,13 +502,17 @@ export const ImportSchedulesPage = () => {
                 Pré-visualizar Importação
               </h2>
               <p className="text-slate-500 dark:text-slate-400 mt-1">
-                Ficheiros lidos com sucesso. Verifique e ajuste as correspondências abaixo.
+                Ficheiros lidos com sucesso. Verifique e ajuste as
+                correspondências abaixo.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border">
                 <span className="text-xs text-slate-500">Semestre:</span>
-                <Select value={String(selectedSemester)} onValueChange={(val) => setSelectedSemester(Number(val))}>
+                <Select
+                  value={String(selectedSemester)}
+                  onValueChange={(val) => setSelectedSemester(Number(val))}
+                >
                   <SelectTrigger className="h-8 border-none bg-transparent p-0 font-semibold text-sm">
                     <SelectValue placeholder="Semestre" />
                   </SelectTrigger>
@@ -450,12 +524,17 @@ export const ImportSchedulesPage = () => {
               </div>
 
               <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg border">
-                <Checkbox 
-                  id="overwrite-check" 
-                  checked={overwriteExisting} 
-                  onCheckedChange={(checked) => setOverwriteExisting(Boolean(checked))}
+                <Checkbox
+                  id="overwrite-check"
+                  checked={overwriteExisting}
+                  onCheckedChange={(checked) =>
+                    setOverwriteExisting(Boolean(checked))
+                  }
                 />
-                <label htmlFor="overwrite-check" className="text-xs font-semibold cursor-pointer text-slate-700 dark:text-slate-300">
+                <label
+                  htmlFor="overwrite-check"
+                  className="text-xs font-semibold cursor-pointer text-slate-700 dark:text-slate-300"
+                >
                   Sobrescrever existentes
                 </label>
               </div>
@@ -468,7 +547,9 @@ export const ImportSchedulesPage = () => {
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="text-left">
                   <p className="text-xs text-slate-500">Cursos Encontrados</p>
-                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{previewData.courses.length}</p>
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {previewData.courses.length}
+                  </p>
                 </div>
                 <div className="p-3 bg-blue-100 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-full">
                   <BookOpen className="w-5 h-5" />
@@ -481,7 +562,10 @@ export const ImportSchedulesPage = () => {
                 <div className="text-left">
                   <p className="text-xs text-slate-500">Turmas Encontradas</p>
                   <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-                    {previewData.courses.reduce((acc, c) => acc + c.classes.length, 0)}
+                    {previewData.courses.reduce(
+                      (acc, c) => acc + c.classes.length,
+                      0,
+                    )}
                   </p>
                 </div>
                 <div className="p-3 bg-indigo-100 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 rounded-full">
@@ -496,7 +580,13 @@ export const ImportSchedulesPage = () => {
                   <p className="text-xs text-slate-500">Total de Aulas/Slots</p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {previewData.courses.reduce(
-                      (acc, c) => acc + c.classes.reduce((ac, cl) => ac + cl.schedules.length, 0), 0
+                      (acc, c) =>
+                        acc +
+                        c.classes.reduce(
+                          (ac, cl) => ac + cl.schedules.length,
+                          0,
+                        ),
+                      0,
                     )}
                   </p>
                 </div>
@@ -509,11 +599,21 @@ export const ImportSchedulesPage = () => {
             <Card className="dark:bg-slate-900 dark:border-slate-800">
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="text-left">
-                  <p className="text-xs text-slate-500">Alertas de Associação</p>
+                  <p className="text-xs text-slate-500">
+                    Alertas de Associação
+                  </p>
                   <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                     {/* Calculate unmatched courses/classes/slots */}
-                    {previewData.courses.filter(c => !courseMappings[c.tempId]).length + 
-                     previewData.courses.reduce((acc, c) => acc + c.classes.filter(cl => !classMappings[cl.tempId]).length, 0)}
+                    {previewData.courses.filter(
+                      (c) => !courseMappings[c.tempId],
+                    ).length +
+                      previewData.courses.reduce(
+                        (acc, c) =>
+                          acc +
+                          c.classes.filter((cl) => !classMappings[cl.tempId])
+                            .length,
+                        0,
+                      )}
                   </p>
                 </div>
                 <div className="p-3 bg-amber-100 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 rounded-full">
@@ -535,11 +635,14 @@ export const ImportSchedulesPage = () => {
                   <div className="px-2.5 py-1 text-left text-xs font-bold text-slate-500 flex items-center justify-between">
                     <span>{course.abbreviation}</span>
                     {!courseMappings[course.tempId] && (
-                      <Badge className="bg-amber-100 text-amber-700 text-[10px] py-0 border-none">Por Associar</Badge>
+                      <Badge className="bg-amber-100 text-amber-700 text-[10px] py-0 border-none">
+                        Por Associar
+                      </Badge>
                     )}
                   </div>
                   {course.classes.map((cls, clIdx) => {
-                    const isActive = activeCourseIndex === cIdx && activeClassIndex === clIdx;
+                    const isActive =
+                      activeCourseIndex === cIdx && activeClassIndex === clIdx;
                     const isMatched = classMappings[cls.tempId];
                     return (
                       <button
@@ -556,13 +659,19 @@ export const ImportSchedulesPage = () => {
                       >
                         <span className="truncate">{cls.name}</span>
                         <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                            isActive ? "bg-blue-700 text-blue-100" : "bg-slate-200/60 dark:bg-slate-800 text-slate-500"
-                          }`}>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                              isActive
+                                ? "bg-blue-700 text-blue-100"
+                                : "bg-slate-200/60 dark:bg-slate-800 text-slate-500"
+                            }`}
+                          >
                             {cls.schedules.length}
                           </span>
                           {!isMatched && (
-                            <AlertCircle className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-amber-500"}`} />
+                            <AlertCircle
+                              className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-amber-500"}`}
+                            />
                           )}
                         </div>
                       </button>
@@ -586,19 +695,35 @@ export const ImportSchedulesPage = () => {
                     <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Course Mapping */}
                       <div className="space-y-1.5 text-left">
-                        <label className="text-xs font-semibold text-slate-500">Curso no Ficheiro: <span className="font-bold text-slate-800 dark:text-slate-200">{activeCourse.abbreviation} ({activeCourse.name})</span></label>
-                        <Select 
-                          value={courseMappings[activeCourse.tempId] || ""} 
+                        <label className="text-xs font-semibold text-slate-500">
+                          Curso no Ficheiro:{" "}
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {activeCourse.abbreviation} ({activeCourse.name})
+                          </span>
+                        </label>
+                        <Select
+                          value={courseMappings[activeCourse.tempId] || ""}
                           onValueChange={(val) => {
-                            setCourseMappings(prev => ({ ...prev, [activeCourse.tempId]: val }));
+                            setCourseMappings((prev) => ({
+                              ...prev,
+                              [activeCourse.tempId]: val,
+                            }));
                           }}
                         >
-                          <SelectTrigger className={!courseMappings[activeCourse.tempId] ? "border-amber-500 dark:border-amber-500 bg-amber-50/20" : ""}>
+                          <SelectTrigger
+                            className={
+                              !courseMappings[activeCourse.tempId]
+                                ? "border-amber-500 dark:border-amber-500 bg-amber-50/20"
+                                : ""
+                            }
+                          >
                             <SelectValue placeholder="Selecione o Curso correspondente..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {previewData.availableCourses.map(c => (
-                              <SelectItem key={c.id} value={c.id}>{c.abbreviation} - {c.name}</SelectItem>
+                            {previewData.availableCourses.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.abbreviation} - {c.name}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -606,16 +731,36 @@ export const ImportSchedulesPage = () => {
 
                       {/* Class Group Mapping */}
                       <div className="space-y-1.5 text-left">
-                        <label className="text-xs font-semibold text-slate-500">Turma no Ficheiro: <span className="font-bold text-slate-800 dark:text-slate-200">{activeClass.name}</span></label>
-                        <Select 
-                          value={classMappings[activeClass.tempId] || ""} 
+                        <label className="text-xs font-semibold text-slate-500">
+                          Turma no Ficheiro:{" "}
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {activeClass.name}
+                          </span>
+                        </label>
+                        <Select
+                          value={classMappings[activeClass.tempId] || ""}
                           onValueChange={(val) => {
-                            setClassMappings(prev => ({ ...prev, [activeClass.tempId]: val }));
+                            setClassMappings((prev) => ({
+                              ...prev,
+                              [activeClass.tempId]: val,
+                            }));
                           }}
                           disabled={!courseMappings[activeCourse.tempId]}
                         >
-                          <SelectTrigger className={!classMappings[activeClass.tempId] ? "border-amber-500 dark:border-amber-500 bg-amber-50/20" : ""}>
-                            <SelectValue placeholder={courseMappings[activeCourse.tempId] ? "Selecione a Turma correspondente..." : "Selecione primeiro o Curso"} />
+                          <SelectTrigger
+                            className={
+                              !classMappings[activeClass.tempId]
+                                ? "border-amber-500 dark:border-amber-500 bg-amber-50/20"
+                                : ""
+                            }
+                          >
+                            <SelectValue
+                              placeholder={
+                                courseMappings[activeCourse.tempId]
+                                  ? "Selecione a Turma correspondente..."
+                                  : "Selecione primeiro o Curso"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             {/* Render available class groups for selected course */}
@@ -627,14 +772,25 @@ export const ImportSchedulesPage = () => {
                             {/* Or let's generate them */}
                             {/* Let's list all class groups for selected course */}
                             {dbClassGroups
-                              .filter(cg => cg.courseId === courseMappings[activeCourse.tempId])
-                              .map(cg => (
-                                <SelectItem key={cg.id} value={cg.id}>{cg.name}</SelectItem>
-                              ))
-                            }
+                              .filter(
+                                (cg) =>
+                                  cg.courseId ===
+                                  courseMappings[activeCourse.tempId],
+                              )
+                              .map((cg) => (
+                                <SelectItem key={cg.id} value={cg.id}>
+                                  {cg.name}
+                                </SelectItem>
+                              ))}
                             {/* If no class groups exist, allow selection or alert */}
-                            {dbClassGroups.filter(cg => cg.courseId === courseMappings[activeCourse.tempId]).length === 0 && (
-                              <SelectItem value="empty" disabled>Nenhuma turma encontrada neste ano letivo</SelectItem>
+                            {dbClassGroups.filter(
+                              (cg) =>
+                                cg.courseId ===
+                                courseMappings[activeCourse.tempId],
+                            ).length === 0 && (
+                              <SelectItem value="empty" disabled>
+                                Nenhuma turma encontrada neste ano letivo
+                              </SelectItem>
                             )}
                           </SelectContent>
                         </Select>
@@ -653,11 +809,15 @@ export const ImportSchedulesPage = () => {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[24%]">Unidade Curricular (UC)</TableHead>
+                            <TableHead className="w-[24%]">
+                              Unidade Curricular (UC)
+                            </TableHead>
                             <TableHead className="w-[12%]">Tipo</TableHead>
                             <TableHead className="w-[12%]">Dia</TableHead>
                             <TableHead className="w-[20%]">Horário</TableHead>
-                            <TableHead className="w-[24%]">Sala de Aula</TableHead>
+                            <TableHead className="w-[24%]">
+                              Sala de Aula
+                            </TableHead>
                             <TableHead className="w-[8%] text-center"></TableHead>
                           </TableRow>
                         </TableHeader>
@@ -665,34 +825,63 @@ export const ImportSchedulesPage = () => {
                           {activeClass.schedules.map((slot, sIdx) => {
                             const overrideKey = `${activeClass.tempId}_${sIdx}`;
                             const override = slotOverrides[overrideKey];
-                            
-                            const selectedUnitId = override?.matchedCurricularUnitId ?? slot.matchedCurricularUnitId ?? "";
-                            const selectedRoomId = override?.matchedClassroomId ?? slot.matchedClassroomId ?? "";
-                            const compType = override?.componentType ?? slot.componentType;
+
+                            const selectedUnitId =
+                              override?.matchedCurricularUnitId ??
+                              slot.matchedCurricularUnitId ??
+                              "";
+                            const selectedRoomId =
+                              override?.matchedClassroomId ??
+                              slot.matchedClassroomId ??
+                              "";
+                            const compType =
+                              override?.componentType ?? slot.componentType;
                             const day = override?.dayOfWeek ?? slot.dayOfWeek;
                             const start = override?.startTime ?? slot.startTime;
                             const end = override?.endTime ?? slot.endTime;
 
                             // Curricular units filter for the chosen course
-                            const availableUnits = activeCourse.availableUnits || [];
+                            const availableUnits =
+                              activeCourse.availableUnits || [];
 
                             return (
-                              <TableRow key={sIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                              <TableRow
+                                key={sIdx}
+                                className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
+                              >
                                 {/* UC Selection */}
                                 <TableCell className="py-2.5">
                                   <div className="flex flex-col gap-0.5 text-left">
-                                    <span className="text-[10px] font-semibold text-slate-400">Sigla: {slot.curricularUnitAbbreviation}</span>
-                                    <Select 
-                                      value={selectedUnitId} 
-                                      onValueChange={(val) => updateSlotOverride(activeClass.tempId, sIdx, "matchedCurricularUnitId", val)}
-                                      disabled={!courseMappings[activeCourse.tempId]}
+                                    <span className="text-[10px] font-semibold text-slate-400">
+                                      Sigla: {slot.curricularUnitAbbreviation}
+                                    </span>
+                                    <Select
+                                      value={selectedUnitId}
+                                      onValueChange={(val) =>
+                                        updateSlotOverride(
+                                          activeClass.tempId,
+                                          sIdx,
+                                          "matchedCurricularUnitId",
+                                          val,
+                                        )
+                                      }
+                                      disabled={
+                                        !courseMappings[activeCourse.tempId]
+                                      }
                                     >
-                                      <SelectTrigger className={`h-8 py-0 px-2 text-xs ${!selectedUnitId ? "border-amber-500 dark:border-amber-500 bg-amber-50/10 text-amber-700 dark:text-amber-400" : ""}`}>
+                                      <SelectTrigger
+                                        className={`h-8 py-0 px-2 text-xs ${!selectedUnitId ? "border-amber-500 dark:border-amber-500 bg-amber-50/10 text-amber-700 dark:text-amber-400" : ""}`}
+                                      >
                                         <SelectValue placeholder="Associar UC..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {availableUnits.map(unit => (
-                                          <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>
+                                        {availableUnits.map((unit) => (
+                                          <SelectItem
+                                            key={unit.id}
+                                            value={unit.id}
+                                          >
+                                            {unit.name}
+                                          </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
@@ -701,32 +890,55 @@ export const ImportSchedulesPage = () => {
 
                                 {/* Component Type */}
                                 <TableCell className="py-2.5">
-                                  <Select 
-                                    value={compType} 
-                                    onValueChange={(val) => updateSlotOverride(activeClass.tempId, sIdx, "componentType", val)}
+                                  <Select
+                                    value={compType}
+                                    onValueChange={(val) =>
+                                      updateSlotOverride(
+                                        activeClass.tempId,
+                                        sIdx,
+                                        "componentType",
+                                        val,
+                                      )
+                                    }
                                   >
                                     <SelectTrigger className="h-8 py-0 px-2 text-xs">
                                       <SelectValue placeholder="Tipo" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="Theoretical">Teórica (T)</SelectItem>
-                                      <SelectItem value="Practical">Prática (P/TP)</SelectItem>
+                                      <SelectItem value="Theoretical">
+                                        Teórica (T)
+                                      </SelectItem>
+                                      <SelectItem value="Practical">
+                                        Prática (P/TP)
+                                      </SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
 
                                 {/* Day of Week */}
                                 <TableCell className="py-2.5">
-                                  <Select 
-                                    value={String(day)} 
-                                    onValueChange={(val) => updateSlotOverride(activeClass.tempId, sIdx, "dayOfWeek", Number(val))}
+                                  <Select
+                                    value={String(day)}
+                                    onValueChange={(val) =>
+                                      updateSlotOverride(
+                                        activeClass.tempId,
+                                        sIdx,
+                                        "dayOfWeek",
+                                        Number(val),
+                                      )
+                                    }
                                   >
                                     <SelectTrigger className="h-8 py-0 px-2 text-xs">
                                       <SelectValue placeholder="Dia" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {WEEKDAYS.map(w => (
-                                        <SelectItem key={w.value} value={String(w.value)}>{w.label}</SelectItem>
+                                      {WEEKDAYS.map((w) => (
+                                        <SelectItem
+                                          key={w.value}
+                                          value={String(w.value)}
+                                        >
+                                          {w.label}
+                                        </SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -735,18 +947,34 @@ export const ImportSchedulesPage = () => {
                                 {/* Time Picker */}
                                 <TableCell className="py-2.5">
                                   <div className="flex items-center gap-1">
-                                    <input 
-                                      type="text" 
-                                      className="w-11 text-center h-8 bg-transparent border rounded text-xs py-0.5 px-1 dark:border-slate-800" 
+                                    <input
+                                      type="text"
+                                      className="w-11 text-center h-8 bg-transparent border rounded text-xs py-0.5 px-1 dark:border-slate-800"
                                       value={start}
-                                      onChange={(e) => updateSlotOverride(activeClass.tempId, sIdx, "startTime", e.target.value)}
+                                      onChange={(e) =>
+                                        updateSlotOverride(
+                                          activeClass.tempId,
+                                          sIdx,
+                                          "startTime",
+                                          e.target.value,
+                                        )
+                                      }
                                     />
-                                    <span className="text-slate-400 text-xs">-</span>
-                                    <input 
-                                      type="text" 
-                                      className="w-11 text-center h-8 bg-transparent border rounded text-xs py-0.5 px-1 dark:border-slate-800" 
+                                    <span className="text-slate-400 text-xs">
+                                      -
+                                    </span>
+                                    <input
+                                      type="text"
+                                      className="w-11 text-center h-8 bg-transparent border rounded text-xs py-0.5 px-1 dark:border-slate-800"
                                       value={end}
-                                      onChange={(e) => updateSlotOverride(activeClass.tempId, sIdx, "endTime", e.target.value)}
+                                      onChange={(e) =>
+                                        updateSlotOverride(
+                                          activeClass.tempId,
+                                          sIdx,
+                                          "endTime",
+                                          e.target.value,
+                                        )
+                                      }
                                     />
                                   </div>
                                 </TableCell>
@@ -754,18 +982,36 @@ export const ImportSchedulesPage = () => {
                                 {/* Classroom Selection */}
                                 <TableCell className="py-2.5">
                                   <div className="flex flex-col gap-0.5 text-left">
-                                    <span className="text-[10px] font-semibold text-slate-400">Detetada: {slot.classroomName || "N/A"}</span>
-                                    <Select 
-                                      value={selectedRoomId} 
-                                      onValueChange={(val) => updateSlotOverride(activeClass.tempId, sIdx, "matchedClassroomId", val)}
+                                    <span className="text-[10px] font-semibold text-slate-400">
+                                      Detetada: {slot.classroomName || "N/A"}
+                                    </span>
+                                    <Select
+                                      value={selectedRoomId}
+                                      onValueChange={(val) =>
+                                        updateSlotOverride(
+                                          activeClass.tempId,
+                                          sIdx,
+                                          "matchedClassroomId",
+                                          val,
+                                        )
+                                      }
                                     >
-                                      <SelectTrigger className={`h-8 py-0 px-2 text-xs ${!selectedRoomId ? "border-amber-500 dark:border-amber-500 bg-amber-50/10 text-amber-700 dark:text-amber-400" : ""}`}>
+                                      <SelectTrigger
+                                        className={`h-8 py-0 px-2 text-xs ${!selectedRoomId ? "border-amber-500 dark:border-amber-500 bg-amber-50/10 text-amber-700 dark:text-amber-400" : ""}`}
+                                      >
                                         <SelectValue placeholder="Associar Sala..." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {previewData.availableClassrooms.map(room => (
-                                          <SelectItem key={room.id} value={room.id}>{room.name}</SelectItem>
-                                        ))}
+                                        {previewData.availableClassrooms.map(
+                                          (room) => (
+                                            <SelectItem
+                                              key={room.id}
+                                              value={room.id}
+                                            >
+                                              {room.name}
+                                            </SelectItem>
+                                          ),
+                                        )}
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -773,17 +1019,19 @@ export const ImportSchedulesPage = () => {
 
                                 {/* Delete Slot Action */}
                                 <TableCell className="py-2.5 text-center">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-slate-400 hover:text-red-500" 
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400 hover:text-red-500"
                                     onClick={() => {
                                       // Remove this slot from activeClass.schedules
                                       // Modifying state arrays directly
                                       activeClass.schedules.splice(sIdx, 1);
                                       // Trigger re-render by setting a copy
                                       setPreviewData({ ...previewData });
-                                      toast.info("Slot removido da importação.");
+                                      toast.info(
+                                        "Slot removido da importação.",
+                                      );
                                     }}
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -800,38 +1048,64 @@ export const ImportSchedulesPage = () => {
               ) : (
                 <div className="flex flex-col items-center justify-center p-12 text-slate-400 bg-slate-50 dark:bg-slate-900 border rounded-xl">
                   <AlertCircle className="w-8 h-8 text-slate-400 mb-2" />
-                  <p className="text-sm font-semibold">Nenhuma turma ou curso selecionado</p>
-                  <p className="text-xs text-slate-500">Por favor, clique em um item da barra lateral para visualizar as suas aulas.</p>
+                  <p className="text-sm font-semibold">
+                    Nenhuma turma ou curso selecionado
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Por favor, clique em um item da barra lateral para
+                    visualizar as suas aulas.
+                  </p>
                 </div>
               )}
 
               {/* Confirm Import Actions */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border dark:border-slate-800 dark:bg-slate-900 rounded-xl">
                 <div className="text-left">
-                  <p className="text-xs font-semibold text-slate-500">Ao confirmar, os horários selecionados e ajustados serão guardados no sistema.</p>
-                  <p className="text-xs text-slate-400">Total de slots mapeados com sucesso: <span className="font-semibold text-green-600 dark:text-green-400">
-                    {previewData.courses.reduce((acc, c) => acc + c.classes.reduce((ac, cl) => {
-                      const mappedClsId = classMappings[cl.tempId];
-                      if (!mappedClsId) return ac;
-                      return ac + cl.schedules.filter((s, idx) => {
-                        const override = slotOverrides[`${cl.tempId}_${idx}`];
-                        const uId = override?.matchedCurricularUnitId ?? s.matchedCurricularUnitId;
-                        const rId = override?.matchedClassroomId ?? s.matchedClassroomId;
-                        return !!uId && !!rId;
-                      }).length;
-                    }, 0), 0)}
-                  </span></p>
+                  <p className="text-xs font-semibold text-slate-500">
+                    Ao confirmar, os horários selecionados e ajustados serão
+                    guardados no sistema.
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    Total de slots mapeados com sucesso:{" "}
+                    <span className="font-semibold text-green-600 dark:text-green-400">
+                      {previewData.courses.reduce(
+                        (acc, c) =>
+                          acc +
+                          c.classes.reduce((ac, cl) => {
+                            const mappedClsId = classMappings[cl.tempId];
+                            if (!mappedClsId) return ac;
+                            return (
+                              ac +
+                              cl.schedules.filter((s, idx) => {
+                                const override =
+                                  slotOverrides[`${cl.tempId}_${idx}`];
+                                const uId =
+                                  override?.matchedCurricularUnitId ??
+                                  s.matchedCurricularUnitId;
+                                const rId =
+                                  override?.matchedClassroomId ??
+                                  s.matchedClassroomId;
+                                return !!uId && !!rId;
+                              }).length
+                            );
+                          }, 0),
+                        0,
+                      )}
+                    </span>
+                  </p>
                 </div>
                 <div className="flex gap-3">
                   <Button variant="outline" onClick={resetState}>
                     Começar de Novo
                   </Button>
-                  <Button 
-                    onClick={handleConfirmImport} 
+                  <Button
+                    onClick={handleConfirmImport}
                     disabled={isSaving}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-500/20"
                   >
-                    {isSaving && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                    {isSaving && (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    )}
                     Confirmar Importação
                   </Button>
                 </div>
@@ -852,19 +1126,20 @@ export const ImportSchedulesPage = () => {
               Importação Concluída!
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-3 max-w-md">
-              Foram importados com sucesso <span className="font-bold text-green-600 dark:text-green-400">{importCount}</span> horários de aulas para o {selectedSemester}º Semestre do Ano Letivo {previewData?.academicYearName}.
+              Foram importados com sucesso{" "}
+              <span className="font-bold text-green-600 dark:text-green-400">
+                {importCount}
+              </span>{" "}
+              horários de aulas para o {selectedSemester}º Semestre do Ano
+              Letivo {previewData?.academicYearName}.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8 w-full">
-              <Button 
-                variant="outline" 
-                onClick={resetState}
-                className="w-full"
-              >
+              <Button variant="outline" onClick={resetState} className="w-full">
                 Importar Mais Horários
               </Button>
-              <Button 
-                onClick={() => window.location.href = "/calendar"}
+              <Button
+                onClick={() => (window.location.href = "/calendar")}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold"
               >
                 Ver Calendário
