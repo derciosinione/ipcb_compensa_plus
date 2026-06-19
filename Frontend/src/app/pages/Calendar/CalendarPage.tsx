@@ -113,6 +113,14 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
   hasConflict: request.hasConflict,
   rejectionReason: request.decisionComment ?? undefined,
   comments: [],
+  documents: (request.documents || []).map((doc) => ({
+    id: doc.id,
+    requestId: doc.compensationRequestId,
+    fileName: doc.fileName,
+    sizeInBytes: doc.sizeInBytes,
+    contentType: doc.contentType,
+    createdAt: doc.createdAt,
+  })),
 });
 
 const toTimetableEvents = (
