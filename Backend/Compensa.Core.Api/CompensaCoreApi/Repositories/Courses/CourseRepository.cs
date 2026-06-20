@@ -214,6 +214,58 @@ public sealed class CourseRepository : ICourseRepository
         return results.Select(item => (item.Schedule, item.ClassGroup)).ToArray();
     }
 
+    public async Task<IReadOnlyCollection<ClassSchedule>> ListClassGroupSchedulesForDayAsync(
+        IReadOnlyCollection<Guid> classGroupIds,
+        int dayOfWeek,
+        Guid academicYearId,
+        int semester,
+        Guid? excludedScheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.ClassSchedules
+            .AsNoTracking()
+            .Where(s => s.IsActive &&
+                        s.AcademicYearId == academicYearId &&
+                        s.Semester == semester &&
+                        s.DayOfWeek == dayOfWeek &&
+                        classGroupIds.Contains(s.ClassGroupId));
+
+        if (excludedScheduleId.HasValue)
+        {
+            query = query.Where(s => s.Id != excludedScheduleId.Value);
+        }
+
+        return await query.OrderBy(s => s.StartTime).ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ClassSchedule>> ListTeacherSchedulesForDayAsync(
+        string teacherUserId,
+        int dayOfWeek,
+        Guid academicYearId,
+        int semester,
+        Guid? excludedScheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        var query =
+            from schedule in _context.ClassSchedules.AsNoTracking()
+            join classGroup in _context.ClassGroups.AsNoTracking()
+                on schedule.ClassGroupId equals classGroup.Id
+            where schedule.IsActive &&
+                  classGroup.IsActive &&
+                  schedule.AcademicYearId == academicYearId &&
+                  schedule.Semester == semester &&
+                  schedule.DayOfWeek == dayOfWeek &&
+                  classGroup.TeacherId == teacherUserId
+            select schedule;
+
+        if (excludedScheduleId.HasValue)
+        {
+            query = query.Where(s => s.Id != excludedScheduleId.Value);
+        }
+
+        return await query.OrderBy(s => s.StartTime).ToArrayAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyCollection<CurricularUnitComponent>> ListComponentsAsync(
         Guid courseId,
         CancellationToken cancellationToken = default)
@@ -261,6 +313,14 @@ public sealed class CourseRepository : ICourseRepository
             .AsNoTracking()
             .Where(assignment => assignment.CourseId == courseId)
             .OrderBy(assignment => assignment.UserEmail)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CourseTeacherAssignment>> ListAllCourseAssignmentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CourseTeacherAssignments
+            .AsNoTracking()
             .ToArrayAsync(cancellationToken);
     }
 

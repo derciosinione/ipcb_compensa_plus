@@ -11,16 +11,20 @@ using CompensaCoreApi.Domain.Classrooms;
 using CompensaCoreApi.Domain.Courses;
 using CompensaCoreApi.Dtos.Schedules;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using CompensaCoreApi.Infrastructure.Caching;
 
 namespace CompensaCoreApi.Services.Schedules;
 
 public sealed class TimetableImportService : ITimetableImportService
 {
     private readonly CoreDbContext _context;
+    private readonly IDistributedCache _cache;
 
-    public TimetableImportService(CoreDbContext context)
+    public TimetableImportService(CoreDbContext context, IDistributedCache cache)
     {
         _context = context;
+        _cache = cache;
     }
 
     public async Task<TimetableImportPreviewResponse> ProcessTimetablesAsync(
@@ -61,263 +65,297 @@ public sealed class TimetableImportService : ITimetableImportService
 
         foreach (var file in files)
         {
-            var html = DecodeHtml(file.Content);
-
-            // 4. Detect class/turma name
-            string className = DetectClassName(file.Filename, html);
-            if (string.IsNullOrWhiteSpace(className))
+            if (string.IsNullOrWhiteSpace(file.Filename))
             {
-                continue; // Skip files that don't look like timetable exports
+                throw new InvalidOperationException("Uploaded file name cannot be empty.");
             }
 
-            // Detect semester from this file
-            int fileSemester = DetectSemester(file.Filename, html);
-            response.DetectedSemester = fileSemester; // Keep the last detected semester as default
-
-            // 5. Parse HTML tables
-            var tables = ExtractTables(html);
-            if (tables.Count == 0) continue;
-
-            // Find Grid and Legend tables
-            var gridTable = tables.FirstOrDefault(t => t.Rows.Count > 0 && IsTimetableHeader(t.Rows[0]));
-            var legendTable = tables.FirstOrDefault(t => t.Rows.Count > 0 && IsLegendHeader(t.Rows[0]));
-
-            if (gridTable == null) continue;
-
-            // Parse Legend
-            var legend = new Dictionary<string, (string UnitName, string TeacherName)>(StringComparer.OrdinalIgnoreCase);
-            if (legendTable != null)
+            try
             {
-                for (int i = 1; i < legendTable.Rows.Count; i++)
+                var html = DecodeHtml(file.Content);
+
+                // 4. Detect class/turma name
+                string className = DetectClassName(file.Filename, html);
+                if (string.IsNullOrWhiteSpace(className))
                 {
-                    var row = legendTable.Rows[i];
-                    if (row.Count >= 2)
+                    throw new InvalidOperationException($"Could not detect a class/turma name in file '{file.Filename}'. Please check if this is a valid timetable export file.");
+                }
+
+                // Detect semester from this file
+                int fileSemester = DetectSemester(file.Filename, html);
+                response.DetectedSemester = fileSemester; // Keep the last detected semester as default
+
+                // 5. Parse HTML tables
+                var tables = ExtractTables(html);
+                if (tables.Count == 0)
+                {
+                    throw new InvalidOperationException($"No HTML tables found in file '{file.Filename}'.");
+                }
+
+                // Find Grid and Legend tables
+                var gridTable = tables.FirstOrDefault(t => t.Rows.Count > 0 && IsTimetableHeader(t.Rows[0]));
+                var legendTable = tables.FirstOrDefault(t => t.Rows.Count > 0 && IsLegendHeader(t.Rows[0]));
+
+                if (gridTable == null)
+                {
+                    throw new InvalidOperationException($"Could not find a valid timetable grid (with weekday headers like 'Segunda', 'Terça') in file '{file.Filename}'.");
+                }
+
+                // Parse Legend
+                var legend = new Dictionary<string, (string UnitName, string TeacherName)>(StringComparer.OrdinalIgnoreCase);
+                if (legendTable != null)
+                {
+                    for (int i = 1; i < legendTable.Rows.Count; i++)
                     {
-                        var sigla = row[0].Text.Trim();
-                        var disciplina = row[1].Text.Trim();
-                        var professores = row.Count >= 3 ? row[2].Text.Trim() : string.Empty;
-                        if (!string.IsNullOrWhiteSpace(sigla))
+                        var row = legendTable.Rows[i];
+                        if (row.Count >= 2)
                         {
-                            legend[sigla] = (disciplina, professores);
+                            var sigla = row[0].Text.Trim();
+                            var disciplina = row[1].Text.Trim();
+                            var professores = row.Count >= 3 ? row[2].Text.Trim() : string.Empty;
+                            if (!string.IsNullOrWhiteSpace(sigla))
+                            {
+                                legend[sigla] = (disciplina, professores);
+                            }
                         }
                     }
                 }
-            }
 
-            // Parse course abbreviation from class name (e.g. L.EI.1.1 -> LEI)
-            string courseAbbrev = ExtractCourseAbbreviation(className);
+                // Parse course abbreviation from class name (e.g. L.EI.1.1 -> LEI)
+                string courseAbbrev = ExtractCourseAbbreviation(className);
 
-            // Match Course
-            var matchedCourse = FindCourse(courseAbbrev, dbCourses);
-            string courseKey = matchedCourse != null ? matchedCourse.Id.ToString() : $"unmatched_{courseAbbrev}";
+                // Match Course
+                var matchedCourse = FindCourse(courseAbbrev, dbCourses);
+                string courseKey = matchedCourse != null ? matchedCourse.Id.ToString() : $"unmatched_{courseAbbrev}";
 
-            if (!coursesMap.TryGetValue(courseKey, out var courseDto))
-            {
-                courseDto = new CoursePreviewDto
+                if (!coursesMap.TryGetValue(courseKey, out var courseDto))
+                {
+                    courseDto = new CoursePreviewDto
+                    {
+                        TempId = Guid.NewGuid().ToString(),
+                        Name = matchedCourse?.Name ?? $"Curso {courseAbbrev}",
+                        Abbreviation = matchedCourse?.Abbreviation ?? courseAbbrev,
+                        IsMatched = matchedCourse != null,
+                        MatchedCourseId = matchedCourse?.Id,
+                        Classes = [],
+                        AvailableUnits = matchedCourse != null
+                            ? dbUnits.Where(u => u.CourseId == matchedCourse.Id)
+                                .Select(u => new CurricularUnitLookupDto
+                                {
+                                    Id = u.Id,
+                                    Name = u.Name,
+                                    Year = u.Year,
+                                    Semester = u.Semester
+                                }).ToList()
+                            : []
+                    };
+                    coursesMap[courseKey] = courseDto;
+                }
+
+                // Match Class Group
+                ClassGroup? matchedClassGroup = null;
+                if (matchedCourse != null)
+                {
+                    matchedClassGroup = FindClassGroup(className, matchedCourse.Id, dbClassGroups);
+                }
+
+                var classDto = new ClassGroupPreviewDto
                 {
                     TempId = Guid.NewGuid().ToString(),
-                    Name = matchedCourse?.Name ?? $"Curso {courseAbbrev}",
-                    Abbreviation = matchedCourse?.Abbreviation ?? courseAbbrev,
-                    IsMatched = matchedCourse != null,
-                    MatchedCourseId = matchedCourse?.Id,
-                    Classes = [],
-                    AvailableUnits = matchedCourse != null
-                        ? dbUnits.Where(u => u.CourseId == matchedCourse.Id)
-                            .Select(u => new CurricularUnitLookupDto
-                            {
-                                Id = u.Id,
-                                Name = u.Name,
-                                Year = u.Year,
-                                Semester = u.Semester
-                            }).ToList()
-                        : []
+                    Name = className,
+                    Year = ExtractYearFromClassName(className),
+                    IsMatched = matchedClassGroup != null,
+                    MatchedClassGroupId = matchedClassGroup?.Id,
+                    Schedules = []
                 };
-                coursesMap[courseKey] = courseDto;
-            }
 
-            // Match Class Group
-            ClassGroup? matchedClassGroup = null;
-            if (matchedCourse != null)
-            {
-                matchedClassGroup = FindClassGroup(className, matchedCourse.Id, dbClassGroups);
-            }
+                // Parse Grid slots using Rowspan algorithm
+                var rows = gridTable.Rows;
+                var rowspanRemaining = new int[rows.Count, 6];
+                var gridCells = new ParsedCell?[rows.Count, 6];
+                var timeSlots = new string[rows.Count];
 
-            var classDto = new ClassGroupPreviewDto
-            {
-                TempId = Guid.NewGuid().ToString(),
-                Name = className,
-                Year = ExtractYearFromClassName(className),
-                IsMatched = matchedClassGroup != null,
-                MatchedClassGroupId = matchedClassGroup?.Id,
-                Schedules = []
-            };
-
-            // Parse Grid slots using Rowspan algorithm
-            var rows = gridTable.Rows;
-            var rowspanRemaining = new int[rows.Count, 6];
-            var gridCells = new ParsedCell?[rows.Count, 6];
-            var timeSlots = new string[rows.Count];
-
-            for (int r = 0; r < rows.Count; r++)
-            {
-                var row = rows[r];
-                if (row.Count < 2) continue;
-
-                // First cell is the time slot
-                timeSlots[r] = row[0].Text;
-
-                int cellIndex = 1;
-                for (int d = 1; d <= 5; d++)
+                for (int r = 0; r < rows.Count; r++)
                 {
-                    if (rowspanRemaining[r, d] > 0)
-                    {
-                        continue;
-                    }
+                    var row = rows[r];
+                    if (row.Count < 2) continue;
 
-                    if (cellIndex >= row.Count)
-                    {
-                        break;
-                    }
+                    // First cell is the time slot
+                    timeSlots[r] = row[0].Text;
 
-                    var cell = row[cellIndex++];
-                    gridCells[r, d] = cell;
-
-                    int span = cell.Rowspan;
-                    for (int i = 0; i < span; i++)
+                    int cellIndex = 1;
+                    for (int d = 1; d <= 5; d++)
                     {
-                        if (r + i < rows.Count)
+                        if (rowspanRemaining[r, d] > 0)
                         {
-                            rowspanRemaining[r + i, d] = span - i;
+                            continue;
+                        }
+
+                        if (cellIndex >= row.Count)
+                        {
+                            break;
+                        }
+
+                        var cell = row[cellIndex++];
+                        gridCells[r, d] = cell;
+
+                        int span = cell.Rowspan;
+                        for (int i = 0; i < span; i++)
+                        {
+                            if (r + i < rows.Count)
+                            {
+                                rowspanRemaining[r + i, d] = span - i;
+                            }
                         }
                     }
                 }
-            }
 
-            // Read schedules from parsed grid
-            for (int r = 0; r < rows.Count; r++)
-            {
-                string timeText = timeSlots[r];
-                if (string.IsNullOrWhiteSpace(timeText)) continue;
-
-                var timeMatch = Regex.Match(timeText, @"(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})");
-                if (!timeMatch.Success) continue;
-
-                string startTime = timeMatch.Groups[1].Value;
-                string endTime = timeMatch.Groups[2].Value;
-
-                for (int d = 1; d <= 5; d++)
+                // Read schedules from parsed grid
+                for (int r = 0; r < rows.Count; r++)
                 {
-                    var cell = gridCells[r, d];
-                    if (cell == null || string.IsNullOrWhiteSpace(cell.Text) || cell.Text.Equals("&nbsp;") || cell.Text.Equals(" "))
+                    string timeText = timeSlots[r];
+                    if (string.IsNullOrWhiteSpace(timeText)) continue;
+
+                    var timeMatch = Regex.Match(timeText, @"(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})");
+                    if (!timeMatch.Success) continue;
+
+                    string startTime = timeMatch.Groups[1].Value;
+                    string endTime = timeMatch.Groups[2].Value;
+
+                    for (int d = 1; d <= 5; d++)
                     {
-                        continue;
-                    }
-
-                    // Parse cell internals
-                    var cellLines = cell.Text.Split(['\n'], StringSplitOptions.RemoveEmptyEntries)
-                        .Select(l => l.Trim())
-                        .ToList();
-
-                    if (cellLines.Count == 0) continue;
-
-                    string sigla = cellLines[0];
-                    string compTypeStr = cellLines.Count > 1 ? cellLines[1] : string.Empty;
-                    string teacherName = string.Empty;
-                    string classroomName = string.Empty;
-
-                    if (cellLines.Count >= 3)
-                    {
-                        var lastLine = cellLines[^1];
-                        if (IsClassroomLike(lastLine, dbClassroomNames))
+                        var cell = gridCells[r, d];
+                        if (cell == null || string.IsNullOrWhiteSpace(cell.Text) || cell.Text.Equals("&nbsp;") || cell.Text.Equals(" "))
                         {
-                            classroomName = lastLine;
-                            teacherName = string.Join(" ", cellLines.Skip(2).Take(cellLines.Count - 3));
+                            continue;
+                        }
+
+                        // Parse cell internals
+                        var cellLines = cell.Text.Split(['\n'], StringSplitOptions.RemoveEmptyEntries)
+                            .Select(l => l.Trim())
+                            .ToList();
+
+                        if (cellLines.Count == 0) continue;
+
+                        string sigla = cellLines[0];
+                        string compTypeStr = cellLines.Count > 1 ? cellLines[1] : string.Empty;
+                        string teacherName = string.Empty;
+                        string classroomName = string.Empty;
+
+                        if (cellLines.Count >= 3)
+                        {
+                            var lastLine = cellLines[^1];
+                            if (IsClassroomLike(lastLine, dbClassroomNames))
+                            {
+                                classroomName = lastLine;
+                                teacherName = string.Join(" ", cellLines.Skip(2).Take(cellLines.Count - 3));
+                            }
+                            else
+                            {
+                                teacherName = string.Join(" ", cellLines.Skip(2));
+                            }
+                        }
+
+                        // Look up details in legend using the original parsed sigla
+                        string fullUnitName = sigla;
+                        if (legend.TryGetValue(sigla, out var legendInfo))
+                        {
+                            fullUnitName = legendInfo.UnitName;
+                        }
+
+                        // Clean the sigla/abbreviation to remove redundant course prefix (e.g., LEET-CD -> CD)
+                        sigla = CleanUcAbbreviation(sigla, courseAbbrev);
+
+                        // Match Curricular Unit
+                        CurricularUnit? matchedUnit = null;
+                        if (matchedCourse != null)
+                        {
+                            matchedUnit = FindCurricularUnit(fullUnitName, sigla, matchedCourse.Id, dbUnits);
+                        }
+
+                        // Match Classroom
+                        var matchedClassroom = FindClassroom(classroomName, dbClassrooms);
+
+                        // Mapped component type
+                        // TP = Teórico Prático, PL = Prática Laboratorial, T = Teórico, P = Prático
+                        string componentType;
+                        var compUpper = compTypeStr.Trim().ToUpperInvariant();
+                        if (compUpper == "TP" || compUpper == "T.P" || compUpper == "T.P.")
+                        {
+                            componentType = "TheoreticalPractical";
+                        }
+                        else if (compUpper == "PL" || compUpper == "P.L" || compUpper == "P.L.")
+                        {
+                            componentType = "PracticalLaboratorial";
+                        }
+                        else if (compUpper.StartsWith("T", StringComparison.OrdinalIgnoreCase) && !compUpper.StartsWith("TP", StringComparison.OrdinalIgnoreCase))
+                        {
+                            componentType = "Theoretical";
+                        }
+                        else if (compUpper.StartsWith("P", StringComparison.OrdinalIgnoreCase) && !compUpper.StartsWith("PL", StringComparison.OrdinalIgnoreCase))
+                        {
+                            componentType = "Practical";
+                        }
+                        else if (string.IsNullOrWhiteSpace(compUpper))
+                        {
+                            componentType = "All";
                         }
                         else
                         {
-                            teacherName = string.Join(" ", cellLines.Skip(2));
+                            componentType = "TheoreticalPractical"; // Default for unrecognised types
                         }
-                    }
 
-                    // Look up details in legend
-                    string fullUnitName = sigla;
-                    if (legend.TryGetValue(sigla, out var legendInfo))
-                    {
-                        fullUnitName = legendInfo.UnitName;
-                    }
-
-                    // Match Curricular Unit
-                    CurricularUnit? matchedUnit = null;
-                    if (matchedCourse != null)
-                    {
-                        matchedUnit = FindCurricularUnit(fullUnitName, sigla, matchedCourse.Id, dbUnits);
-                    }
-
-                    // Match Classroom
-                    var matchedClassroom = FindClassroom(classroomName, dbClassrooms);
-
-                    // Mapped component type
-                    // TP = Teórico Prático, PL = Prática Laboratorial, T = Teórico, P = Prático
-                    string componentType;
-                    var compUpper = compTypeStr.Trim().ToUpperInvariant();
-                    if (compUpper == "TP" || compUpper == "T.P" || compUpper == "T.P.")
-                    {
-                        componentType = "TheoreticalPractical";
-                    }
-                    else if (compUpper == "PL" || compUpper == "P.L" || compUpper == "P.L.")
-                    {
-                        componentType = "PracticalLaboratorial";
-                    }
-                    else if (compUpper.StartsWith("T", StringComparison.OrdinalIgnoreCase) && !compUpper.StartsWith("TP", StringComparison.OrdinalIgnoreCase))
-                    {
-                        componentType = "Theoretical";
-                    }
-                    else if (compUpper.StartsWith("P", StringComparison.OrdinalIgnoreCase) && !compUpper.StartsWith("PL", StringComparison.OrdinalIgnoreCase))
-                    {
-                        componentType = "Practical";
-                    }
-                    else if (string.IsNullOrWhiteSpace(compUpper))
-                    {
-                        componentType = "All";
-                    }
-                    else
-                    {
-                        componentType = "TheoreticalPractical"; // Default for unrecognised types
-                    }
-
-                    // Calculate End Time based on rowspan span if needed
-                    // In some exports, a rowspan'd cell spans multiple rows. We should check if we can adjust the end time.
-                    // For example, if it spans 2 rows starting from 08:30-09:30, the end time should be the end time of the spanned row (09:30-10:30, so 10:30).
-                    int cellSpan = cell.Rowspan;
-                    string finalEndTime = endTime;
-                    if (cellSpan > 1 && r + cellSpan - 1 < rows.Count)
-                    {
-                        string spannedTimeText = timeSlots[r + cellSpan - 1];
-                        var spannedTimeMatch = Regex.Match(spannedTimeText, @"(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})");
-                        if (spannedTimeMatch.Success)
+                        // Calculate End Time based on rowspan span if needed
+                        // In some exports, a rowspan'd cell spans multiple rows. We should check if we can adjust the end time.
+                        // For example, if it spans 2 rows starting from 08:30-09:30, the end time should be the end time of the spanned row (09:30-10:30, so 10:30).
+                        int cellSpan = cell.Rowspan;
+                        string finalEndTime = endTime;
+                        if (cellSpan > 1 && r + cellSpan - 1 < rows.Count)
                         {
-                            finalEndTime = spannedTimeMatch.Groups[2].Value;
+                            string spannedTimeText = timeSlots[r + cellSpan - 1];
+                            if (!string.IsNullOrEmpty(spannedTimeText))
+                            {
+                                var spannedTimeMatch = Regex.Match(spannedTimeText, @"(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})");
+                                if (spannedTimeMatch.Success)
+                                {
+                                    finalEndTime = spannedTimeMatch.Groups[2].Value;
+                                }
+                            }
                         }
+
+                        classDto.Schedules.Add(new SchedulePreviewDto
+                        {
+                            CurricularUnitName = fullUnitName,
+                            CurricularUnitAbbreviation = sigla,
+                            IsCurricularUnitMatched = matchedUnit != null,
+                            MatchedCurricularUnitId = matchedUnit?.Id,
+                            ComponentType = componentType,
+                            DayOfWeek = d,
+                            StartTime = startTime,
+                            EndTime = finalEndTime,
+                            ClassroomName = classroomName,
+                            IsClassroomMatched = matchedClassroom != null,
+                            MatchedClassroomId = matchedClassroom?.Id
+                        });
                     }
-
-                    classDto.Schedules.Add(new SchedulePreviewDto
-                    {
-                        CurricularUnitName = fullUnitName,
-                        CurricularUnitAbbreviation = sigla,
-                        IsCurricularUnitMatched = matchedUnit != null,
-                        MatchedCurricularUnitId = matchedUnit?.Id,
-                        ComponentType = componentType,
-                        DayOfWeek = d,
-                        StartTime = startTime,
-                        EndTime = finalEndTime,
-                        ClassroomName = classroomName,
-                        IsClassroomMatched = matchedClassroom != null,
-                        MatchedClassroomId = matchedClassroom?.Id
-                    });
                 }
-            }
 
-            courseDto.Classes.Add(classDto);
+                // Sort schedules by Day of Week (Monday = 1 ... Friday = 5) and then by Start Time
+                classDto.Schedules = classDto.Schedules
+                    .OrderBy(s => s.DayOfWeek)
+                    .ThenBy(s => s.StartTime)
+                    .ToList();
+
+                courseDto.Classes.Add(classDto);
+            }
+            catch (InvalidOperationException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error parsing file '{file.Filename}': {ex.Message}", ex);
+            }
         }
 
         response.Courses = [.. coursesMap.Values];
@@ -393,7 +431,7 @@ public sealed class TimetableImportService : ITimetableImportService
                         ? CourseDegreeType.Mestrado
                         : CourseDegreeType.Licenciatura;
 
-                coursesToInsert.Add(new Course
+                var newCourse = new Course
                 {
                     Id = c.Id,
                     Name = c.Name.Trim(),
@@ -404,7 +442,10 @@ public sealed class TimetableImportService : ITimetableImportService
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                });
+                };
+
+                coursesToInsert.Add(newCourse);
+                existingCourses.Add(newCourse);
             }
 
             if (coursesToInsert.Count > 0)
@@ -460,7 +501,7 @@ public sealed class TimetableImportService : ITimetableImportService
                     continue;
                 }
 
-                groupsToInsert.Add(new ClassGroup
+                var newGroup = new ClassGroup
                 {
                     Id = cg.Id,
                     CourseId = resolvedCourseId,
@@ -471,7 +512,10 @@ public sealed class TimetableImportService : ITimetableImportService
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                });
+                };
+
+                groupsToInsert.Add(newGroup);
+                existingClassGroups.Add(newGroup);
             }
 
             if (groupsToInsert.Count > 0)
@@ -517,8 +561,8 @@ public sealed class TimetableImportService : ITimetableImportService
                     continue;
                 }
 
-                var unitName   = !string.IsNullOrWhiteSpace(cu.Name) ? cu.Name.Trim() : cu.Abbreviation.Trim();
                 var unitAbbrev = cu.Abbreviation?.Trim() ?? string.Empty;
+                var unitName   = !string.IsNullOrWhiteSpace(cu.Name) ? cu.Name.Trim() : unitAbbrev;
 
                 // Check if an existing UC with the same (CourseId + Name) already exists
                 var matchByName = existingInCourses
@@ -562,7 +606,7 @@ public sealed class TimetableImportService : ITimetableImportService
                 }
 
                 // Truly new UC — insert it
-                unitsToInsert.Add(new CurricularUnit
+                var newUnit = new CurricularUnit
                 {
                     Id = cu.Id,
                     CourseId = resolvedCourseId,
@@ -574,7 +618,10 @@ public sealed class TimetableImportService : ITimetableImportService
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                });
+                };
+
+                unitsToInsert.Add(newUnit);
+                existingInCourses.Add(newUnit);
             }
 
             if (unitsToInsert.Count > 0)
@@ -631,7 +678,7 @@ public sealed class TimetableImportService : ITimetableImportService
                     type = ClassroomType.Amphitheater;
                 }
 
-                roomsToInsert.Add(new Classroom
+                var newRoom = new Classroom
                 {
                     Id = r.Id,
                     Name = r.Name.Trim(),
@@ -641,7 +688,10 @@ public sealed class TimetableImportService : ITimetableImportService
                     IsActive = true,
                     CreatedAt = now,
                     UpdatedAt = now
-                });
+                };
+
+                roomsToInsert.Add(newRoom);
+                existingRooms.Add(newRoom);
             }
 
             if (roomsToInsert.Count > 0)
@@ -757,6 +807,32 @@ public sealed class TimetableImportService : ITimetableImportService
         _context.ClassSchedules.AddRange(newSchedules);
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Invalidate caching after saving schedules
+        try
+        {
+            var affectedCourseIds = request.Schedules
+                .Select(s => courseIdRemap.TryGetValue(s.CourseId, out var remappedId) ? remappedId : s.CourseId)
+                .Distinct()
+                .ToList();
+
+            foreach (var courseId in affectedCourseIds)
+            {
+                await _cache.RemoveAsync(CacheKeys.CourseDetails(courseId, request.AcademicYearId), cancellationToken);
+            }
+
+            var version = await _cache.GetStringAsync(CacheKeys.CourseListVersion, cancellationToken) ?? "0";
+            var nextVersion = (int.TryParse(version, out var v) ? v : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.CourseListVersion, nextVersion.ToString(), cancellationToken);
+
+            var dashVersionStr = await _cache.GetStringAsync(CacheKeys.DashboardSummaryVersion, cancellationToken) ?? "0";
+            var nextDashVersion = (int.TryParse(dashVersionStr, out var dv) ? dv : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.DashboardSummaryVersion, nextDashVersion.ToString(), cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Do not fail the request if cache invalidation encounters issues
+        }
+
         return newSchedules.Count;
     }
 
@@ -764,6 +840,11 @@ public sealed class TimetableImportService : ITimetableImportService
 
     private static string DecodeHtml(byte[] bytes)
     {
+        if (bytes == null || bytes.Length == 0)
+        {
+            return string.Empty;
+        }
+
         if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
         {
             return Encoding.Unicode.GetString(bytes); // UTF-16LE
@@ -837,49 +918,74 @@ public sealed class TimetableImportService : ITimetableImportService
 
     private static int DetectSemester(string filename, string html)
     {
-        var fnMatch = Regex.Match(filename, @"\b(1|2)[Ss]\b");
-        if (fnMatch.Success) return int.Parse(fnMatch.Groups[1].Value);
+        if (!string.IsNullOrEmpty(filename))
+        {
+            var fnMatch = Regex.Match(filename, @"\b(1|2)[Ss]\b");
+            if (fnMatch.Success) return int.Parse(fnMatch.Groups[1].Value);
+        }
 
-        var textMatch = Regex.Match(html, @"Hor\d{4}\d{2}_(1|2)[Ss]");
-        if (textMatch.Success) return int.Parse(textMatch.Groups[1].Value);
+        if (!string.IsNullOrEmpty(html))
+        {
+            var textMatch = Regex.Match(html, @"Hor\d{4}\d{2}_(1|2)[Ss]");
+            if (textMatch.Success) return int.Parse(textMatch.Groups[1].Value);
+        }
 
         return 1; // Default
     }
 
     private static string ExtractCourseAbbreviation(string className)
     {
+        if (string.IsNullOrWhiteSpace(className)) return string.Empty;
+
         // E.g. L.EI.1.1 -> LEI. CTeSP.TPSI.1 -> TPSI.
         // We find the part of the name containing letters before the year number.
         // Or if it starts with L., CTeSP.
         var parts = className.Split(['.'], StringSplitOptions.RemoveEmptyEntries);
+        string rawAbbrev;
         if (parts.Length > 1)
         {
             if (parts[0].Equals("L", StringComparison.OrdinalIgnoreCase) || 
                 parts[0].Equals("CTeSP", StringComparison.OrdinalIgnoreCase) ||
                 parts[0].Equals("M", StringComparison.OrdinalIgnoreCase))
             {
-                return parts[1].ToUpperInvariant();
+                rawAbbrev = parts[1].ToUpperInvariant();
             }
-            return parts[0].ToUpperInvariant();
+            else
+            {
+                rawAbbrev = parts[0].ToUpperInvariant();
+            }
         }
-        
-        // Remove trailing numbers e.g. TPSI1 -> TPSI
-        var lettersMatch = Regex.Match(className, @"^[a-zA-Z_]+");
+        else
+        {
+            rawAbbrev = className.ToUpperInvariant();
+        }
+
+        // Remove trailing numbers/year indicators e.g. LEET2 -> LEET, TPSI1 -> TPSI, AGI3 -> AGI
+        var lettersMatch = Regex.Match(rawAbbrev, @"^[a-zA-Z_]+");
         if (lettersMatch.Success) return lettersMatch.Value.ToUpperInvariant();
 
-        return className;
+        return rawAbbrev;
     }
 
     private static int ExtractYearFromClassName(string className)
     {
-        // Search for numbers in class name.
-        // E.g. L.EI.1.1 -> 1. CTeSP.TPSI.2 -> 2.
-        var match = Regex.Match(className, @"\.(\d)\.");
-        if (match.Success)
+        if (string.IsNullOrWhiteSpace(className)) return 1;
+
+        // 1. Check dot-separated year first, e.g. L.EI.2.1 -> 2
+        var matchDot = Regex.Match(className, @"\.(\d)\.");
+        if (matchDot.Success)
         {
-            return int.Parse(match.Groups[1].Value);
+            return int.Parse(matchDot.Groups[1].Value);
         }
 
+        // 2. Check course-trailing year, e.g. LEET2.1 -> 2
+        var matchCourseYear = Regex.Match(className, @"([a-zA-Z]+)(\d)\.\d+$");
+        if (matchCourseYear.Success)
+        {
+            return int.Parse(matchCourseYear.Groups[2].Value);
+        }
+
+        // 3. Fallback to any digit
         var matchTrailing = Regex.Match(className, @"\d");
         if (matchTrailing.Success)
         {
@@ -891,27 +997,34 @@ public sealed class TimetableImportService : ITimetableImportService
 
     private static Course? FindCourse(string nameOrAbbrev, List<Course> dbCourses)
     {
+        if (string.IsNullOrWhiteSpace(nameOrAbbrev) || dbCourses == null) return null;
+
         var cleanTarget = new string(nameOrAbbrev.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
         
         var matched = dbCourses.FirstOrDefault(c => 
+            c.Abbreviation != null &&
             new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant() == cleanTarget);
         if (matched != null) return matched;
         
         matched = dbCourses.FirstOrDefault(c => 
-            cleanTarget.Contains(new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()) ||
-            new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant().Contains(cleanTarget));
+            c.Abbreviation != null &&
+            (cleanTarget.Contains(new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()) ||
+             new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant().Contains(cleanTarget)));
         if (matched != null) return matched;
 
         matched = dbCourses.FirstOrDefault(c => 
-            c.Name.Contains(nameOrAbbrev, StringComparison.OrdinalIgnoreCase));
+            c.Name != null && c.Name.Contains(nameOrAbbrev, StringComparison.OrdinalIgnoreCase));
         
         return matched;
     }
 
     private static ClassGroup? FindClassGroup(string name, Guid courseId, List<ClassGroup> dbClasses)
     {
+        if (string.IsNullOrWhiteSpace(name) || dbClasses == null) return null;
+
         return dbClasses.FirstOrDefault(c => 
             c.CourseId == courseId && 
+            c.Name != null &&
             (string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase) ||
              name.EndsWith("." + c.Name, StringComparison.OrdinalIgnoreCase) ||
              c.Name.EndsWith("." + name, StringComparison.OrdinalIgnoreCase) ||
@@ -920,7 +1033,9 @@ public sealed class TimetableImportService : ITimetableImportService
 
     private static CurricularUnit? FindCurricularUnit(string name, string abbrev, Guid courseId, List<CurricularUnit> dbUnits)
     {
-        var courseUnits = dbUnits.Where(u => u.CourseId == courseId).ToList();
+        if (dbUnits == null) return null;
+
+        var courseUnits = dbUnits.Where(u => u.CourseId == courseId && u.Name != null).ToList();
 
         // 1. Match by abbreviation/sigla prefix
         if (!string.IsNullOrWhiteSpace(abbrev))
@@ -961,7 +1076,7 @@ public sealed class TimetableImportService : ITimetableImportService
             {
                 foreach (var engName in entry.Value)
                 {
-                    match = courseUnits.FirstOrDefault(u => string.Equals(u.Name, engName, StringComparison.OrdinalIgnoreCase));
+                    match = courseUnits.FirstOrDefault(u => u.Name != null && string.Equals(u.Name, engName, StringComparison.OrdinalIgnoreCase));
                     if (match != null) return match;
                 }
             }
@@ -1097,6 +1212,49 @@ public sealed class TimetableImportService : ITimetableImportService
         public string Html { get; set; } = string.Empty;
         public string Text { get; set; } = string.Empty;
         public int Rowspan { get; set; } = 1;
+    }
+
+    private static string CleanUcAbbreviation(string sigla, string courseAbbreviation)
+    {
+        if (string.IsNullOrWhiteSpace(sigla))
+            return string.Empty;
+
+        sigla = sigla.Trim();
+        if (string.IsNullOrWhiteSpace(courseAbbreviation))
+            return sigla;
+
+        // 1. Check direct match of courseAbbreviation + separator
+        var courseAbbrev = courseAbbreviation.Trim();
+        char[] separators = ['-', '_', '/', ' ', '.'];
+
+        foreach (var sep in separators)
+        {
+            var prefixWithSep = courseAbbrev + sep;
+            if (sigla.StartsWith(prefixWithSep, StringComparison.OrdinalIgnoreCase))
+            {
+                var cleaned = sigla[prefixWithSep.Length..].Trim();
+                if (!string.IsNullOrWhiteSpace(cleaned))
+                    return cleaned;
+            }
+        }
+
+        // 2. Check base letters of course abbreviation (e.g. LEET3 -> LEET)
+        var courseBase = new string(courseAbbrev.Where(char.IsLetter).ToArray());
+        if (courseBase.Length >= 2)
+        {
+            foreach (var sep in separators)
+            {
+                var prefixWithSep = courseBase + sep;
+                if (sigla.StartsWith(prefixWithSep, StringComparison.OrdinalIgnoreCase))
+                {
+                    var cleaned = sigla[prefixWithSep.Length..].Trim();
+                    if (!string.IsNullOrWhiteSpace(cleaned))
+                        return cleaned;
+                }
+            }
+        }
+
+        return sigla;
     }
 
     #endregion

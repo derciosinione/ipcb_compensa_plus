@@ -20,6 +20,16 @@ public interface ICompensationRequestRepository
         Guid? excludedRequestId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyCollection<CompensationRequest>> ListActiveForClassGroupsOnDateAsync(
+        IReadOnlyCollection<Guid> classGroupIds,
+        DateOnly date,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<CompensationRequest>> ListActiveForTeacherOnDateAsync(
+        string teacherUserId,
+        DateOnly date,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(CompensationRequest request, CancellationToken cancellationToken = default);
     Task DeleteAsync(CompensationRequest request, CancellationToken cancellationToken = default);
 

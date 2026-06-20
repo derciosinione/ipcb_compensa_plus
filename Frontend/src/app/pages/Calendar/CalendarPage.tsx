@@ -477,6 +477,7 @@ export const CalendarPage = ({
       toast.error(
         getErrorMessage(error, "Unable to create compensation request."),
       );
+      throw error;
     }
   };
 

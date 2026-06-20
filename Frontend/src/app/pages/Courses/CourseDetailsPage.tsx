@@ -217,6 +217,7 @@ export const CourseDetailsPage = ({
     AcademicYear | undefined
   >(undefined);
   const [teachers, setTeachers] = useState<PlatformUser[]>([]);
+  const [coordinators, setCoordinators] = useState<PlatformUser[]>([]);
   const [isLoadingDetails, setIsLoadingDetails] = useState(true);
   const { selectedYear: currentAcademicYear } = useAcademicYear();
 
@@ -278,6 +279,21 @@ export const CourseDetailsPage = ({
     setCourseAssignmentTeacherIds(
       (details.courseAssignments ?? []).map((assignment) => assignment.userId),
     );
+    
+    // Find all coordinators for this course
+    const courseCoordinators = (details.courseAssignments ?? [])
+      .filter((assignment) => assignment.isCoordinator)
+      .map((assignment) => loadedUsers.find((user) => user.id === assignment.userId))
+      .filter((user): user is PlatformUser => !!user);
+
+    if (details.course.coordinatorUserId) {
+      const mainCoordinator = loadedUsers.find((user) => user.id === details.course.coordinatorUserId);
+      if (mainCoordinator && !courseCoordinators.some((c) => c.id === mainCoordinator.id)) {
+        courseCoordinators.push(mainCoordinator);
+      }
+    }
+    setCoordinators(courseCoordinators);
+
     setTeachers(loadedUsers.filter((user) => user.roles.includes("Teacher")));
     setClassrooms(loadedClassrooms);
     setActiveAcademicYear(currentAcademicYear ?? undefined);
@@ -1066,6 +1082,15 @@ export const CourseDetailsPage = ({
                   <GraduationCap className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
                     {course.type} Degree
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <span className="font-medium text-sm">
+                    Coordinator: {coordinators.length > 0
+                      ? coordinators.map(c => c.fullName || c.email).join(", ")
+                      : "Not Assigned"}
                   </span>
                 </div>
               </div>

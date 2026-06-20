@@ -1,6 +1,6 @@
 import React from "react";
 import { useDrag } from "react-dnd";
-import { AlertTriangle, Calendar, Clock, MoreHorizontal, X } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, MoreHorizontal, RotateCcw, X } from "lucide-react";
 import { Card, CardHeader, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -256,6 +256,25 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                         }}
                       >
                         Cancel Request
+                      </DropdownMenuItem>
+                    </>
+                  )}
+
+                {/* Teacher: Restore cancelled → pending */}
+                {isTeacher &&
+                  request.status === "cancelled" &&
+                  onChangeStatus && (
+                    <>
+                      <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
+                      <DropdownMenuItem
+                        className="text-blue-600 dark:text-blue-400 focus:text-blue-700 dark:focus:text-blue-300 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onChangeStatus(request.id, "pending");
+                        }}
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 mr-2" />
+                        Restore to Pending
                       </DropdownMenuItem>
                     </>
                   )}

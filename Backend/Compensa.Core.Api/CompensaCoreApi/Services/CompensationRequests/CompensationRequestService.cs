@@ -281,10 +281,18 @@ public sealed class CompensationRequestService : ICompensationRequestService
             ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
             
         // Security check
-        if (request.Status == CompensationRequestStatus.Cancelled)
+        bool isCancellation = request.Status == CompensationRequestStatus.Cancelled;
+        bool isRestore = compensationRequest.Status == CompensationRequestStatus.Cancelled && request.Status == CompensationRequestStatus.Pending;
+
+        if (isCancellation)
         {
             if (!isAdmin && compensationRequest.TeacherUserId != actorUserId)
                 throw new ForbiddenException("You can only cancel your own requests.");
+        }
+        else if (isRestore)
+        {
+            if (!isAdmin && compensationRequest.TeacherUserId != actorUserId)
+                throw new ForbiddenException("You can only restore your own cancelled requests.");
         }
         else
         {
@@ -295,8 +303,21 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var course = await _courseRepository.GetByIdAsync(compensationRequest.CourseId.Value, cancellationToken);
         if (course is null) throw new InvalidOperationException("Course not found.");
 
+        if (compensationRequest.Status is CompensationRequestStatus.Approved or CompensationRequestStatus.Rejected)
+        {
+            if (request.Status == CompensationRequestStatus.Pending)
+                throw new InvalidOperationException("Approved or rejected requests cannot be changed back to pending.");
+        }
+
         if (compensationRequest.Status is CompensationRequestStatus.Cancelled)
-            throw new InvalidOperationException("Cancelled requests cannot be changed.");
+        {
+            // Only allow restoring to Pending (by the owner). All other transitions from Cancelled are blocked.
+            if (request.Status != CompensationRequestStatus.Pending)
+                throw new InvalidOperationException("Cancelled requests can only be restored to pending.");
+
+            if (compensationRequest.TeacherUserId != actorUserId && !isAdmin)
+                throw new ForbiddenException("You can only restore your own cancelled requests.");
+        }
 
         if (request.Status is CompensationRequestStatus.Rejected && string.IsNullOrWhiteSpace(request.DecisionComment))
             throw new InvalidOperationException("Rejected requests require a decision comment.");
@@ -691,9 +712,14 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (roomConflict.Schedule != null)
             throw new InvalidOperationException("The selected classroom is already occupied in the proposed time interval.");
 
-        var teacherConflict = overlaps.FirstOrDefault(item => item.ClassGroup.TeacherId == classGroup.TeacherId);
-        if (teacherConflict.Schedule != null)
-            throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a class in the proposed time interval.");
+        if (!string.IsNullOrWhiteSpace(request.TeacherUserId))
+        {
+            var teacherConflict = overlaps.FirstOrDefault(item => 
+                !string.IsNullOrWhiteSpace(item.ClassGroup.TeacherId) && 
+                item.ClassGroup.TeacherId == request.TeacherUserId);
+            if (teacherConflict.Schedule != null)
+                throw new InvalidOperationException($"Teacher '{request.TeacherUserId}' already has a class in the proposed time interval.");
+        }
 
         var requestOverlaps = await _repository.ListOverlappingActiveAsync(
             originalSchedule.AcademicYearId,
@@ -712,9 +738,14 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (requestedRoomConflict != null)
             throw new InvalidOperationException("The selected classroom already has a compensation request in the proposed time interval.");
 
-        var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item => item.TeacherUserId == classGroup.TeacherId);
-        if (requestedTeacherConflict != null)
-            throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a compensation request in the proposed time interval.");
+        if (!string.IsNullOrWhiteSpace(request.TeacherUserId))
+        {
+            var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item => 
+                !string.IsNullOrWhiteSpace(item.TeacherUserId) && 
+                item.TeacherUserId == request.TeacherUserId);
+            if (requestedTeacherConflict != null)
+                throw new InvalidOperationException($"Teacher '{request.TeacherUserId}' already has a compensation request in the proposed time interval.");
+        }
     }
 
     private async Task EnsureTeacherCanUseClassAsync(
@@ -843,6 +874,15 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
     private async Task InvalidateDashboardCacheAsync(CancellationToken cancellationToken)
     {
-        await _cache.RemoveAsync(CacheKeys.DashboardSummary, cancellationToken);
+        try
+        {
+            var version = await _cache.GetStringAsync(CacheKeys.DashboardSummaryVersion, cancellationToken) ?? "0";
+            var nextVersion = (int.TryParse(version, out var v) ? v : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.DashboardSummaryVersion, nextVersion.ToString(), cancellationToken);
+        }
+        catch (System.Exception)
+        {
+            // Ignore cache errors
+        }
     }
 }

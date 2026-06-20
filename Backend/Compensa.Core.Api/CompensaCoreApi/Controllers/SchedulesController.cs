@@ -39,6 +39,30 @@ public sealed class SchedulesController : ControllerBase
         return Ok(ApiResponse<ScheduleAvailabilityResponse>.Ok("Schedule availability checked.", availability));
     }
 
+    [HttpGet("rooms-availability")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<ClassroomAvailabilityItem>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<IReadOnlyCollection<ClassroomAvailabilityItem>>>> CheckRoomsAvailability(
+        [FromQuery] RoomsAvailabilityQuery query,
+        CancellationToken cancellationToken)
+    {
+        var rooms = await _availabilityService.CheckRoomsAvailabilityAsync(query, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyCollection<ClassroomAvailabilityItem>>.Ok("Rooms availability checked.", rooms));
+    }
+
+    [HttpGet("class-group-day")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<ClassGroupDayResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<ClassGroupDayResponse>>> CheckClassGroupDay(
+        [FromQuery] ClassGroupDayQuery query,
+        CancellationToken cancellationToken)
+    {
+        var result = await _availabilityService.CheckClassGroupDayAsync(query, cancellationToken);
+        return Ok(ApiResponse<ClassGroupDayResponse>.Ok("Class group day checked.", result));
+    }
+
     [HttpPost("import/preview")]
     [Authorize(Roles = "Coordinator,Admin")]
     [ProducesResponseType(typeof(ApiResponse<TimetableImportPreviewResponse>), StatusCodes.Status200OK)]

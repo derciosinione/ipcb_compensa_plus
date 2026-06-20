@@ -24,6 +24,7 @@ public interface ICourseRepository
     Task<CurricularUnitComponent?> GetComponentByIdAsync(Guid courseId, Guid unitId, Guid componentId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<UserUnitAssignment>> ListUnitAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCourseAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CourseTeacherAssignment>> ListAllCourseAssignmentsAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ClassGroup>> ListClassGroupsAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default);
     Task<ClassGroup?> GetClassGroupByIdAsync(Guid courseId, Guid classGroupId, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<ClassSchedule>> ListClassSchedulesAsync(Guid courseId, Guid academicYearId, CancellationToken cancellationToken = default);
@@ -35,6 +36,23 @@ public interface ICourseRepository
         int dayOfWeek,
         TimeOnly startTime,
         TimeOnly endTime,
+        Guid? excludedScheduleId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>All fixed schedules for the given class groups on the specified day of week (no time filter).</summary>
+    Task<IReadOnlyCollection<ClassSchedule>> ListClassGroupSchedulesForDayAsync(
+        IReadOnlyCollection<Guid> classGroupIds,
+        int dayOfWeek,
+        Guid academicYearId,
+        int semester,
+        Guid? excludedScheduleId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<ClassSchedule>> ListTeacherSchedulesForDayAsync(
+        string teacherUserId,
+        int dayOfWeek,
+        Guid academicYearId,
+        int semester,
         Guid? excludedScheduleId,
         CancellationToken cancellationToken = default);
     Task AddAsync(Course course, CancellationToken cancellationToken = default);

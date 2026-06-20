@@ -3,6 +3,7 @@ namespace CompensaCoreApi.Infrastructure.Caching;
 public static class CacheKeys
 {
     public const string CourseListVersion = "courses:list_version";
+    public const string DashboardSummaryVersion = "dashboard:summary_version";
     public const string DashboardSummary = "dashboard:summary";
     public const string AcademicYearsList = "academic_years:list";
     public const string AcademicYearsActive = "academic_years:active";
@@ -11,4 +12,7 @@ public static class CacheKeys
         => $"courses:list:v{version}:{search ?? "all"}:{userId}:{isCoordinator}:{isAdmin}";
 
     public static string CourseDetails(Guid id, Guid academicYearId) => $"courses:details:{id}:{academicYearId}";
+
+    public static string DashboardSummaryKey(string version, string actorUserId, bool isCoordinator, bool isAdmin) 
+        => $"dashboard:summary:v{version}:" + (isAdmin ? "admin" : $"{actorUserId}:{isCoordinator}");
 }

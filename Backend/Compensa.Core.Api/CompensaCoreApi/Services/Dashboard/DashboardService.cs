@@ -25,7 +25,8 @@ public sealed class DashboardService : IDashboardService
         bool isAdmin,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = CacheKeys.DashboardSummary + (isAdmin ? ":admin" : $":{actorUserId}:{isCoordinator}");
+        var version = await _cache.GetStringAsync(CacheKeys.DashboardSummaryVersion, cancellationToken) ?? "0";
+        var cacheKey = CacheKeys.DashboardSummaryKey(version, actorUserId, isCoordinator, isAdmin);
         var cachedData = await _cache.GetStringAsync(cacheKey, cancellationToken);
         if (!string.IsNullOrEmpty(cachedData))
         {

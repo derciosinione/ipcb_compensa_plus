@@ -202,6 +202,14 @@ public sealed class CompensationRequestAuthorizationTests
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyCollection<CompensationRequest>> ListActiveForClassGroupsOnDateAsync(
+            IReadOnlyCollection<Guid> classGroupIds,
+            DateOnly date,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyCollection<CompensationRequest>>([]);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -251,6 +259,7 @@ public sealed class CompensationRequestAuthorizationTests
         public Task<ClassSchedule?> GetClassScheduleByIdAsync(Guid scheduleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ClassSchedule?> GetClassScheduleByIdAsync(Guid courseId, Guid classGroupId, Guid scheduleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyCollection<(ClassSchedule Schedule, ClassGroup ClassGroup)>> ListOverlappingSchedulesAsync(Guid academicYearId, int semester, int dayOfWeek, TimeOnly startTime, TimeOnly endTime, Guid? excludedScheduleId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyCollection<ClassSchedule>> ListClassGroupSchedulesForDayAsync(IReadOnlyCollection<Guid> classGroupIds, int dayOfWeek, Guid academicYearId, int semester, Guid? excludedScheduleId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<ClassSchedule>>([]);
         public Task AddAsync(Course course, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddUnitAsync(CurricularUnit unit, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task AddComponentAsync(CurricularUnitComponent component, CancellationToken cancellationToken = default) => throw new NotSupportedException();

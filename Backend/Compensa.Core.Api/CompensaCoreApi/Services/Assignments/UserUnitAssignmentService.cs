@@ -6,6 +6,8 @@ using CompensaCoreApi.Dtos.Assignments;
 using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.Courses;
 using CompensaCoreApi.Repositories.AcademicYears;
+using CompensaCoreApi.Infrastructure.Caching;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace CompensaCoreApi.Services.Assignments;
 
@@ -14,15 +16,18 @@ public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
     private readonly IUserUnitAssignmentRepository _repository;
     private readonly ICourseRepository _courseRepository;
     private readonly IAcademicYearRepository _academicYearRepository;
+    private readonly IDistributedCache _cache;
 
     public UserUnitAssignmentService(
         IUserUnitAssignmentRepository repository,
         ICourseRepository courseRepository,
-        IAcademicYearRepository academicYearRepository)
+        IAcademicYearRepository academicYearRepository,
+        IDistributedCache cache)
     {
         _repository = repository;
         _courseRepository = courseRepository;
         _academicYearRepository = academicYearRepository;
+        _cache = cache;
     }
 
     public async Task<UserAcademicAssignmentsResponse> ListByUserAsync(
@@ -119,6 +124,30 @@ public sealed class UserUnitAssignmentService : IUserUnitAssignmentService
             .ToArray();
 
         await _repository.ReplaceUserAssignmentsAsync(normalizedUserId, unitAssignments, courseAssignments, cancellationToken);
+
+        // Invalidate caches in Redis
+        try
+        {
+            var versionStr = await _cache.GetStringAsync(CacheKeys.CourseListVersion, cancellationToken) ?? "0";
+            var nextVersion = (int.TryParse(versionStr, out var v) ? v : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.CourseListVersion, nextVersion.ToString(), cancellationToken);
+
+            var dashVersionStr = await _cache.GetStringAsync(CacheKeys.DashboardSummaryVersion, cancellationToken) ?? "0";
+            var nextDashVersion = (int.TryParse(dashVersionStr, out var dv) ? dv : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.DashboardSummaryVersion, nextDashVersion.ToString(), cancellationToken);
+
+            if (activeYear != null)
+            {
+                foreach (var courseId in requestedCourseIds)
+                {
+                    await _cache.RemoveAsync(CacheKeys.CourseDetails(courseId, activeYear.Id), cancellationToken);
+                }
+            }
+        }
+        catch (System.Exception)
+        {
+            // Do not fail user assignment save if cache invalidation fails
+        }
 
         return await ListByUserAsync(normalizedUserId, cancellationToken);
     }

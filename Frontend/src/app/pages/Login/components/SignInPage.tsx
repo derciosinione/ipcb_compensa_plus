@@ -41,6 +41,7 @@ export const SignInPage = ({ onNavigate }: SignInPageProps) => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [devMagicLink, setDevMagicLink] = useState<string | null>(null);
   const { t, language, setLanguage } = useLanguage();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -53,10 +54,13 @@ export const SignInPage = ({ onNavigate }: SignInPageProps) => {
 
     try {
       setIsLoading(true);
-      await requestMagicLink(email);
+      const data = await requestMagicLink(email);
 
       setIsLoading(false);
       setEmailSent(true);
+      if (data && data.devMagicLink) {
+        setDevMagicLink(data.devMagicLink);
+      }
       toast.success(t("auth.success_magic_link"));
     } catch (error) {
       setIsLoading(false);
@@ -160,11 +164,27 @@ export const SignInPage = ({ onNavigate }: SignInPageProps) => {
                 <div className="mx-auto w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
                   <Mail className="w-8 h-8" />
                 </div>
+                {devMagicLink && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg text-left">
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 mb-1">
+                      [Dev Mode] Auto-Login Link:
+                    </p>
+                    <a
+                      href={devMagicLink}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all block font-mono"
+                    >
+                      {devMagicLink}
+                    </a>
+                  </div>
+                )}
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {t("auth.cant_find")}
-                  {""}
+                  {" "}
                   <button
-                    onClick={() => setEmailSent(false)}
+                    onClick={() => {
+                      setEmailSent(false);
+                      setDevMagicLink(null);
+                    }}
                     className="text-blue-600 hover:underline"
                   >
                     {t("auth.try_another")}

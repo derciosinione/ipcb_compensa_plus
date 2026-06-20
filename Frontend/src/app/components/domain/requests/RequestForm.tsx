@@ -56,12 +56,13 @@ import { listClassrooms } from "../../../services/classrooms/classroomsApi";
 import type { Classroom } from "../../../services/classrooms/classroomTypes";
 import { getActiveAcademicYear } from "../../../services/academicYears/academicYearsApi";
 import type { AcademicYear } from "../../../services/academicYears/academicYearTypes";
-import { checkScheduleAvailability } from "../../../services/schedules/schedulesApi";
+import { checkScheduleAvailability, checkRoomsAvailability, checkClassGroupDay } from "../../../services/schedules/schedulesApi";
+import type { ClassroomAvailabilityItem, ClassGroupDayResult } from "../../../services/schedules/schedulesApi";
 
 interface RequestFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: any | any[]) => void;
+  onSubmit: (data: any | any[]) => Promise<any> | any;
   initialData?: any; // If provided, enables"Edit Mode"
   user: AuthenticatedUser | null;
 }
@@ -69,8 +70,11 @@ interface RequestFormProps {
 interface RequestFormData {
   id: string;
   course: string;
+  courseName?: string;
   unit: string;
+  unitName?: string;
   yearGroups: string[];
+  yearGroupNames?: string[];
   componentType: string;
   originalDate: string;
   originalTime: string;
@@ -103,6 +107,7 @@ export const RequestForm = ({
   user,
 }: RequestFormProps) => {
   const [queue, setQueue] = useState<RequestFormData[]>([]);
+  const [editingQueueItemId, setEditingQueueItemId] = useState<string | null>(null);
   const [currentData, setCurrentData] =
     useState<Omit<RequestFormData, "id">>(initialFormState);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -114,6 +119,11 @@ export const RequestForm = ({
     useState<AcademicYear | null>(null);
   const [conflictWarning, setConflictWarning] = useState(false);
   const [conflictMessage, setConflictMessage] = useState("");
+  const [originalDateError, setOriginalDateError] = useState("");
+  const [roomAvailability, setRoomAvailability] = useState<ClassroomAvailabilityItem[]>([]);
+  const [roomAvailabilityLoading, setRoomAvailabilityLoading] = useState(false);
+  const [classGroupDayInfo, setClassGroupDayInfo] = useState<ClassGroupDayResult | null>(null);
+  const [classGroupDayLoading, setClassGroupDayLoading] = useState(false);
   const [openCombobox, setOpenCombobox] = useState(false);
   const [suggestedBaseDate, setSuggestedBaseDate] = useState<Date>(new Date());
   const [compBaseDate, setCompBaseDate] = useState<Date>(new Date());
@@ -223,16 +233,25 @@ export const RequestForm = ({
         next.yearGroups = [];
         next.originalRoom = "";
         next.originalTime = "";
+        next.originalDate = "";
       }
 
       if (field === "unit") {
         next.yearGroups = [];
         next.originalRoom = "";
         next.originalTime = "";
+        next.originalDate = "";
       }
 
       return next;
     });
+
+    // Validate originalDate weekday against selected schedule
+    if (field === "originalDate" && value) {
+      // Use the current selectedSchedule from closure (it's reactive)
+      // We'll validate via a deferred check using the value directly
+      setOriginalDateError(""); // Will be revalidated in useEffect
+    }
   };
 
   const availableClasses =
@@ -243,10 +262,25 @@ export const RequestForm = ({
     }) ?? [];
   const selectedClassGroupId = currentData.yearGroups[0];
   const availableSchedules = (courseDetails?.schedules ?? []).filter(
-    (schedule) => 
-      schedule.classGroupId === selectedClassGroupId &&
-      schedule.curricularUnitId === currentData.unit &&
-      (currentData.componentType === "all" || schedule.componentType.toLowerCase() === currentData.componentType.toLowerCase())
+    (schedule) => {
+      const scheduleTypeLower = schedule.componentType.toLowerCase();
+      const selectedTypeLower = currentData.componentType.toLowerCase();
+      const matchesComponent =
+        selectedTypeLower === "all" ||
+        scheduleTypeLower === selectedTypeLower ||
+        (selectedTypeLower === "theoretical" &&
+          (scheduleTypeLower === "theoretical" ||
+            scheduleTypeLower === "theoreticalpractical")) ||
+        (selectedTypeLower === "practical" &&
+          (scheduleTypeLower === "practical" ||
+            scheduleTypeLower === "practicallaboratorial"));
+
+      return (
+        schedule.classGroupId === selectedClassGroupId &&
+        schedule.curricularUnitId === currentData.unit &&
+        matchesComponent
+      );
+    }
   );
   const selectedSchedule = availableSchedules.find(
     (schedule) => schedule.id === currentData.originalRoom,
@@ -272,12 +306,16 @@ export const RequestForm = ({
       // 1. Check 8-hour limit locally first
       const newDateObj = new Date(currentData.newDate);
       const dayDetails = getDayDetails(newDateObj, selectedClassGroupId);
-      const compensationDuration = calculateDurationHours(currentData.originalTime);
+      const compensationDuration = calculateDurationHours(
+        currentData.originalTime,
+      );
       const totalProjectedHours = dayDetails.totalHours + compensationDuration;
 
       if (totalProjectedHours > 8) {
         setConflictWarning(true);
-        setConflictMessage(`The class group already has ${Math.round(dayDetails.totalHours)} hours of classes on this day. Adding this compensation would total ${Math.round(totalProjectedHours)}h, exceeding the 8-hour daily limit.`);
+        setConflictMessage(
+          `The class group already has ${Math.round(dayDetails.totalHours)} hours of classes on this day. Adding this compensation would total ${Math.round(totalProjectedHours)}h, exceeding the 8-hour daily limit.`,
+        );
         return;
       }
 
@@ -318,14 +356,46 @@ export const RequestForm = ({
   useEffect(() => {
     if (availableSchedules.length === 1 && !currentData.originalRoom) {
       const schedule = availableSchedules[0];
-      setCurrentData(prev => ({
-        ...prev,
-        originalRoom: schedule.id,
-        originalTime: `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`
-      }));
+      setCurrentData((prev) => {
+        let mappedComponentType = prev.componentType;
+        const sType = schedule.componentType.toLowerCase();
+        if (sType === "theoretical" || sType === "theoreticalpractical") {
+          mappedComponentType = "theoretical";
+        } else if (sType === "practical" || sType === "practicallaboratorial") {
+          mappedComponentType = "practical";
+        }
+        return {
+          ...prev,
+          originalRoom: schedule.id,
+          originalTime: `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`,
+          componentType: mappedComponentType,
+          originalDate: "", // Reset date when schedule changes so user picks a valid one
+        };
+      });
+      setOriginalDateError("");
       setSuggestedBaseDate(new Date());
     }
   }, [availableSchedules, currentData.originalRoom]);
+
+  // Real-time weekday validation for originalDate
+  useEffect(() => {
+    if (!currentData.originalDate || !selectedSchedule) {
+      setOriginalDateError("");
+      return;
+    }
+    // Parse date as local (avoid UTC offset issues)
+    const [year, month, day] = currentData.originalDate.split("-").map(Number);
+    const pickedDate = new Date(year, month - 1, day);
+    const pickedDow = pickedDate.getDay(); // 0=Sun, 1=Mon, ...
+    if (pickedDow !== selectedSchedule.dayOfWeek) {
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      setOriginalDateError(
+        `The selected date is a ${dayNames[pickedDow]}, but this class runs on ${dayNames[selectedSchedule.dayOfWeek]}s. Please pick a date that falls on a ${dayNames[selectedSchedule.dayOfWeek]}.`
+      );
+    } else {
+      setOriginalDateError("");
+    }
+  }, [currentData.originalDate, selectedSchedule]);
 
   const getScheduleLabel = (schedule: ClassSchedule) => {
     const room = classrooms.find((item) => item.id === schedule.classroomId);
@@ -333,32 +403,166 @@ export const RequestForm = ({
     return `${days[schedule.dayOfWeek] ?? "Day"} ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)} · ${room?.name ?? "Room"}`;
   };
 
+  /** Returns only free windows that are wide enough to fit the compensation class duration */
+  const getFilteredFreeWindows = (freeWindows: string[]): string[] => {
+    const compensationDuration = currentData.originalTime
+      ? calculateDurationHours(currentData.originalTime) * 60  // in minutes
+      : 0;
+
+    if (compensationDuration <= 0) return freeWindows;
+
+    return freeWindows.filter((window) => {
+      const parts = window.split("–");
+      if (parts.length !== 2) return true;
+      const [startStr, endStr] = parts;
+      const [sh, sm] = startStr.split(":").map(Number);
+      const [eh, em] = endStr.split(":").map(Number);
+      const windowMinutes = (eh * 60 + em) - (sh * 60 + sm);
+      return windowMinutes >= compensationDuration;
+    });
+  };
+
+  const isTimeOverlapping = (start1: string, end1: string, start2: string, end2: string) => {
+    return start1 < end2 && start2 < end1;
+  };
+
+  const getProposedEndTime = () => {
+    if (!currentData.newTime || !currentData.originalTime) return "";
+    return addDuration(currentData.newTime, currentData.originalTime);
+  };
+
+  const proposedEndTime = getProposedEndTime();
+  const classGroupConflict = classGroupDayInfo?.busySlots?.find((slot) => {
+    if (!currentData.newTime || !proposedEndTime) return false;
+    return isTimeOverlapping(currentData.newTime, proposedEndTime, slot.startTime, slot.endTime);
+  });
+
+  // Fetch class group daily schedules and free windows when selected class group + date is set
+  useEffect(() => {
+    const canFetch =
+      activeAcademicYear &&
+      selectedClassGroupId &&
+      selectedSchedule &&
+      currentData.newDate;
+
+    if (!canFetch) {
+      setClassGroupDayInfo(null);
+      return;
+    }
+
+    const fetchClassGroupDay = async () => {
+      setClassGroupDayLoading(true);
+      try {
+        const result = await checkClassGroupDay({
+          academicYearId: activeAcademicYear.id,
+          semester: selectedSchedule.semester,
+          date: currentData.newDate,
+          classGroupIds: selectedClassGroupId,
+          excludedScheduleId: selectedSchedule.id,
+          teacherUserId: user?.id && user.id.trim() ? user.id : undefined,
+        });
+        setClassGroupDayInfo(result);
+      } catch {
+        setClassGroupDayInfo(null);
+      } finally {
+        setClassGroupDayLoading(false);
+      }
+    };
+
+    void fetchClassGroupDay();
+  }, [
+    activeAcademicYear,
+    selectedClassGroupId,
+    selectedSchedule,
+    currentData.newDate,
+  ]);
+
+  // Fetch room availability when new date + time + duration are fully set and no class group conflicts exist
+  useEffect(() => {
+    const canFetch =
+      activeAcademicYear &&
+      selectedSchedule &&
+      currentData.newDate &&
+      currentData.newTime &&
+      currentData.originalTime &&
+      !classGroupConflict;
+
+    if (!canFetch) {
+      setRoomAvailability([]);
+      return;
+    }
+
+    const fetchRooms = async () => {
+      setRoomAvailabilityLoading(true);
+      try {
+        const endTime = addDuration(currentData.newTime, currentData.originalTime);
+        const items = await checkRoomsAvailability({
+          academicYearId: activeAcademicYear.id,
+          semester: selectedSchedule.semester,
+          date: currentData.newDate,
+          startTime: currentData.newTime,
+          endTime,
+          excludedScheduleId: selectedSchedule.id,
+        });
+        setRoomAvailability(items);
+        // If currently selected room is now occupied, clear it
+        if (currentData.newRoom) {
+          const selected = items.find((r) => r.classroomId === currentData.newRoom);
+          if (selected && !selected.isAvailable) {
+            setCurrentData((prev) => ({ ...prev, newRoom: "" }));
+          }
+        }
+      } catch {
+        setRoomAvailability([]);
+      } finally {
+        setRoomAvailabilityLoading(false);
+      }
+    };
+
+    void fetchRooms();
+  }, [
+    activeAcademicYear,
+    currentData.newDate,
+    currentData.newTime,
+    currentData.originalTime,
+    selectedSchedule,
+    classGroupConflict,
+  ]);
+
+
   const getSuggestedDates = (dayOfWeek: number, baseDate: Date) => {
-    const dates: Date[] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     const base = new Date(baseDate);
     base.setHours(0, 0, 0, 0);
 
-    // Get 4 dates around the baseDate
-    let current = new Date(base);
-    // Find the occurrence on or before the baseDate
+    // Start from the later of today or baseDate
+    const startFrom = base > today ? base : today;
+
+    // Find the first occurrence of the target weekday on or after startFrom
+    let current = new Date(startFrom);
     while (current.getDay() !== dayOfWeek) {
-      current.setDate(current.getDate() - 1);
-    }
-    
-    // Add two past from current
-    const past1 = new Date(current);
-    past1.setDate(past1.getDate() - 7);
-    dates.push(past1);
-    dates.push(new Date(current));
-
-    // Add two future from current
-    for (let i = 1; i <= 2; i++) {
-      const future = new Date(current);
-      future.setDate(future.getDate() + (i * 7));
-      dates.push(future);
+      current.setDate(current.getDate() + 1);
     }
 
-    return dates.sort((a, b) => a.getTime() - b.getTime());
+    // Collect 6 upcoming occurrences (all on or after today)
+    const dates: Date[] = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(current);
+      d.setDate(d.getDate() + i * 7);
+      dates.push(d);
+    }
+
+    return dates;
+  };
+
+  /** Format a local Date as YYYY-MM-DD without UTC conversion */
+  const toLocalDateStr = (date: Date): string => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   };
 
   const calculateDurationHours = (timeRange: string) => {
@@ -372,23 +576,27 @@ export const RequestForm = ({
   const getDayDetails = (date: Date, classGroupId: string) => {
     const dayOfWeek = date.getDay();
     const daySchedules = (courseDetails?.schedules ?? []).filter(
-      s => s.classGroupId === classGroupId && s.dayOfWeek === dayOfWeek
+      (s) => s.classGroupId === classGroupId && s.dayOfWeek === dayOfWeek,
     );
-    
+
     let totalHours = 0;
-    daySchedules.forEach(s => {
-      const start = s.startTime.split(':').map(Number);
-      const end = s.endTime.split(':').map(Number);
+    daySchedules.forEach((s) => {
+      const start = s.startTime.split(":").map(Number);
+      const end = s.endTime.split(":").map(Number);
       totalHours += (end[0] * 60 + end[1] - (start[0] * 60 + start[1])) / 60;
     });
 
     return {
       totalHours,
-      schedules: daySchedules
+      schedules: daySchedules,
     };
   };
 
-  const getCompensationSuggestions = (baseDate: Date, originalDate?: string, classGroupId?: string) => {
+  const getCompensationSuggestions = (
+    baseDate: Date,
+    originalDate?: string,
+    classGroupId?: string,
+  ) => {
     const dates: { date: Date; hours: number; isConflict: boolean }[] = [];
     const base = new Date(baseDate);
     base.setHours(0, 0, 0, 0);
@@ -405,29 +613,33 @@ export const RequestForm = ({
 
     let current = new Date(base);
     if (current <= today) {
-       current.setDate(today.getDate() + 1);
+      current.setDate(today.getDate() + 1);
     }
 
-    const originalDuration = currentData.originalTime ? calculateDurationHours(currentData.originalTime) : 0;
+    const originalDuration = currentData.originalTime
+      ? calculateDurationHours(currentData.originalTime)
+      : 0;
     const originalDateObj = originalDate ? new Date(originalDate) : null;
     if (originalDateObj) originalDateObj.setHours(0, 0, 0, 0);
 
     for (let i = 0; i < 7 && dates.length < 5; i++) {
-      const dayDetails = classGroupId ? getDayDetails(current, classGroupId) : { totalHours: 0 };
-      
+      const dayDetails = classGroupId
+        ? getDayDetails(current, classGroupId)
+        : { totalHours: 0 };
+
       // If it's the same day of week as original, we subtract the original class hours (since it's being moved)
       // Actually, let's keep it simple: just show the current base load + the new class
       let projectedHours = dayDetails.totalHours;
-      
+
       // If this suggestion is on the same DATE as the original class, it's probably not what they want, but let's allow it.
       // If it's the same day of week, we might want to subtract the original class if it's in the base schedule.
-      
+
       dates.push({
         date: new Date(current),
         hours: projectedHours + originalDuration,
-        isConflict: (projectedHours + originalDuration) > 8
+        isConflict: projectedHours + originalDuration > 8,
       });
-      
+
       current.setDate(current.getDate() + 1);
     }
 
@@ -441,9 +653,17 @@ export const RequestForm = ({
       !currentData.originalRoom ||
       !currentData.originalDate ||
       !currentData.newDate ||
-      currentData.yearGroups.length === 0
+      !currentData.newTime ||
+      !currentData.newRoom ||
+      currentData.yearGroups.length === 0 ||
+      !currentData.reason.trim()
     ) {
       toast.error(t("form.fill_required"));
+      return;
+    }
+
+    if (originalDateError) {
+      toast.error(originalDateError);
       return;
     }
 
@@ -455,12 +675,43 @@ export const RequestForm = ({
       return;
     }
 
-    const newRequest: RequestFormData = {
-      ...currentData,
-      id: createLocalId(),
-    };
+    const courseObj = courses.find((c) => c.id === currentData.course);
+    const unitObj = courseDetails?.units?.find(
+      (u) => u.id === currentData.unit,
+    );
+    const groupNames = currentData.yearGroups.map((groupId) => {
+      const g = courseDetails?.classes?.find((cg) => cg.id === groupId);
+      return g ? g.name : groupId;
+    });
 
-    setQueue((prev) => [...prev, newRequest]);
+    if (editingQueueItemId) {
+      // Update the existing queue item
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.id === editingQueueItemId
+            ? {
+                ...currentData,
+                id: editingQueueItemId,
+                courseName: courseObj?.name ?? currentData.course,
+                unitName: unitObj?.name ?? currentData.unit,
+                yearGroupNames: groupNames,
+              }
+            : item,
+        ),
+      );
+      setEditingQueueItemId(null);
+      toast.success("Queue item updated.");
+    } else {
+      const newRequest: RequestFormData = {
+        ...currentData,
+        id: createLocalId(),
+        courseName: courseObj?.name ?? currentData.course,
+        unitName: unitObj?.name ?? currentData.unit,
+        yearGroupNames: groupNames,
+      };
+      setQueue((prev) => [...prev, newRequest]);
+      toast.success(t("form.added_queue"));
+    }
 
     setCurrentData((prev) => ({
       ...prev,
@@ -474,15 +725,47 @@ export const RequestForm = ({
     }));
 
     setConflictWarning(false);
-    toast.success(t("form.added_queue"));
+  };
+
+  const handleEditQueueItem = (item: RequestFormData) => {
+    setEditingQueueItemId(item.id);
+    setCurrentData({
+      course: item.course,
+      unit: item.unit,
+      yearGroups: item.yearGroups,
+      componentType: item.componentType,
+      originalDate: item.originalDate,
+      originalTime: item.originalTime,
+      originalRoom: item.originalRoom,
+      newDate: item.newDate,
+      newTime: item.newTime,
+      newRoom: item.newRoom,
+      reason: item.reason,
+    });
+    setConflictWarning(false);
+    setOriginalDateError("");
   };
 
   const handleRemoveFromQueue = (id: string) => {
+    if (editingQueueItemId === id) {
+      setEditingQueueItemId(null);
+      setCurrentData(initialFormState);
+    }
     setQueue((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!user?.id || !user.id.trim()) {
+      toast.error("Unable to identify the authenticated user. Please reload and try again.");
+      return;
+    }
+
     if (isEditMode) {
+      if (originalDateError) {
+        toast.error(originalDateError);
+        return;
+      }
+
       if (conflictWarning) {
         toast.error(
           conflictMessage ||
@@ -491,14 +774,23 @@ export const RequestForm = ({
         return;
       }
 
-      // Submit single updated object
-      onSubmit({
-        ...currentData,
-        academicYearId: activeAcademicYear?.id,
-        id: initialData.id,
-      });
-      onOpenChange(false);
-      toast.success(t("form.updated_success"));
+      if (!currentData.reason.trim()) {
+        toast.error(t("form.fill_required"));
+        return;
+      }
+
+      try {
+        // Submit single updated object
+        await onSubmit({
+          ...currentData,
+          academicYearId: activeAcademicYear?.id,
+          id: initialData.id,
+        });
+        onOpenChange(false);
+        toast.success(t("form.updated_success"));
+      } catch (error) {
+        // Do NOT close the modal on error
+      }
       return;
     }
 
@@ -514,12 +806,36 @@ export const RequestForm = ({
     }
 
     let finalQueue = [...queue];
-    const isFormDirty =
-      currentData.course &&
-      currentData.newDate &&
-      currentData.yearGroups.length > 0;
+    const isFormDirty = !!(
+      currentData.course ||
+      currentData.unit ||
+      currentData.newDate ||
+      currentData.newTime ||
+      currentData.newRoom ||
+      currentData.reason.trim()
+    );
 
     if (isFormDirty) {
+      if (
+        !currentData.course ||
+        !currentData.unit ||
+        !currentData.originalRoom ||
+        !currentData.originalDate ||
+        !currentData.newDate ||
+        !currentData.newTime ||
+        !currentData.newRoom ||
+        currentData.yearGroups.length === 0 ||
+        !currentData.reason.trim()
+      ) {
+        toast.error(t("form.fill_required"));
+        return;
+      }
+
+      if (originalDateError) {
+        toast.error(originalDateError);
+        return;
+      }
+
       if (conflictWarning) {
         toast.error(
           conflictMessage ||
@@ -531,21 +847,25 @@ export const RequestForm = ({
       finalQueue.push({ ...currentData, id: createLocalId() });
     }
 
-    onSubmit(
-      finalQueue.map((item) => ({
-        ...item,
-        academicYearId: activeAcademicYear.id,
-      })),
-    );
-    setQueue([]);
-    setCurrentData(initialFormState);
-    onOpenChange(false);
-    toast.success(
-      t("form.submitted_success").replace(
-        "{count}",
-        finalQueue.length.toString(),
-      ),
-    );
+    try {
+      await onSubmit(
+        finalQueue.map((item) => ({
+          ...item,
+          academicYearId: activeAcademicYear.id,
+        })),
+      );
+      setQueue([]);
+      setCurrentData(initialFormState);
+      onOpenChange(false);
+      toast.success(
+        t("form.submitted_success").replace(
+          "{count}",
+          finalQueue.length.toString(),
+        ),
+      );
+    } catch (error) {
+      // Do NOT close the modal on error
+    }
   };
 
   const createLocalId = () => crypto.randomUUID?.() ?? `local-${Date.now()}`;
@@ -553,6 +873,7 @@ export const RequestForm = ({
   const clearForm = () => {
     setCurrentData(initialFormState);
     setConflictWarning(false);
+    setOriginalDateError("");
   };
 
   return (
@@ -599,13 +920,18 @@ export const RequestForm = ({
                   {queue.map((req) => (
                     <div
                       key={req.id}
-                      className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group hover:border-blue-200 transition-colors"
+                      className={cn(
+                        "bg-white p-4 rounded-xl border shadow-sm relative group transition-colors",
+                        editingQueueItemId === req.id
+                          ? "border-blue-400 ring-2 ring-blue-100"
+                          : "border-slate-200 hover:border-blue-200"
+                      )}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <div className="flex items-center gap-2 mb-0.5">
                             <h4 className="font-bold text-slate-900 text-sm">
-                              {req.unit}
+                              {req.unitName || req.unit}
                             </h4>
                             {req.componentType !== "all" && (
                               <Badge
@@ -615,22 +941,42 @@ export const RequestForm = ({
                                 {req.componentType}
                               </Badge>
                             )}
+                            {editingQueueItemId === req.id && (
+                              <Badge className="text-[10px] h-4 px-1.5 py-0 bg-blue-100 text-blue-700 border-0">
+                                Editing
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-xs text-slate-500">
-                            {req.course} •{" "}
+                            {req.courseName || req.course} •{" "}
                             <span className="font-medium text-slate-700">
-                              {req.yearGroups.join(",")}
+                              {(req.yearGroupNames || req.yearGroups).join(
+                                ", ",
+                              )}
                             </span>
                           </p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveFromQueue(req.id)}
-                          className="h-6 w-6 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          {editingQueueItemId !== req.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditQueueItem(req)}
+                              className="h-6 w-6 p-0 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full"
+                              title="Edit this item"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveFromQueue(req.id)}
+                            className="h-6 w-6 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 text-xs bg-slate-50 p-2 rounded-lg border border-slate-100">
                         <div className="flex items-center gap-1.5 text-slate-500">
@@ -712,11 +1058,12 @@ export const RequestForm = ({
                           </SelectTrigger>
                           <SelectContent>
                             {(courseDetails?.units ?? [])
-                              .filter(unit => 
-                                !user || 
-                                user.role !== "teacher" ||
-                                unit.teacherIds.includes(user.id) || 
-                                unit.responsibleTeacherId === user.id
+                              .filter(
+                                (unit) =>
+                                  !user ||
+                                  user.role !== "teacher" ||
+                                  unit.teacherIds.includes(user.id) ||
+                                  unit.responsibleTeacherId === user.id,
                               )
                               .map((unit) => (
                                 <SelectItem key={unit.id} value={unit.id}>
@@ -849,16 +1196,22 @@ export const RequestForm = ({
                                 </SelectItem>
                               )}
                               {(courseDetails?.components ?? [])
-                                .filter(comp => 
-                                  comp.curricularUnitId === currentData.unit &&
-                                  (!user || user.role !== "teacher" || comp.responsibleTeacherId === user.id)
+                                .filter(
+                                  (comp) =>
+                                    comp.curricularUnitId ===
+                                      currentData.unit &&
+                                    (!user ||
+                                      user.role !== "teacher" ||
+                                      comp.responsibleTeacherId === user.id),
                                 )
-                                .map(comp => (
-                                  <SelectItem key={comp.id} value={comp.type.toLowerCase()}>
+                                .map((comp) => (
+                                  <SelectItem
+                                    key={comp.id}
+                                    value={comp.type.toLowerCase()}
+                                  >
                                     {comp.type}
                                   </SelectItem>
-                                ))
-                              }
+                                ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -896,49 +1249,48 @@ export const RequestForm = ({
                         {t("form.original")}
                       </Badge>
                       <div className="space-y-2">
-                        <div className="relative">
-                          <Input
-                            type="date"
-                            className="bg-white h-9 pr-10 cursor-pointer"
-                            value={currentData.originalDate}
-                            onChange={(e) =>
-                              handleChange("originalDate", e.target.value)
-                            }
-                          />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M8 2v4" />
-                              <path d="M16 2v4" />
-                              <rect width="18" height="18" x="3" y="4" rx="2" />
-                              <path d="M3 10h18" />
-                            </svg>
-                          </div>
-                        </div>
+                        {/* Read-only display — date is selected via chips below to guarantee correct weekday */}
+                        <div
+                          className={cn(
+                            "h-9 px-3 flex items-center rounded-md border text-sm transition-colors",
+                            currentData.originalDate
+                              ? "bg-white border-slate-200 text-slate-800 font-medium"
+                              : "bg-slate-50 border-slate-200 text-slate-400 italic",
+                          )}
+                        >
+                          {currentData.originalDate
+                            ? (() => {
+                                const [y, m, d] = currentData.originalDate.split("-").map(Number);
+                                return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+                                  weekday: "short",
+                                  day: "2-digit",
+                                  month: "short",
+                                  year: "numeric",
+                                });
+                              })()
+                            : "Select a date from the suggestions below"}</div>
 
                         {selectedSchedule && (
                           <div className="space-y-2 py-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Suggested Dates</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                                  Suggested Dates
+                                </span>
+                                <span className="text-[9px] bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][selectedSchedule.dayOfWeek]}s only
+                                </span>
+                              </div>
                               <div className="flex gap-1">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     const next = new Date(suggestedBaseDate);
-                                    next.setDate(next.getDate() - 28);
+                                    next.setDate(next.getDate() - 7);
                                     setSuggestedBaseDate(next);
                                   }}
                                   className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
-                                  title="Previous month"
+                                  title="Previous week"
                                 >
                                   <ChevronLeft className="w-3 h-3" />
                                 </button>
@@ -946,35 +1298,45 @@ export const RequestForm = ({
                                   type="button"
                                   onClick={() => {
                                     const next = new Date(suggestedBaseDate);
-                                    next.setDate(next.getDate() + 28);
+                                    next.setDate(next.getDate() + 7);
                                     setSuggestedBaseDate(next);
                                   }}
                                   className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
-                                  title="Next month"
+                                  title="Next week"
                                 >
                                   <ChevronRight className="w-3 h-3" />
                                 </button>
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {getSuggestedDates(selectedSchedule.dayOfWeek, suggestedBaseDate).map((date) => {
-                                const dateStr = date.toISOString().split("T")[0];
-                                const isSelected = currentData.originalDate === dateStr;
-                                const isToday = new Date().toISOString().split("T")[0] === dateStr;
-                                
+                              {getSuggestedDates(
+                                selectedSchedule.dayOfWeek,
+                                suggestedBaseDate,
+                              ).map((date) => {
+                                const dateStr = toLocalDateStr(date);
+                                const todayStr = toLocalDateStr(new Date());
+                                const isSelected =
+                                  currentData.originalDate === dateStr;
+                                const isToday = todayStr === dateStr;
+
                                 return (
                                   <button
                                     key={dateStr}
                                     type="button"
-                                    onClick={() => handleChange("originalDate", dateStr)}
+                                    onClick={() =>
+                                      handleChange("originalDate", dateStr)
+                                    }
                                     className={cn(
                                       "text-[10px] px-2 py-1 rounded-md transition-all border",
-                                      isSelected 
+                                      isSelected
                                         ? "bg-blue-600 border-blue-600 text-white shadow-sm"
-                                        : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/50"
+                                        : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/50",
                                     )}
                                   >
-                                    {date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                                    {date.toLocaleDateString(undefined, {
+                                      day: "2-digit",
+                                      month: "short",
+                                    })}
                                     {isToday && " (Today)"}
                                   </button>
                                 );
@@ -998,13 +1360,25 @@ export const RequestForm = ({
                             const schedule = availableSchedules.find(
                               (item) => item.id === v,
                             );
-                            setCurrentData((prev) => ({
-                              ...prev,
-                              originalRoom: v,
-                              originalTime: schedule
-                                ? `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`
-                                : "",
-                            }));
+                            setCurrentData((prev) => {
+                              let mappedComponentType = prev.componentType;
+                              if (schedule) {
+                                const sType = schedule.componentType.toLowerCase();
+                                if (sType === "theoretical" || sType === "theoreticalpractical") {
+                                  mappedComponentType = "theoretical";
+                                } else if (sType === "practical" || sType === "practicallaboratorial") {
+                                  mappedComponentType = "practical";
+                                }
+                              }
+                              return {
+                                ...prev,
+                                originalRoom: v,
+                                originalTime: schedule
+                                  ? `${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)}`
+                                  : "",
+                                componentType: mappedComponentType,
+                              };
+                            });
                             setSuggestedBaseDate(new Date());
                           }}
                         >
@@ -1036,16 +1410,35 @@ export const RequestForm = ({
                             type="date"
                             className="bg-white h-9 border-blue-200 pr-10 cursor-pointer"
                             value={currentData.newDate}
-                            onChange={(e) => handleChange("newDate", e.target.value)}
+                            onChange={(e) =>
+                              handleChange("newDate", e.target.value)
+                            }
                           />
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400/50">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M8 2v4" />
+                              <path d="M16 2v4" />
+                              <rect width="18" height="18" x="3" y="4" rx="2" />
+                              <path d="M3 10h18" />
+                            </svg>
                           </div>
                         </div>
 
                         <div className="space-y-2 py-1">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wider">Suggested Dates</span>
+                            <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wider">
+                              Suggested Dates
+                            </span>
                             <div className="flex gap-1">
                               <button
                                 type="button"
@@ -1072,65 +1465,236 @@ export const RequestForm = ({
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            {getCompensationSuggestions(compBaseDate, currentData.originalDate, selectedClassGroupId).map((item) => {
-                              const dateStr = item.date.toISOString().split("T")[0];
-                              const isSelected = currentData.newDate === dateStr;
-                              const isTomorrow = new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split("T")[0] === dateStr;
-                              
+                            {getCompensationSuggestions(
+                              compBaseDate,
+                              currentData.originalDate,
+                              selectedClassGroupId,
+                            ).map((item) => {
+                              const dateStr = toLocalDateStr(item.date);
+                              const isSelected =
+                                currentData.newDate === dateStr;
+                              const isTomorrow =
+                                toLocalDateStr(new Date(
+                                  new Date().setDate(new Date().getDate() + 1),
+                                )) === dateStr;
+
                               return (
                                 <button
                                   key={dateStr}
                                   type="button"
                                   disabled={item.isConflict}
-                                  onClick={() => handleChange("newDate", dateStr)}
+                                  onClick={() =>
+                                    handleChange("newDate", dateStr)
+                                  }
                                   className={cn(
                                     "text-[10px] px-2 py-1 rounded-md transition-all border flex flex-col items-center gap-0.5 min-w-[50px]",
-                                    isSelected 
+                                    isSelected
                                       ? "bg-blue-600 border-blue-600 text-white shadow-sm"
                                       : item.isConflict
                                         ? "bg-slate-50 border-slate-200 text-slate-300 cursor-not-allowed"
-                                        : "bg-white border-blue-100 text-blue-600 hover:border-blue-300 hover:bg-blue-50/50"
+                                        : "bg-white border-blue-100 text-blue-600 hover:border-blue-300 hover:bg-blue-50/50",
                                   )}
-                                  title={item.isConflict ? "Exceeds 8-hour daily limit" : `${Math.round(item.hours)}h total on this day`}
+                                  title={
+                                    item.isConflict
+                                      ? "Exceeds 8-hour daily limit"
+                                      : `${Math.round(item.hours)}h total on this day`
+                                  }
                                 >
                                   <span>
-                                    {item.date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}
+                                    {item.date.toLocaleDateString(undefined, {
+                                      day: "2-digit",
+                                      month: "short",
+                                    })}
                                     {isTomorrow && " (Tmw)"}
                                   </span>
-                                  <span className={cn(
-                                    "text-[8px] opacity-70 font-bold",
-                                    item.hours > 6 ? "text-orange-500" : ""
-                                  )}>
+                                  <span
+                                    className={cn(
+                                      "text-[8px] opacity-70 font-bold",
+                                      item.hours > 6 ? "text-orange-500" : "",
+                                    )}
+                                  >
                                     {Math.round(item.hours)}h
                                   </span>
                                 </button>
                               );
                             })}
                           </div>
+                          </div>
+                        <div className="space-y-2">
+                           <Input
+                            type="time"
+                            className="bg-white h-9 border-blue-200"
+                            value={currentData.newTime}
+                            onChange={(e) =>
+                              handleChange("newTime", e.target.value)
+                            }
+                          />
+
+                          {classGroupDayInfo && (
+                            <div className="space-y-2 py-1">
+
+                              {/* Day Timetable */}
+                              {classGroupDayLoading ? (
+                                <span className="text-[10px] text-slate-400">Loading timetable...</span>
+                              ) : (
+                                <div className="space-y-1">
+                                  <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
+                                    {new Date(currentData.newDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })} — timetable
+                                  </span>
+                                  {classGroupDayInfo.busySlots && classGroupDayInfo.busySlots.length > 0 ? (
+                                    <div className="space-y-0.5">
+                                      {classGroupDayInfo.busySlots.map((slot, idx) => {
+                                        const isConflictSlot = classGroupConflict &&
+                                          slot.startTime === classGroupConflict.startTime &&
+                                          slot.endTime === classGroupConflict.endTime;
+                                        const isRegular = slot.type === "ClassSchedule" || slot.type === "TeacherSchedule";
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className={cn(
+                                              "flex items-center gap-2 px-2 py-1 rounded text-[10px] border",
+                                              isConflictSlot
+                                                ? "bg-amber-50 border-amber-300 text-amber-800"
+                                                : isRegular
+                                                  ? "bg-slate-50 border-slate-200 text-slate-600"
+                                                  : "bg-blue-50 border-blue-200 text-blue-700"
+                                            )}
+                                          >
+                                            <span className="font-mono font-semibold tabular-nums">
+                                              {slot.startTime}–{slot.endTime}
+                                            </span>
+                                            <span className="text-[9px] opacity-70 uppercase tracking-wide">
+                                              {slot.type === "ClassSchedule" ? "regular" :
+                                               slot.type === "TeacherSchedule" ? "teacher" :
+                                               slot.type === "CompensationRequest" ? "compensation" :
+                                               "teacher comp."}
+                                            </span>
+                                            {isConflictSlot && (
+                                              <AlertTriangle className="w-2.5 h-2.5 text-amber-500 ml-auto" />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-emerald-600 font-medium block">No classes scheduled — day is free</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Free Windows — filtered by compensation duration */}
+                              {(() => {
+                                const filtered = getFilteredFreeWindows(classGroupDayInfo.freeWindows ?? []);
+                                return (
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
+                                      {t("requests.class_group_free_hours") ?? "Class Group Free Hours"}
+                                    </span>
+                                    {classGroupDayLoading ? (
+                                      <span className="text-[10px] text-slate-400">Loading free hours...</span>
+                                    ) : filtered.length > 0 ? (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {filtered.map((window) => {
+                                          const [start] = window.split("–");
+                                          const isSelected = currentData.newTime === start;
+                                          return (
+                                            <button
+                                              key={window}
+                                              type="button"
+                                              onClick={() => handleChange("newTime", start)}
+                                              className={cn(
+                                                "text-[10px] px-2 py-0.5 rounded-md transition-all border",
+                                                isSelected
+                                                  ? "bg-emerald-600 border-emerald-600 text-white shadow-sm font-semibold"
+                                                  : "bg-white border-emerald-100 text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/50"
+                                              )}
+                                            >
+                                              {window}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-red-500 font-medium block">
+                                        No available slot fits this class duration
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+
+                            </div>
+                          )}
+
+                          {classGroupConflict && (
+                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-medium leading-relaxed mt-2 flex items-start gap-1.5 animate-in fade-in">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                              <div>
+                                <span>The selected time overlaps with an existing class: </span>
+                                <span className="font-bold underline">
+                                  {classGroupConflict.type === "ClassSchedule"
+                                    ? "regular class schedule"
+                                    : classGroupConflict.type === "TeacherSchedule"
+                                      ? "teacher's regular schedule"
+                                      : "another compensation request"}
+                                </span>
+                                <span> ({classGroupConflict.startTime}–{classGroupConflict.endTime}). Pick a time from the free windows above.</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <Input
-                          type="time"
-                          className="bg-white h-9 border-blue-200"
-                          value={currentData.newTime}
-                          onChange={(e) =>
-                            handleChange("newTime", e.target.value)
-                          }
-                        />
-                        <Select
-                          value={currentData.newRoom}
-                          onValueChange={(v) => handleChange("newRoom", v)}
-                        >
-                          <SelectTrigger className="bg-white h-9 border-blue-200">
-                            <SelectValue placeholder={t("form.new_room")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {classrooms.map((room) => (
-                              <SelectItem key={room.id} value={room.id}>
-                                {room.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+
+                        {/* Smart Room Picker — shows availability status after date+time are selected */}
+                        {classGroupConflict ? (
+                          <div className="h-10 flex items-center justify-center text-xs text-amber-600 border border-amber-200 rounded-md px-3 bg-amber-50/30 italic">
+                            Resolve class group conflict to select a classroom
+                          </div>
+                        ) : roomAvailabilityLoading ? (
+                          <div className="h-9 flex items-center gap-2 text-xs text-slate-400 border border-blue-200 rounded-md px-3 bg-white">
+                            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" className="opacity-25" /><path d="M12 2a10 10 0 0 1 10 10" className="opacity-75" /></svg>
+                            Checking room availability…
+                          </div>
+                        ) : roomAvailability.length > 0 ? (
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Select Room</span>
+                            <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-0.5">
+                              {roomAvailability.map((room) => {
+                                const isSelected = currentData.newRoom === room.classroomId;
+                                return (
+                                  <button
+                                    key={room.classroomId}
+                                    type="button"
+                                    disabled={!room.isAvailable}
+                                    onClick={() => room.isAvailable && handleChange("newRoom", room.classroomId)}
+                                    title={room.isAvailable ? room.classroomName : (room.conflictInfo ?? "Occupied")}
+                                    className={cn(
+                                      "relative text-[11px] font-medium px-2 py-1.5 rounded-lg border transition-all text-left leading-tight",
+                                      room.isAvailable
+                                        ? isSelected
+                                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                                          : "bg-white border-slate-200 text-slate-700 hover:border-blue-400 hover:bg-blue-50/60 cursor-pointer"
+                                        : "bg-red-50 border-red-200 text-red-400 cursor-not-allowed opacity-70",
+                                    )}
+                                  >
+                                    <span className="block truncate">{room.classroomName}</span>
+                                    {!room.isAvailable && room.conflictInfo && (
+                                      <span className="block text-[9px] truncate text-red-400 mt-0.5">
+                                        {room.conflictInfo.replace("Occupied ", "").split(" (")[0]}
+                                      </span>
+                                    )}
+                                    {isSelected && room.isAvailable && (
+                                      <span className="absolute top-1 right-1 text-white text-[8px]">✓</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-9 flex items-center text-xs text-slate-400 border border-blue-100 rounded-md px-3 bg-slate-50 italic">
+                            Select a date and time to see available rooms
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1151,11 +1715,25 @@ export const RequestForm = ({
 
                   {!isEditMode && (
                     <Button
-                      className="w-full bg-slate-900 text-white hover:bg-slate-800"
+                      className={cn(
+                        "w-full text-white",
+                        editingQueueItemId
+                          ? "bg-blue-600 hover:bg-blue-700"
+                          : "bg-slate-900 hover:bg-slate-800"
+                      )}
                       onClick={handleAddToQueue}
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      {t("form.add_queue")}
+                      {editingQueueItemId ? (
+                        <>
+                          <Check className="w-4 h-4 mr-2" />
+                          Save Changes
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="w-4 h-4 mr-2" />
+                          {t("form.add_queue")}
+                        </>
+                      )}
                     </Button>
                   )}
                 </CardContent>

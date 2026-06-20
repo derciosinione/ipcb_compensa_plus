@@ -99,7 +99,9 @@ export const UsersTable = ({
           </TableRow>
         ) : (
           users.map((user) => {
-            const canAssignUnits = user.roles.includes("Teacher");
+            const canAssignUnits =
+              user.roles.includes("Teacher") ||
+              user.roles.includes("Coordinator");
 
             return (
               <TableRow

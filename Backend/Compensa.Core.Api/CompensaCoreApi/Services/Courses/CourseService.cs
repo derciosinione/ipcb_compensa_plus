@@ -62,14 +62,21 @@ public sealed class CourseService : ICourseService
 
         IReadOnlyCollection<CourseResponse> result;
 
+        var allAssignments = await _repository.ListAllCourseAssignmentsAsync(cancellationToken);
+        var coordinatorsMap = allAssignments
+            .Where(a => a.IsCoordinator)
+            .GroupBy(a => a.CourseId)
+            .ToDictionary(g => g.Key, g => g.First().UserId);
+
         if (isAdmin)
         {
             var allCourses = await _repository.ListAsync(search, cancellationToken);
             var offerings = await _repository.ListOfferingsAsync(activeYearId.Value, cancellationToken);
-            
-            result = allCourses.Select(course => {
+
+            result = allCourses.Select(course =>
+            {
                 var offering = offerings.FirstOrDefault(o => o.CourseId == course.Id);
-                return ToResponse(course, offering);
+                return ToResponse(course, offering, coordinatorsMap.GetValueOrDefault(course.Id));
             }).ToArray();
         }
         else if (isCoordinator)
@@ -80,9 +87,10 @@ public sealed class CourseService : ICourseService
 
             result = courses
                 .Where(course => relatedCourseIds.Contains(course.Id) || offerings.Any(o => o.CourseId == course.Id && o.CoordinatorUserId == actorUserId))
-                .Select(course => {
+                .Select(course =>
+                {
                     var offering = offerings.FirstOrDefault(o => o.CourseId == course.Id);
-                    return ToResponse(course, offering);
+                    return ToResponse(course, offering, coordinatorsMap.GetValueOrDefault(course.Id));
                 })
                 .ToArray();
         }
@@ -98,9 +106,10 @@ public sealed class CourseService : ICourseService
 
             result = courses
                 .Where(c => assignedCourseIds.Contains(c.Id))
-                .Select(course => {
+                .Select(course =>
+                {
                     var offering = offerings.FirstOrDefault(o => o.CourseId == course.Id);
-                    return ToResponse(course, offering);
+                    return ToResponse(course, offering, coordinatorsMap.GetValueOrDefault(course.Id));
                 })
                 .ToArray();
         }
@@ -133,9 +142,9 @@ public sealed class CourseService : ICourseService
 
         var course = await GetRequiredCourseAsync(id, cancellationToken);
         await EnsureCanReadCourseAsync(course, activeYearId.Value, actorUserId, actorUserEmail, isCoordinator, isAdmin, cancellationToken);
-            
+
         var offering = await _repository.GetOfferingAsync(course.Id, activeYearId.Value, cancellationToken);
-        
+
         return ToResponse(course, offering);
     }
 
@@ -161,10 +170,10 @@ public sealed class CourseService : ICourseService
 
         var offering = await _repository.GetOfferingAsync(id, activeYearId.Value, cancellationToken);
         var courseAssignments = await _repository.ListCourseAssignmentsAsync(id, cancellationToken);
-        
+
         // Determine if user has full access to this course
-        bool hasFullAccess = isAdmin || (isCoordinator && 
-                           ((offering?.CoordinatorUserId == actorUserId) || 
+        bool hasFullAccess = isAdmin || (isCoordinator &&
+                           ((offering?.CoordinatorUserId == actorUserId) ||
                             courseAssignments.Any(a => a.UserId == actorUserId && a.IsCoordinator)));
 
         var cacheKey = CacheKeys.CourseDetails(id, activeYearId.Value);
@@ -188,12 +197,12 @@ public sealed class CourseService : ICourseService
                 .Where(a => a.UserId == actorUserId || (!string.IsNullOrEmpty(a.UserEmail) && string.Equals(a.UserEmail, actorUserEmail, StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
             var userAssignedUnitIds = userAssignments.Select(a => a.CurricularUnitId).ToHashSet();
-            
+
             // Filter components where the user is the responsible teacher
             var filteredComponents = components
                 .Where(c => c.ResponsibleTeacherId == actorUserId || (c.ResponsibleTeacherEmail != "" && c.ResponsibleTeacherEmail.Equals(actorUserEmail, StringComparison.OrdinalIgnoreCase)))
                 .ToArray();
-            
+
             var responsibleUnitIds = unitOfferings
                 .Where(o => o.ResponsibleTeacherId == actorUserId || (!string.IsNullOrEmpty(o.ResponsibleTeacherEmail) && string.Equals(o.ResponsibleTeacherEmail, actorUserEmail, StringComparison.OrdinalIgnoreCase)))
                 .Select(o => o.CurricularUnitId)
@@ -207,7 +216,7 @@ public sealed class CourseService : ICourseService
 
             // Classes where the teacher is the main group teacher
             var mainTeacherClassIds = classes.Where(c => c.TeacherId == actorUserId).Select(c => c.Id).ToHashSet();
-            
+
             // Classes that have schedules for the units the teacher is involved in
             var classesWithMyUnitsSchedules = schedules
                 .Where(s => myUnitIds.Contains(s.CurricularUnitId))
@@ -216,7 +225,7 @@ public sealed class CourseService : ICourseService
 
             // Final set of visible classes
             var finalClassIds = mainTeacherClassIds.Concat(classesWithMyUnitsSchedules).ToHashSet();
-            
+
             // Units taught in classes where the teacher is the main group teacher (they should see the whole schedule of their group)
             var unitIdsFromMyClasses = schedules
                 .Where(s => mainTeacherClassIds.Contains(s.ClassGroupId))
@@ -228,7 +237,7 @@ public sealed class CourseService : ICourseService
 
             var filteredUnits = units.Where(u => finalUnitIds.Contains(u.Id)).ToArray();
             var filteredClasses = classes.Where(c => finalClassIds.Contains(c.Id)).ToArray();
-            
+
             // Filter schedules: only for visible classes AND visible units
             var filteredSchedules = schedules
                 .Where(s => finalClassIds.Contains(s.ClassGroupId) && finalUnitIds.Contains(s.CurricularUnitId))
@@ -244,23 +253,24 @@ public sealed class CourseService : ICourseService
 
         var result = new CourseDetailsResponse(
             ToResponse(course, offering),
-            units.Select(unit => {
-                    var unitOffering = unitOfferings.FirstOrDefault(o => o.CurricularUnitId == unit.Id);
-                    return ToUnitResponse(
-                        unit,
-                        unitOffering,
-                        componentResponses.Where(component => component.CurricularUnitId == unit.Id).ToArray(),
-                        unitAssignments
-                            .Where(assignment => assignment.CurricularUnitId == unit.Id)
-                            .Select(assignment => assignment.UserId)
-                            .Concat(new[] { unitOffering?.ResponsibleTeacherId ?? string.Empty })
-                            .Concat(components
-                                .Where(component => component.CurricularUnitId == unit.Id)
-                                .Select(component => component.ResponsibleTeacherId))
-                            .Where(userId => !string.IsNullOrWhiteSpace(userId))
-                            .Distinct()
-                            .ToArray());
-                })
+            units.Select(unit =>
+            {
+                var unitOffering = unitOfferings.FirstOrDefault(o => o.CurricularUnitId == unit.Id);
+                return ToUnitResponse(
+                    unit,
+                    unitOffering,
+                    componentResponses.Where(component => component.CurricularUnitId == unit.Id).ToArray(),
+                    unitAssignments
+                        .Where(assignment => assignment.CurricularUnitId == unit.Id)
+                        .Select(assignment => assignment.UserId)
+                        .Concat(new[] { unitOffering?.ResponsibleTeacherId ?? string.Empty })
+                        .Concat(components
+                            .Where(component => component.CurricularUnitId == unit.Id)
+                            .Select(component => component.ResponsibleTeacherId))
+                        .Where(userId => !string.IsNullOrWhiteSpace(userId))
+                        .Distinct()
+                        .ToArray());
+            })
                 .ToArray(),
             componentResponses,
             classes.Select(ToClassGroupResponse).ToArray(),
@@ -360,11 +370,11 @@ public sealed class CourseService : ICourseService
         offering.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
-        
+
         // Invalidate cache
         await InvalidateDetailsCacheAsync(id, cancellationToken);
         await InvalidateListCacheAsync(cancellationToken);
-        
+
         return ToResponse(course, offering);
     }
 
@@ -417,7 +427,8 @@ public sealed class CourseService : ICourseService
         await _repository.AddUnitOfferingAsync(offering, cancellationToken);
 
         await InvalidateDetailsCacheAsync(courseId, cancellationToken);
-        
+        await InvalidateListCacheAsync(cancellationToken);
+
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             offering.ResponsibleTeacherId,
             offering.ResponsibleTeacherEmail,
@@ -480,7 +491,8 @@ public sealed class CourseService : ICourseService
 
         await _repository.SaveChangesAsync(cancellationToken);
         await InvalidateDetailsCacheAsync(courseId, cancellationToken);
-        
+        await InvalidateListCacheAsync(cancellationToken);
+
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             offering.ResponsibleTeacherId,
             offering.ResponsibleTeacherEmail,
@@ -509,6 +521,7 @@ public sealed class CourseService : ICourseService
         var unit = await GetRequiredUnitAsync(courseId, unitId, cancellationToken);
         await _repository.DeleteUnitAsync(unit, cancellationToken);
         await InvalidateDetailsCacheAsync(courseId, cancellationToken);
+        await InvalidateListCacheAsync(cancellationToken);
     }
 
     public async Task<CurricularUnitComponentResponse> CreateComponentAsync(
@@ -534,7 +547,8 @@ public sealed class CourseService : ICourseService
 
         await _repository.AddComponentAsync(component, cancellationToken);
         await InvalidateDetailsCacheAsync(courseId, cancellationToken);
-        
+        await InvalidateListCacheAsync(cancellationToken);
+
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             component.ResponsibleTeacherId,
             component.ResponsibleTeacherEmail,
@@ -564,7 +578,8 @@ public sealed class CourseService : ICourseService
 
         await _repository.SaveChangesAsync(cancellationToken);
         await InvalidateDetailsCacheAsync(courseId, cancellationToken);
-        
+        await InvalidateListCacheAsync(cancellationToken);
+
         var unit = await GetRequiredUnitAsync(courseId, unitId, cancellationToken);
         await _assignmentRepository.EnsureUserUnitAssignmentAsync(
             component.ResponsibleTeacherId,
@@ -587,6 +602,7 @@ public sealed class CourseService : ICourseService
 
         await _repository.DeleteComponentAsync(component, cancellationToken);
         await InvalidateDetailsCacheAsync(courseId, cancellationToken);
+        await InvalidateListCacheAsync(cancellationToken);
     }
 
     public async Task<ClassGroupResponse> CreateClassGroupAsync(
@@ -751,7 +767,7 @@ public sealed class CourseService : ICourseService
     {
         var course = await GetRequiredCourseAsync(id, cancellationToken);
         await _repository.DeleteAsync(course, cancellationToken);
-        
+
         await InvalidateDetailsCacheAsync(id, cancellationToken);
         await InvalidateListCacheAsync(cancellationToken);
     }
@@ -918,7 +934,7 @@ public sealed class CourseService : ICourseService
     {
         var unit = await _repository.GetUnitByIdAsync(courseId, curricularUnitId, cancellationToken)
             ?? throw new NotFoundException($"Curricular unit '{curricularUnitId}' was not found.");
-            
+
         if (unit.Semester != semester)
             throw new InvalidOperationException($"Schedule semester must match curricular unit semester {unit.Semester}.");
     }
@@ -984,7 +1000,7 @@ public sealed class CourseService : ICourseService
         };
     }
 
-    private static CourseResponse ToResponse(Course course, CourseOffering? offering = null)
+    private static CourseResponse ToResponse(Course course, CourseOffering? offering = null, string? fallbackCoordinatorUserId = null)
     {
         return new CourseResponse(
             course.Id,
@@ -994,7 +1010,7 @@ public sealed class CourseService : ICourseService
             offering?.Description ?? string.Empty,
             course.DurationYears,
             course.TotalCredits,
-            offering?.CoordinatorUserId,
+            offering?.CoordinatorUserId ?? fallbackCoordinatorUserId,
             offering?.ImageUrl ?? DefaultCourseImageUrl,
             course.IsActive && (offering?.IsActive ?? true),
             course.CreatedAt,
@@ -1091,7 +1107,16 @@ public sealed class CourseService : ICourseService
 
     private async Task InvalidateDashboardCacheAsync(CancellationToken cancellationToken)
     {
-        await _cache.RemoveAsync(CacheKeys.DashboardSummary, cancellationToken);
+        try
+        {
+            var version = await _cache.GetStringAsync(CacheKeys.DashboardSummaryVersion, cancellationToken) ?? "0";
+            var nextVersion = (int.TryParse(version, out var v) ? v : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.DashboardSummaryVersion, nextVersion.ToString(), cancellationToken);
+        }
+        catch (Exception)
+        {
+            // Ignore cache errors
+        }
     }
 
     private async Task InvalidateDetailsCacheAsync(Guid id, CancellationToken cancellationToken)

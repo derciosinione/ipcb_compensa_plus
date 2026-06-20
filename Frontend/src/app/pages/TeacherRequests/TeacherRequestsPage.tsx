@@ -189,6 +189,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
       toast.error(
         getErrorMessage(error, "Unable to create compensation request."),
       );
+      throw error;
     }
   };
 
@@ -213,6 +214,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
       setEditingRequest(null);
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to update request."));
+      throw error;
     }
   };
 

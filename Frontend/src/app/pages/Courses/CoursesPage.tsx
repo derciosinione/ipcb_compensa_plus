@@ -8,7 +8,10 @@ import {
   Plus,
   Search,
   Trash2,
+  Users,
 } from "lucide-react";
+import { listUsers } from "../../services/users/usersApi";
+import type { PlatformUser } from "../../services/users/userTypes";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -101,6 +104,7 @@ const initialFormState: CourseFormState = {
 
 export const CoursesPage = ({ user }: CoursesPageProps) => {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [users, setUsers] = useState<PlatformUser[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -118,8 +122,12 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
     if (!selectedYear) return;
     try {
       setIsLoading(true);
-      const result = await listCourses(undefined, selectedYear.id);
+      const [result, loadedUsers] = await Promise.all([
+        listCourses(undefined, selectedYear.id),
+        listUsers(),
+      ]);
       setCourses(result);
+      setUsers(loadedUsers);
     } catch (error) {
       toast.error(getErrorMessage(error, "Unable to load courses."));
     } finally {
@@ -397,6 +405,20 @@ export const CoursesPage = ({ user }: CoursesPageProps) => {
                 <p className="text-sm text-slate-500 line-clamp-2 mb-4 flex-1">
                   {course.description}
                 </p>
+
+                {(() => {
+                  const coord = course.coordinatorUserId 
+                    ? users.find(u => u.id === course.coordinatorUserId) 
+                    : null;
+                  return (
+                    <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium">
+                      <Users className="w-3.5 h-3.5 text-blue-500" />
+                      <span>
+                        Coordinator: <span className="text-slate-800 dark:text-slate-200 font-semibold">{coord ? (coord.fullName || coord.email) : "Not Assigned"}</span>
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center gap-4 text-xs font-medium text-slate-500 pt-4 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-1.5">

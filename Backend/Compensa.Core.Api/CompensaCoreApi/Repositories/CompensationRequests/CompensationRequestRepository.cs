@@ -69,6 +69,37 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
         return await query.ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<CompensationRequest>> ListActiveForClassGroupsOnDateAsync(
+        IReadOnlyCollection<Guid> classGroupIds,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CompensationRequests
+            .AsNoTracking()
+            .Where(r => r.ClassGroupId.HasValue &&
+                        classGroupIds.Contains(r.ClassGroupId.Value) &&
+                        r.NewDate == date &&
+                        r.Status != CompensationRequestStatus.Rejected &&
+                        r.Status != CompensationRequestStatus.Cancelled)
+            .OrderBy(r => r.NewStartTime)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CompensationRequest>> ListActiveForTeacherOnDateAsync(
+        string teacherUserId,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CompensationRequests
+            .AsNoTracking()
+            .Where(r => r.TeacherUserId == teacherUserId &&
+                        r.NewDate == date &&
+                        r.Status != CompensationRequestStatus.Rejected &&
+                        r.Status != CompensationRequestStatus.Cancelled)
+            .OrderBy(r => r.NewStartTime)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(CompensationRequest request, CancellationToken cancellationToken = default)
     {
         _context.CompensationRequests.Add(request);
