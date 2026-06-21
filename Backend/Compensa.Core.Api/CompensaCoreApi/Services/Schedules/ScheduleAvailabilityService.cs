@@ -31,6 +31,15 @@ public sealed class ScheduleAvailabilityService : IScheduleAvailabilityService
             throw new InvalidOperationException("Start time must be before end time.");
 
         var conflicts = new List<ScheduleConflictResponse>();
+
+        if (query.StartTime < new TimeOnly(8, 0) || query.EndTime > new TimeOnly(19, 0))
+        {
+            conflicts.Add(new ScheduleConflictResponse(
+                "TimeBounds",
+                "Compensation classes must be scheduled between 08:00 and 19:00.",
+                null,
+                null));
+        }
         var dayOfWeek = (int)query.Date.DayOfWeek;
 
         var scheduleOverlaps = await _courseRepository.ListOverlappingSchedulesAsync(
@@ -199,7 +208,7 @@ public sealed class ScheduleAvailabilityService : IScheduleAvailabilityService
         {
             return new ClassGroupDayResponse(
                 Array.Empty<ClassGroupBusySlot>(),
-                new[] { "08:00–22:00" });
+                new[] { "08:00–19:00" });
         }
 
         var dayOfWeek = (int)query.Date.DayOfWeek;
@@ -294,7 +303,7 @@ public sealed class ScheduleAvailabilityService : IScheduleAvailabilityService
             .Concat(teacherRequests.Select(r => (StartTime: r.NewStartTime, EndTime: r.NewEndTime)))
             .Select(i => (
                 Start: i.StartTime < new TimeOnly(8, 0) ? new TimeOnly(8, 0) : i.StartTime,
-                End: i.EndTime > new TimeOnly(22, 0) ? new TimeOnly(22, 0) : i.EndTime
+                End: i.EndTime > new TimeOnly(19, 0) ? new TimeOnly(19, 0) : i.EndTime
             ))
             .Where(i => i.Start < i.End)
             .OrderBy(i => i.Start)
@@ -322,10 +331,10 @@ public sealed class ScheduleAvailabilityService : IScheduleAvailabilityService
             mergedBusy.Add(current);
         }
 
-        // 5. Generate free windows from gaps (08:00 - 22:00)
+        // 5. Generate free windows from gaps (08:00 - 19:00)
         var freeWindows = new List<string>();
         var currentStart = new TimeOnly(8, 0);
-        var dayEnd = new TimeOnly(22, 0);
+        var dayEnd = new TimeOnly(19, 0);
 
         foreach (var busy in mergedBusy)
         {

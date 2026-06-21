@@ -45,6 +45,12 @@ export const getProtectedRouteDefinitions = (
     allowedRoles: staffRoles,
   },
   {
+    path: appPaths.requestDetails,
+    element: <RequestsPage userRole={user.role} user={user} />,
+    title: "Request Details",
+    allowedRoles: staffRoles,
+  },
+  {
     path: appPaths.calendar,
     element: <CalendarPage userRole={user.role} user={user} />,
     title: "Calendar",
@@ -92,9 +98,9 @@ export const getProtectedRouteDefinitions = (
     allowedRoles: adminOnly,
   },
   {
-    path: appPaths.aiConverter,
-    element: <AiConverterPage />,
-    title: "AI Converter",
+    path: appPaths.aiAssistant,
+    element: <AiConverterPage user={user} />,
+    title: "AI Assistant",
     allowedRoles: staffRoles,
   },
   {

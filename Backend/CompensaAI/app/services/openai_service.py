@@ -100,49 +100,60 @@ class CompensaOpenAI_Service:
                 for tool_call in run.required_action.submit_tool_outputs.tool_calls:
                     name = tool_call.function.name
                     args = json.loads(tool_call.function.arguments)
-                    token = user_context.get("token") if user_context else None
+                    auth_ctx = user_context
                     if name == "create_compensation_request":
                         action_result = { "type": "action", "action": "CreateCompensationRequest", "data": args }
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
                     else:
-                        output = await self._execute_tool(name, args, user_context, token)
+                        output = await self._execute_tool(name, args, user_context, auth_ctx)
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps(output)})
                 await self.client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=tool_outputs)
                 if action_result: return action_result
-
+ 
         if run.status == "failed": return {"type": "error", "content": str(run.last_error)}
         messages = await self.client.beta.threads.messages.list(thread_id=thread_id)
         return {"type": "text", "content": messages.data[0].content[0].text.value}
-
-    async def _execute_tool(self, name: str, args: dict, user_context: Optional[dict], token: Optional[str]):
+ 
+    async def _execute_tool(self, name: str, args: dict, user_context: Optional[dict], auth_ctx: Optional[Any]):
         try:
             if name == "get_user_assignments":
                 uid = args.get("userId") or (user_context.get("id") if user_context else None)
-                return await core_api_service.get_user_assignments(uid, token)
+                return await core_api_service.get_user_assignments(uid, auth_ctx)
             elif name == "get_available_rooms":
-                return await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), token)
+                return await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), auth_ctx)
             elif name == "get_classrooms":
-                return await core_api_service.get_classrooms(args.get("search"), token)
+                return await core_api_service.get_classrooms(args.get("search"), auth_ctx)
             elif name == "get_dashboard_summary":
-                return await core_api_service.get_dashboard_summary(token)
+                return await core_api_service.get_dashboard_summary(auth_ctx)
             elif name == "search_global":
-                return await core_api_service.search_global(args.get("query"), token)
+                return await core_api_service.search_global(args.get("query"), auth_ctx)
             elif name == "get_my_compensation_requests":
                 uid = args.get("teacherUserId") or (user_context.get("id") if user_context else None)
-                return await core_api_service.get_compensation_requests(uid, args.get("status"), token)
+                return await core_api_service.get_compensation_requests(uid, args.get("status"), auth_ctx)
             elif name == "submit_compensation_request":
-                return await core_api_service.submit_compensation_request(args, token)
+                return await core_api_service.submit_compensation_request(args, auth_ctx)
             elif name == "get_request_details":
-                return await core_api_service.get_request_details(args.get("requestId"), token)
+                return await core_api_service.get_request_details(args.get("requestId"), auth_ctx)
             elif name == "update_request_status":
-                return await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), token)
+                return await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), auth_ctx)
             elif name == "get_courses":
-                return await core_api_service.get_courses(args.get("search"), token)
+                return await core_api_service.get_courses(args.get("search"), auth_ctx)
             elif name == "get_course_details":
-                return await core_api_service.get_course_details(args.get("courseId"), token)
+                return await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
-                return await core_api_service.get_academic_years(token)
+                return await core_api_service.get_academic_years(auth_ctx)
         except Exception as e: return {"error": str(e)}
         return {"error": "Tool not found"}
+
+    async def delete_thread(self, thread_id: str) -> bool:
+        if not self.client or not thread_id or thread_id == "no_openai_thread":
+            return False
+        try:
+            await self.client.beta.threads.delete(thread_id)
+            logger.info(f"Deleted OpenAI thread: {thread_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting OpenAI thread {thread_id}: {e}")
+            return False
 
 openai_service = CompensaOpenAI_Service()

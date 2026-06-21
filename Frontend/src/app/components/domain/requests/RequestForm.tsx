@@ -128,9 +128,10 @@ export const RequestForm = ({
   const [suggestedBaseDate, setSuggestedBaseDate] = useState<Date>(new Date());
   const [compBaseDate, setCompBaseDate] = useState<Date>(new Date());
   const { t } = useLanguage();
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
 
   // Edit Mode Flag
-  const isEditMode = !!initialData;
+  const isEditMode = !!(initialData && initialData.id);
 
   useEffect(() => {
     if (!open) return;
@@ -176,6 +177,7 @@ export const RequestForm = ({
   }, [currentData.course]);
 
   useEffect(() => {
+    setErrors({});
     if (initialData) {
       // Populate form if in edit mode
       setCurrentData({
@@ -225,6 +227,7 @@ export const RequestForm = ({
   };
 
   const handleChange = (field: keyof typeof initialFormState, value: any) => {
+    setErrors((prev) => ({ ...prev, [field]: false }));
     setCurrentData((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -646,18 +649,24 @@ export const RequestForm = ({
     return dates;
   };
 
+  const validateForm = () => {
+    const newErrors: Record<string, boolean> = {
+      course: !currentData.course,
+      unit: !currentData.unit,
+      yearGroups: currentData.yearGroups.length === 0,
+      reason: !currentData.reason.trim(),
+      originalRoom: !currentData.originalRoom,
+      originalDate: !currentData.originalDate,
+      newDate: !currentData.newDate,
+      newTime: !currentData.newTime,
+      newRoom: !currentData.newRoom,
+    };
+    setErrors(newErrors);
+    return !Object.values(newErrors).some(Boolean);
+  };
+
   const handleAddToQueue = () => {
-    if (
-      !currentData.course ||
-      !currentData.unit ||
-      !currentData.originalRoom ||
-      !currentData.originalDate ||
-      !currentData.newDate ||
-      !currentData.newTime ||
-      !currentData.newRoom ||
-      currentData.yearGroups.length === 0 ||
-      !currentData.reason.trim()
-    ) {
+    if (!validateForm()) {
       toast.error(t("form.fill_required"));
       return;
     }
@@ -713,17 +722,7 @@ export const RequestForm = ({
       toast.success(t("form.added_queue"));
     }
 
-    setCurrentData((prev) => ({
-      ...prev,
-      originalDate: "",
-      originalTime: "",
-      originalRoom: "",
-      newDate: "",
-      newTime: "",
-      newRoom: "",
-      reason: "",
-    }));
-
+    setCurrentData(initialFormState);
     setConflictWarning(false);
   };
 
@@ -774,7 +773,7 @@ export const RequestForm = ({
         return;
       }
 
-      if (!currentData.reason.trim()) {
+      if (!validateForm()) {
         toast.error(t("form.fill_required"));
         return;
       }
@@ -816,17 +815,7 @@ export const RequestForm = ({
     );
 
     if (isFormDirty) {
-      if (
-        !currentData.course ||
-        !currentData.unit ||
-        !currentData.originalRoom ||
-        !currentData.originalDate ||
-        !currentData.newDate ||
-        !currentData.newTime ||
-        !currentData.newRoom ||
-        currentData.yearGroups.length === 0 ||
-        !currentData.reason.trim()
-      ) {
+      if (!validateForm()) {
         toast.error(t("form.fill_required"));
         return;
       }
@@ -874,6 +863,7 @@ export const RequestForm = ({
     setCurrentData(initialFormState);
     setConflictWarning(false);
     setOriginalDateError("");
+    setErrors({});
   };
 
   return (
@@ -1028,7 +1018,7 @@ export const RequestForm = ({
                   {/* Context */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs font-semibold text-slate-500">
+                      <Label className={cn("text-xs font-semibold", (errors.course || errors.unit) ? "text-red-500" : "text-slate-500")}>
                         {t("form.course_unit")}
                       </Label>
                       <div className="flex gap-2">
@@ -1036,7 +1026,12 @@ export const RequestForm = ({
                           value={currentData.course}
                           onValueChange={(v) => handleChange("course", v)}
                         >
-                          <SelectTrigger className="flex-1 bg-slate-50 border-slate-200 focus:bg-white transition-colors h-10">
+                          <SelectTrigger className={cn(
+                            "flex-1 bg-white hover:border-slate-400 focus:border-slate-400 dark:bg-slate-950 h-10 transition-colors shadow-xs",
+                            errors.course
+                              ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus:border-red-500"
+                              : "border-slate-300 dark:border-slate-700"
+                          )}>
                             <SelectValue
                               placeholder={t("form.select_course")}
                             />
@@ -1053,7 +1048,12 @@ export const RequestForm = ({
                           value={currentData.unit}
                           onValueChange={(v) => handleChange("unit", v)}
                         >
-                          <SelectTrigger className="flex-[1.5] bg-slate-50 border-slate-200 focus:bg-white transition-colors h-10">
+                          <SelectTrigger className={cn(
+                            "flex-[1.5] bg-white hover:border-slate-400 focus:border-slate-400 dark:bg-slate-950 h-10 transition-colors shadow-xs",
+                            errors.unit
+                              ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus:border-red-500"
+                              : "border-slate-300 dark:border-slate-700"
+                          )}>
                             <SelectValue placeholder={t("form.select_unit")} />
                           </SelectTrigger>
                           <SelectContent>
@@ -1073,12 +1073,18 @@ export const RequestForm = ({
                           </SelectContent>
                         </Select>
                       </div>
+                      {errors.course && (
+                        <p className="text-[11px] text-red-500 font-medium">Course is required</p>
+                      )}
+                      {!errors.course && errors.unit && (
+                        <p className="text-[11px] text-red-500 font-medium">Curricular Unit is required</p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 sm:col-span-2">
                       <div className="flex gap-4">
                         <div className="flex-[1.5] space-y-1.5">
-                          <Label className="text-xs font-semibold text-slate-500">
+                          <Label className={cn("text-xs font-semibold", errors.yearGroups ? "text-red-500" : "text-slate-500")}>
                             {t("form.groups")}
                           </Label>
                           <Popover
@@ -1090,7 +1096,12 @@ export const RequestForm = ({
                                 variant="outline"
                                 role="combobox"
                                 aria-expanded={openCombobox}
-                                className="w-full justify-between h-10 border-slate-200 bg-slate-50 hover:bg-white text-slate-700 font-normal px-3"
+                                className={cn(
+                                  "w-full justify-between h-10 bg-white hover:bg-white text-slate-700 dark:bg-slate-950 font-normal px-3 shadow-xs",
+                                  errors.yearGroups
+                                    ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 hover:border-red-500"
+                                    : "border-slate-300 hover:border-slate-400 dark:border-slate-700"
+                                )}
                               >
                                 {currentData.yearGroups.length > 0
                                   ? `${currentData.yearGroups.length} selected`
@@ -1172,6 +1183,9 @@ export const RequestForm = ({
                               })}
                             </div>
                           )}
+                          {errors.yearGroups && (
+                            <p className="text-[11px] text-red-500 font-medium mt-1">At least one group/class is required</p>
+                          )}
                         </div>
 
                         <div className="flex-1 space-y-1.5">
@@ -1184,7 +1198,7 @@ export const RequestForm = ({
                               handleChange("componentType", v)
                             }
                           >
-                            <SelectTrigger className="bg-slate-50 border-slate-200 focus:bg-white transition-colors h-10">
+                            <SelectTrigger className="bg-white border-slate-300 hover:border-slate-400 focus:border-slate-400 dark:bg-slate-950 dark:border-slate-700 h-10 transition-colors shadow-xs">
                               <SelectValue
                                 placeholder={t("form.select_type")}
                               />
@@ -1219,15 +1233,23 @@ export const RequestForm = ({
                     </div>
 
                     <div className="space-y-1.5 sm:col-span-2">
-                      <Label className="text-xs font-semibold text-slate-500">
+                      <Label className={cn("text-xs font-semibold", errors.reason ? "text-red-500" : "text-slate-500")}>
                         {t("requests.reason")}
                       </Label>
                       <Input
                         placeholder={t("form.reason_placeholder")}
-                        className="bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+                        className={cn(
+                          "bg-white hover:border-slate-400 focus:border-slate-400 dark:bg-slate-950 transition-colors shadow-xs",
+                          errors.reason
+                            ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus-visible:ring-red-500"
+                            : "border-slate-300 dark:border-slate-700"
+                        )}
                         value={currentData.reason}
                         onChange={(e) => handleChange("reason", e.target.value)}
                       />
+                      {errors.reason && (
+                        <p className="text-[11px] text-red-500 font-medium">Reason is required</p>
+                      )}
                     </div>
                   </div>
 
@@ -1241,7 +1263,7 @@ export const RequestForm = ({
                     </div>
 
                     {/* From */}
-                    <div className="space-y-3 p-3 rounded-xl bg-slate-50/50 border border-slate-100">
+                    <div className="space-y-3 p-3 rounded-xl bg-slate-100/40 border border-slate-200 dark:bg-slate-900/30 dark:border-slate-800 shadow-sm">
                       <Badge
                         variant="outline"
                         className="bg-white text-slate-500 border-slate-200"
@@ -1252,10 +1274,12 @@ export const RequestForm = ({
                         {/* Read-only display — date is selected via chips below to guarantee correct weekday */}
                         <div
                           className={cn(
-                            "h-9 px-3 flex items-center rounded-md border text-sm transition-colors",
-                            currentData.originalDate
-                              ? "bg-white border-slate-200 text-slate-800 font-medium"
-                              : "bg-slate-50 border-slate-200 text-slate-400 italic",
+                            "h-9 px-3 flex items-center rounded-md border text-sm transition-colors shadow-xs",
+                            errors.originalDate
+                              ? "border-red-500 bg-red-50/50 text-red-500 ring-2 ring-red-100 dark:border-red-900 dark:bg-red-950/20"
+                              : currentData.originalDate
+                                ? "bg-white border-slate-300 text-slate-800 font-medium dark:bg-slate-950 dark:border-slate-700"
+                                : "bg-slate-50 border-slate-200 text-slate-500 italic dark:bg-slate-900/50 dark:border-slate-800",
                           )}
                         >
                           {currentData.originalDate
@@ -1269,6 +1293,9 @@ export const RequestForm = ({
                                 });
                               })()
                             : "Select a date from the suggestions below"}</div>
+                        {errors.originalDate && (
+                          <p className="text-[11px] text-red-500 font-medium">Please select an original date suggestion below</p>
+                        )}
 
                         {selectedSchedule && (
                           <div className="space-y-2 py-1">
@@ -1346,12 +1373,13 @@ export const RequestForm = ({
                         )}
                         <Input
                           type="text"
-                          className="bg-white h-9"
+                          className="bg-slate-50 border-slate-200 text-slate-500 font-medium h-9 text-xs cursor-not-allowed dark:bg-slate-900/50 dark:border-slate-800 dark:text-slate-400 shadow-xs"
                           value={
                             selectedSchedule
                               ? `${selectedSchedule.startTime.slice(0, 5)} - ${selectedSchedule.endTime.slice(0, 5)}`
                               : ""
                           }
+                          placeholder="Select original class schedule"
                           readOnly
                         />
                         <Select
@@ -1360,6 +1388,7 @@ export const RequestForm = ({
                             const schedule = availableSchedules.find(
                               (item) => item.id === v,
                             );
+                            setErrors((prev) => ({ ...prev, originalRoom: false }));
                             setCurrentData((prev) => {
                               let mappedComponentType = prev.componentType;
                               if (schedule) {
@@ -1382,7 +1411,12 @@ export const RequestForm = ({
                             setSuggestedBaseDate(new Date());
                           }}
                         >
-                          <SelectTrigger className="bg-white h-9">
+                          <SelectTrigger className={cn(
+                            "bg-white hover:border-slate-400 focus:border-slate-400 dark:bg-slate-950 h-9 shadow-xs",
+                            errors.originalRoom
+                              ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus:border-red-500"
+                              : "border-slate-300 dark:border-slate-700"
+                          )}>
                             <SelectValue placeholder="Original schedule" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1393,11 +1427,14 @@ export const RequestForm = ({
                             ))}
                           </SelectContent>
                         </Select>
+                        {errors.originalRoom && (
+                          <p className="text-[11px] text-red-500 font-medium">Original schedule is required</p>
+                        )}
                       </div>
                     </div>
 
                     {/* To */}
-                    <div className="space-y-3 p-3 rounded-xl bg-blue-50/30 border border-blue-100">
+                    <div className="space-y-3 p-3 rounded-xl bg-blue-50/50 border border-blue-200 dark:bg-blue-950/10 dark:border-blue-900/40 shadow-sm">
                       <Badge
                         variant="outline"
                         className="bg-white text-blue-600 border-blue-200"
@@ -1408,12 +1445,25 @@ export const RequestForm = ({
                         <div className="relative">
                           <Input
                             type="date"
-                            className="bg-white h-9 border-blue-200 pr-10 cursor-pointer"
+                            className={cn(
+                              "bg-white h-9 pr-10 cursor-pointer custom-datepicker dark:bg-slate-950 shadow-xs",
+                              errors.newDate
+                                ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus-visible:ring-red-500 focus-visible:border-red-500"
+                                : "border-blue-300 hover:border-blue-400 focus-visible:ring-blue-400 focus-visible:border-blue-400 dark:border-blue-800 dark:hover:border-blue-700"
+                            )}
                             value={currentData.newDate}
                             onChange={(e) =>
                               handleChange("newDate", e.target.value)
                             }
+                            onClick={(e) => {
+                              try {
+                                e.currentTarget.showPicker();
+                              } catch {}
+                            }}
                           />
+                          {errors.newDate && (
+                            <p className="text-[11px] text-red-500 font-medium mt-1">New date is required</p>
+                          )}
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400/50">
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -1519,16 +1569,31 @@ export const RequestForm = ({
                               );
                             })}
                           </div>
-                          </div>
+                        </div>
                         <div className="space-y-2">
-                           <Input
-                            type="time"
-                            className="bg-white h-9 border-blue-200"
-                            value={currentData.newTime}
-                            onChange={(e) =>
-                              handleChange("newTime", e.target.value)
-                            }
-                          />
+                           <div className="flex items-center gap-2">
+                             <Input
+                              type="time"
+                              className={cn(
+                                "bg-white h-9 flex-1",
+                                errors.newTime
+                                  ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus-visible:ring-red-500"
+                                  : "border-blue-200"
+                              )}
+                              value={currentData.newTime}
+                              onChange={(e) =>
+                                handleChange("newTime", e.target.value)
+                              }
+                            />
+                            {currentData.newTime && proposedEndTime && (
+                              <Badge variant="secondary" className="h-9 px-3 font-mono text-xs text-slate-600 dark:text-slate-300">
+                                {t("requests.ends_at") || "Ends at"} {proposedEndTime}
+                              </Badge>
+                            )}
+                          </div>
+                          {errors.newTime && (
+                            <p className="text-[11px] text-red-500 font-medium">New time is required</p>
+                          )}
 
                           {classGroupDayInfo && (
                             <div className="space-y-2 py-1">
@@ -1656,8 +1721,13 @@ export const RequestForm = ({
                           </div>
                         ) : roomAvailability.length > 0 ? (
                           <div className="space-y-1.5">
-                            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Select Room</span>
-                            <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-0.5">
+                            <span className={cn("text-[10px] font-medium uppercase tracking-wider", errors.newRoom ? "text-red-500" : "text-slate-400")}>
+                              Select Room {errors.newRoom && "— Required"}
+                            </span>
+                            <div className={cn(
+                              "grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-0.5 p-1 rounded-lg",
+                              errors.newRoom && "border border-red-300 bg-red-50/10 dark:border-red-950/20"
+                            )}>
                               {roomAvailability.map((room) => {
                                 const isSelected = currentData.newRoom === room.classroomId;
                                 return (
@@ -1689,9 +1759,17 @@ export const RequestForm = ({
                                 );
                               })}
                             </div>
+                            {errors.newRoom && (
+                              <p className="text-[11px] text-red-500 font-medium">Classroom selection is required</p>
+                            )}
                           </div>
                         ) : (
-                          <div className="h-9 flex items-center text-xs text-slate-400 border border-blue-100 rounded-md px-3 bg-slate-50 italic">
+                          <div className={cn(
+                            "h-9 flex items-center text-xs border rounded-md px-3 bg-slate-50 italic dark:bg-slate-900/50",
+                            errors.newRoom
+                              ? "border-red-500 text-red-500 ring-2 ring-red-100 dark:border-red-900 dark:bg-red-950/20"
+                              : "border-blue-200 text-slate-400 dark:border-blue-800"
+                          )}>
                             Select a date and time to see available rooms
                           </div>
                         )}

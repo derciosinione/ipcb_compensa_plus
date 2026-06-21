@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { Separator } from "../../ui/separator";
@@ -24,6 +24,8 @@ import {
   Upload,
   Trash2,
   Download,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import type { ClassRequest, RequestDocument } from "../../../types/requests";
 import type { UserRole } from "../../../types/user";
@@ -37,6 +39,17 @@ import {
 } from "../../ui/dropdown-menu";
 import { RejectionDialog } from "./RejectionDialog";
 import { useLanguage } from "../../../providers/LanguageContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "../../ui/dialog";
+import { getStoredAccessToken } from "../../../services/auth/authSession";
+import { coreApiBaseUrl } from "../../../services/api/httpClient";
+import { toast } from "sonner";
 
 interface RequestDetailsPageProps {
   request: ClassRequest;
@@ -66,8 +79,114 @@ export const RequestDetailsPage = ({
   const [newComment, setNewComment] = useState("");
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useLanguage();
+
+  // Upload confirmation states
+  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
+  const [isUploadConfirmOpen, setIsUploadConfirmOpen] = useState(false);
+  const [pendingUploadPreview, setPendingUploadPreview] = useState<string | null>(null);
+
+  // Preview document states
+  const [previewDocument, setPreviewDocument] = useState<RequestDocument | null>(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewTextContent, setPreviewTextContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingUploadFile) {
+      setPendingUploadPreview(null);
+      return;
+    }
+
+    if (pendingUploadFile.type.startsWith("image/")) {
+      const url = URL.createObjectURL(pendingUploadFile);
+      setPendingUploadPreview(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setPendingUploadPreview(null);
+    }
+  }, [pendingUploadFile]);
+
+  const fetchDocumentBlob = async (docId: string): Promise<Blob> => {
+    const token = getStoredAccessToken();
+    const response = await fetch(
+      `${coreApiBaseUrl}/api/compensation-requests/${request.id}/documents/${docId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.statusText}`);
+    }
+    return response.blob();
+  };
+
+  const handleOpenPreview = async (doc: RequestDocument) => {
+    setPreviewDocument(doc);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewTextContent(null);
+    if (previewBlobUrl) {
+      URL.revokeObjectURL(previewBlobUrl);
+      setPreviewBlobUrl(null);
+    }
+
+    try {
+      const blob = await fetchDocumentBlob(doc.id);
+      const url = URL.createObjectURL(blob);
+      setPreviewBlobUrl(url);
+
+      if (doc.fileName.toLowerCase().endsWith(".txt") || blob.type.startsWith("text/")) {
+        const text = await blob.text();
+        setPreviewTextContent(text);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setPreviewError(err.message || "Failed to load document preview.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleClosePreview = () => {
+    if (previewBlobUrl) {
+      URL.revokeObjectURL(previewBlobUrl);
+    }
+    setPreviewDocument(null);
+    setPreviewBlobUrl(null);
+    setPreviewTextContent(null);
+    setPreviewError(null);
+  };
+
+  const handleDownload = async (doc: RequestDocument) => {
+    try {
+      let url = previewBlobUrl;
+      let shouldRevoke = false;
+      if (!url || previewDocument?.id !== doc.id) {
+        const blob = await fetchDocumentBlob(doc.id);
+        url = URL.createObjectURL(blob);
+        shouldRevoke = true;
+      }
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = doc.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      if (shouldRevoke && url) {
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error downloading file.");
+    }
+  };
 
   const handleSubmitComment = () => {
     if (!newComment.trim()) return;
@@ -75,17 +194,33 @@ export const RequestDetailsPage = ({
     setNewComment("");
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !onUploadDocument) return;
+    if (!file) return;
+    setPendingUploadFile(file);
+    setIsUploadConfirmOpen(true);
+  };
 
+  const handleConfirmUpload = async () => {
+    if (!pendingUploadFile || !onUploadDocument) return;
+    setIsUploadConfirmOpen(false);
     setIsUploading(true);
     try {
-      await onUploadDocument(request.id, file);
+      await onUploadDocument(request.id, pendingUploadFile);
+      toast.success("Document uploaded successfully.");
+    } catch (error) {
+      toast.error("Error uploading document.");
     } finally {
       setIsUploading(false);
+      setPendingUploadFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleCancelUpload = () => {
+    setIsUploadConfirmOpen(false);
+    setPendingUploadFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const formatFileSize = (bytes: number) => {
@@ -428,7 +563,7 @@ export const RequestDetailsPage = ({
               <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
                 <FileText className="w-4 h-4" /> Documents
               </CardTitle>
-              {userRole === "teacher" && request.status === "pending" && (
+              {(userRole === "teacher" || userRole === "coordinator") && request.status === "pending" && (
                 <>
                   <input
                     type="file"
@@ -456,7 +591,8 @@ export const RequestDetailsPage = ({
                   {request.documents.map((doc) => (
                     <div
                       key={doc.id}
-                      className="group flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-900 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all"
+                      className="group flex items-center justify-between p-3 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-900 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-all cursor-pointer"
+                      onClick={() => handleOpenPreview(doc)}
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
@@ -471,21 +607,32 @@ export const RequestDetailsPage = ({
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                         <Button
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8 text-slate-400 hover:text-blue-600"
-                          onClick={() => onDownloadDocument?.(request.id, doc.id)}
+                          onClick={() => handleOpenPreview(doc)}
+                          title="Preview"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                          onClick={() => handleDownload(doc)}
+                          title="Download"
                         >
                           <Download className="w-4 h-4" />
                         </Button>
-                        {userRole === "teacher" && request.status === "pending" && (
+                        {(userRole === "teacher" || userRole === "coordinator") && request.status === "pending" && (
                           <Button
                             size="icon"
                             variant="ghost"
                             className="h-8 w-8 text-slate-400 hover:text-red-600"
                             onClick={() => onDeleteDocument?.(request.id, doc.id)}
+                            title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -505,7 +652,7 @@ export const RequestDetailsPage = ({
         </div>
 
         {/* Right Column: Chat */}
-        <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px] lg:h-auto overflow-hidden">
+        <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col h-[600px] lg:h-[600px] overflow-hidden">
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <h3 className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <MessageSquare className="w-4 h-4" /> {t("details.discussion")}
@@ -599,6 +746,158 @@ export const RequestDetailsPage = ({
         onOpenChange={setIsRejectDialogOpen}
         onConfirm={(reason) => onStatusChange?.(request.id, "rejected", reason)}
       />
+
+      {/* Upload Confirmation Dialog */}
+      <Dialog open={isUploadConfirmOpen} onOpenChange={(open) => !open && handleCancelUpload()}>
+        <DialogContent className="max-w-md bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Upload className="w-5 h-5 text-blue-500" />
+              Confirm Document Upload
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              Please review the document below before uploading it to request compensation.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingUploadFile && (
+            <div className="my-6 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-500 border border-blue-100 dark:border-blue-900/30">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">
+                    {pendingUploadFile.name}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {formatFileSize(pendingUploadFile.size)} • {pendingUploadFile.type || "Unknown type"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Show image preview if applicable */}
+              {pendingUploadPreview && (
+                <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 max-h-[200px] flex justify-center items-center bg-white dark:bg-slate-900">
+                  <img
+                    src={pendingUploadPreview}
+                    alt="Upload Preview"
+                    className="max-h-[200px] max-w-full object-contain"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-row gap-3 justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={handleCancelUpload}
+              className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 px-5 text-sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmUpload}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/20 px-6 font-medium text-sm flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              Confirm & Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document Preview Dialog */}
+      <Dialog open={!!previewDocument} onOpenChange={(open) => !open && handleClosePreview()}>
+        <DialogContent className="max-w-3xl w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl p-6 overflow-hidden flex flex-col max-h-[85vh]">
+          <DialogHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0 pr-4">
+                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">
+                  {previewDocument?.fileName}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-400 mt-1">
+                  {previewDocument && `${formatFileSize(previewDocument.sizeInBytes)} • Uploaded on ${previewDocument.createdAt.split("T")[0]}`}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto my-6 min-h-0 flex flex-col justify-center">
+            {previewLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                <p className="text-sm text-slate-500 dark:text-slate-400">Loading document preview...</p>
+              </div>
+            ) : previewError ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                <AlertTriangle className="w-10 h-10 text-red-500 mb-3" />
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">Failed to load preview</p>
+                <p className="text-xs text-slate-500 max-w-md">{previewError}</p>
+              </div>
+            ) : previewDocument && previewBlobUrl ? (
+              <div className="w-full h-full flex flex-col justify-center min-h-[300px]">
+                {/* Images */}
+                {previewDocument.fileName.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/) ? (
+                  <div className="flex justify-center items-center bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-100 dark:border-slate-900 max-h-[450px] overflow-auto shadow-inner">
+                    <img
+                      src={previewBlobUrl}
+                      alt={previewDocument.fileName}
+                      className="max-w-full max-h-[400px] object-contain rounded-lg shadow-md"
+                    />
+                  </div>
+                ) : /* PDFs */
+                previewDocument.fileName.toLowerCase().endsWith(".pdf") ? (
+                  <div className="w-full h-[450px] rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-lg bg-slate-100">
+                    <iframe
+                      src={`${previewBlobUrl}#toolbar=0`}
+                      className="w-full h-full border-0"
+                      title={previewDocument.fileName}
+                    />
+                  </div>
+                ) : /* Text Files */
+                previewDocument.fileName.toLowerCase().match(/\.(txt|json|csv|log|xml)$/) && previewTextContent !== null ? (
+                  <div className="bg-slate-50 dark:bg-slate-950/70 p-5 rounded-xl border border-slate-200 dark:border-slate-800 max-h-[450px] overflow-auto font-mono text-xs text-slate-800 dark:text-slate-350 whitespace-pre-wrap leading-relaxed shadow-inner">
+                    {previewTextContent}
+                  </div>
+                ) : (
+                  /* Unknown / Office files (doc, docx, xls, xlsx) */
+                  <div className="flex flex-col items-center justify-center py-16 bg-slate-50/50 dark:bg-slate-950/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center p-6">
+                    <FileText className="w-14 h-14 text-slate-300 dark:text-slate-700 mb-4" />
+                    <p className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-1">
+                      Preview not available
+                    </p>
+                    <p className="text-xs text-slate-500 max-w-sm">
+                      We support previews for PDFs, text files, and images. Please download this file to view its full content.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="flex flex-row gap-3 justify-end pt-4 border-t border-slate-100 dark:border-slate-800 mt-auto">
+            <Button
+              variant="outline"
+              onClick={handleClosePreview}
+              className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 px-5 text-sm"
+            >
+              Close
+            </Button>
+            {previewDocument && (
+              <Button
+                onClick={() => handleDownload(previewDocument)}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/20 px-6 font-medium text-sm flex items-center gap-2"
+                disabled={previewLoading}
+              >
+                <Download className="w-4 h-4" />
+                Download Document
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

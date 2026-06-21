@@ -1,5 +1,7 @@
 import React, { useCallback, useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { useNavigate } from "react-router";
+import { Plus, Download } from "lucide-react";
+import { ExportRequestsModal } from "../../components/domain/requests/ExportRequestsModal";
 import { Button } from "../../components/ui/button";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -35,6 +37,8 @@ import {
   updateCompensationRequest,
   updateCompensationRequestStatus,
   uploadCompensationRequestDocument,
+  getCompensationRequest,
+  addCompensationRequestComment,
 } from "../../services/compensationRequests/compensationRequestsApi";
 import type { CompensationRequest } from "../../services/compensationRequests/compensationRequestTypes";
 import type { AuthenticatedUser } from "../../types/user";
@@ -43,6 +47,7 @@ import { useAcademicYear } from "../../providers/AcademicYearContext";
 
 interface TeacherRequestsPageProps {
   user: AuthenticatedUser;
+  requestId?: string;
 }
 
 const toClassRequest = (request: CompensationRequest): ClassRequest => ({
@@ -64,7 +69,15 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
   submittedAt: request.submittedAt.split("T")[0],
   hasConflict: request.hasConflict,
   rejectionReason: request.decisionComment ?? undefined,
-  comments: [],
+  comments: request.comments
+    ? request.comments.map((c) => ({
+        id: c.id,
+        authorName: c.authorName,
+        role: c.role.toLowerCase() as any,
+        text: c.text,
+        createdAt: c.createdAt.split(".")[0].replace("T", " ").substring(0, 16),
+      }))
+    : [],
   documents: request.documents.map((doc) => ({
     id: doc.id,
     requestId: doc.compensationRequestId,
@@ -98,8 +111,9 @@ const addDuration = (startTime: string, durationSource: string) => {
   return `${endHour}:${endMinute}`;
 };
 
-export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
+export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProps) => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   // Dialog/Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -109,6 +123,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
   const [requestToCancel, setRequestToCancel] = useState<ClassRequest | null>(
     null,
   );
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -121,6 +136,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
 
   // Data State
   const [requests, setRequests] = useState<ClassRequest[]>([]);
+  const [requestsLoaded, setRequestsLoaded] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ClassRequest | null>(
     null,
   );
@@ -134,6 +150,7 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
     try {
       const loadedRequests = await listCompensationRequests(undefined, user.id, selectedYear.id);
       setRequests(loadedRequests.map(toClassRequest));
+      setRequestsLoaded(true);
     } catch (error) {
       toast.error(
         getErrorMessage(error, "Unable to load compensation requests."),
@@ -156,6 +173,34 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
   useEffect(() => {
     void loadRequests();
   }, [loadRequests]);
+
+  // Sync selectedRequest with requestId prop
+  useEffect(() => {
+    if (!requestsLoaded) return;
+
+    if (requestId) {
+      const fetchRequest = async () => {
+        try {
+          const req = await getCompensationRequest(requestId);
+          if (req) {
+            const mapped = toClassRequest(req);
+            setSelectedRequest(mapped);
+            setViewState("details");
+          } else {
+            toast.error("Compensation request not found.");
+            navigate("/requests");
+          }
+        } catch (err) {
+          toast.error("Unable to load request details.");
+          navigate("/requests");
+        }
+      };
+      void fetchRequest();
+    } else {
+      setSelectedRequest(null);
+      setViewState("list");
+    }
+  }, [requestId, requestsLoaded, navigate]);
 
   const handleCreateRequest = async (dataArray: any[]) => {
     try {
@@ -270,30 +315,38 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
     }
   };
 
-  const handleAddComment = (requestId: string, text: string) => {
-    const newComment = {
-      id: createLocalId(),
-      authorName: "Dr. Ana Silva",
-      role: user.role,
-      text,
-      createdAt: new Date().toISOString().replace("T", "").substring(0, 16),
-    };
+  const handleAddComment = async (requestId: string, text: string) => {
+    try {
+      const savedComment = await addCompensationRequestComment(requestId, text);
+      if (savedComment) {
+        const mappedComment = {
+          id: savedComment.id,
+          authorName: savedComment.authorName,
+          role: savedComment.role.toLowerCase() as any,
+          text: savedComment.text,
+          createdAt: savedComment.createdAt.split(".")[0].replace("T", " ").substring(0, 16),
+        };
 
-    setRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          const updated = { ...req, comments: [...req.comments, newComment] };
-          if (selectedRequest?.id === requestId) {
-            setSelectedRequest(updated);
-          }
-          return updated;
-        }
-        return req;
-      }),
-    );
+        setRequests((prev) =>
+          prev.map((req) => {
+            if (req.id === requestId) {
+              const updated = {
+                ...req,
+                comments: [...req.comments, mappedComment],
+              };
+              if (selectedRequest?.id === requestId) {
+                setSelectedRequest(updated);
+              }
+              return updated;
+            }
+            return req;
+          }),
+        );
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to save comment."));
+    }
   };
-
-  const createLocalId = () => crypto.randomUUID?.() ?? `local-${Date.now()}`;
 
   const openEdit = (req: ClassRequest) => {
     setEditingRequest(req);
@@ -301,13 +354,11 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
   };
 
   const openDetails = (req: ClassRequest) => {
-    setSelectedRequest(req);
-    setViewState("details");
+    navigate(`/requests/${req.id}`);
   };
 
   const backToList = () => {
-    setViewState("list");
-    setSelectedRequest(null);
+    navigate("/requests");
   };
 
   // Filter requests
@@ -439,15 +490,24 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
               {t("requests.subtitle")}
             </p>
           </div>
-          <Button
-            onClick={() => {
-              setEditingRequest(null);
-              setIsFormOpen(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 rounded-xl px-5 transition-all hover:scale-105 active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-500"
-          >
-            <Plus className="mr-2 h-4 w-4" /> {t("requests.new_request")}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsExportOpen(true)}
+              className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 px-5 h-9"
+            >
+              <Download className="mr-2 h-4 w-4" /> Export Report
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingRequest(null);
+                setIsFormOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20 rounded-xl px-5 transition-all hover:scale-105 active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-500 h-9"
+            >
+              <Plus className="mr-2 h-4 w-4" /> {t("requests.new_request")}
+            </Button>
+          </div>
         </div>
 
         <FilterBar
@@ -533,6 +593,12 @@ export const TeacherRequestsPage = ({ user }: TeacherRequestsPageProps) => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <ExportRequestsModal
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          user={user}
+        />
       </div>
     </DndProvider>
   );

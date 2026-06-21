@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import {
   Card,
@@ -16,6 +16,7 @@ import {
   ChevronRight,
   MoreVertical,
   AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { cn } from "../../components/ui/utils";
@@ -28,6 +29,13 @@ import { useNotificationsQuery } from "../../services/notifications/notification
 import { useDashboardSummaryQuery } from "../../services/dashboard/dashboardQueries";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
 import type { DashboardWeekDay } from "../../services/dashboard/dashboardTypes";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 
 const EventCard = ({
   title,
@@ -43,7 +51,7 @@ const EventCard = ({
   isCompact?: boolean;
 }) => {
   const variants = {
-    class: "bg-white border-l-4 border-l-blue-500 shadow-sm dark:bg-slate-800",
+    class: "bg-white border-l-4 border-l-blue-500 shadow-xs dark:bg-slate-800",
     blocked:
       "bg-slate-50 border-l-4 border-l-slate-400 opacity-70 dark:bg-slate-800/50 dark:border-l-slate-600",
     holiday:
@@ -53,23 +61,28 @@ const EventCard = ({
   return (
     <div
       className={cn(
-        "p-3 rounded-r-md border border-slate-100 dark:border-slate-700 mb-2 transition-transform hover:-translate-x-1 duration-200 cursor-default",
+        "p-3 rounded-r-xl rounded-l-md border border-slate-100 dark:border-slate-700/50 mb-2.5 transition-all hover:scale-[1.02] hover:shadow-xs cursor-default",
         variants[type],
       )}
     >
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+      <div className="flex justify-between items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm truncate">
             {title}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
             {time}
           </p>
         </div>
-        {!isCompact && room && (
+        {room && (
           <Badge
             variant="outline"
-            className="text-[10px] px-1.5 py-0 h-5 bg-white dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700"
+            className={cn(
+              "text-[9px] px-1.5 py-0 shrink-0",
+              isCompact
+                ? "h-4.5 bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 dark:border-slate-700"
+                : "h-5 bg-white dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700"
+            )}
           >
             {room}
           </Badge>
@@ -79,31 +92,74 @@ const EventCard = ({
   );
 };
 
+const SeeMoreCard = ({ count, onClick }: { count: number; onClick: () => void }) => {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full p-2.5 rounded-xl border border-dashed border-blue-200 dark:border-blue-800/80 bg-blue-50/20 hover:bg-blue-50/50 dark:bg-blue-950/5 dark:hover:bg-blue-950/15 text-blue-600 dark:text-blue-400 text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01] hover:shadow-xs"
+    >
+      <span>+ {count} more classes</span>
+      <ArrowRight className="w-3.5 h-3.5 animate-pulse" />
+    </button>
+  );
+};
+
 const WeeklyCalendar = ({
   weekSchedule = [],
 }: {
   weekSchedule?: DashboardWeekDay[];
 }) => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const start = startOfWeek(new Date(), { weekStartsOn: 1 });
   const scheduleByDate = new Map(weekSchedule.map((day) => [day.date, day]));
   const today = format(new Date(), "yyyy-MM-dd");
+
+  // State for schedule filters
+  const [filterCourse, setFilterCourse] = useState("all");
+  const [filterClassGroup, setFilterClassGroup] = useState("all");
+  const [filterRoom, setFilterRoom] = useState("all");
+
+  // Collect unique filter options from all events in the week
+  const allEvents = weekSchedule.flatMap((day) => day.events);
+  const uniqueCourses = Array.from(
+    new Set(allEvents.map((e) => e.course).filter(Boolean))
+  ).sort();
+  const uniqueClassGroups = Array.from(
+    new Set(allEvents.map((e) => e.classGroup).filter(Boolean))
+  ).sort();
+  const uniqueRooms = Array.from(
+    new Set(allEvents.map((e) => e.room).filter(Boolean))
+  ).sort();
+
   const days = Array.from({ length: 5 }, (_, i) => {
     const date = addDays(start, i);
     const dateKey = format(date, "yyyy-MM-dd");
     const schedule = scheduleByDate.get(dateKey);
+    let events = schedule?.events ?? [];
+
+    // Apply filters
+    if (filterCourse !== "all") {
+      events = events.filter((e) => e.course === filterCourse);
+    }
+    if (filterClassGroup !== "all") {
+      events = events.filter((e) => e.classGroup === filterClassGroup);
+    }
+    if (filterRoom !== "all") {
+      events = events.filter((e) => e.room === filterRoom);
+    }
 
     return {
       name: format(date, "EEE"),
       date: format(date, "d"),
       active: dateKey === today,
-      events: schedule?.events ?? [],
+      events,
     };
   });
 
   return (
     <Card className="col-span-1 lg:col-span-2 border-none shadow-sm ring-1 ring-slate-100 dark:ring-slate-800 overflow-hidden flex flex-col h-full bg-white dark:bg-slate-900">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 border-b border-slate-100/50 dark:border-slate-800">
+      <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-6 border-b border-slate-100/50 dark:border-slate-800">
         <div>
           <CardTitle className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-blue-500" />
@@ -114,20 +170,80 @@ const WeeklyCalendar = ({
             {format(addDays(start, 4), "MMMM d, yyyy")}
           </p>
         </div>
-        <div className="flex gap-1 bg-slate-50 dark:bg-slate-800 p-1 rounded-lg border border-slate-100 dark:border-slate-700">
+
+        {/* Dynamic Filters Row */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {uniqueCourses.length > 0 && (
+            <Select value={filterCourse} onValueChange={setFilterCourse}>
+              <SelectTrigger className="h-8.5 w-[140px] text-xs bg-slate-50 dark:bg-slate-800 border-none shadow-none font-medium">
+                <SelectValue placeholder="All Courses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Courses</SelectItem>
+                {uniqueCourses.map((course) => (
+                  <SelectItem key={course} value={course}>
+                    {course}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {uniqueClassGroups.length > 0 && (
+            <Select value={filterClassGroup} onValueChange={setFilterClassGroup}>
+              <SelectTrigger className="h-8.5 w-[140px] text-xs bg-slate-50 dark:bg-slate-800 border-none shadow-none font-medium">
+                <SelectValue placeholder="All Classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {uniqueClassGroups.map((group) => (
+                  <SelectItem key={group} value={group}>
+                    {group}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {uniqueRooms.length > 0 && (
+            <Select value={filterRoom} onValueChange={setFilterRoom}>
+              <SelectTrigger className="h-8.5 w-[110px] text-xs bg-slate-50 dark:bg-slate-800 border-none shadow-none font-medium">
+                <SelectValue placeholder="All Rooms" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Rooms</SelectItem>
+                {uniqueRooms.map((room) => (
+                  <SelectItem key={room} value={room}>
+                    {room}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {(filterCourse !== "all" || filterClassGroup !== "all" || filterRoom !== "all") && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFilterCourse("all");
+                setFilterClassGroup("all");
+                setFilterRoom("all");
+              }}
+              className="h-8.5 text-xs text-blue-600 hover:text-blue-700 font-medium px-2"
+            >
+              Reset
+            </Button>
+          )}
+
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-md hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm"
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/calendar")}
+            className="h-8.5 text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            <ChevronLeft className="h-4 w-4 dark:text-slate-400" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 rounded-md hover:bg-white dark:hover:bg-slate-700 hover:shadow-sm"
-          >
-            <ChevronRight className="h-4 w-4 dark:text-slate-400" />
+            <span>Full Calendar</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </div>
       </CardHeader>
@@ -160,7 +276,8 @@ const WeeklyCalendar = ({
             </div>
 
             <div className="space-y-2 flex-1">
-              {day.events.map((event) => (
+              {/* Show at most 3 events, and if there are more, show SeeMoreCard */}
+              {day.events.slice(0, 3).map((event) => (
                 <EventCard
                   key={event.id}
                   title={event.title}
@@ -170,6 +287,12 @@ const WeeklyCalendar = ({
                   isCompact
                 />
               ))}
+              {day.events.length > 3 && (
+                <SeeMoreCard
+                  count={day.events.length - 3}
+                  onClick={() => navigate("/calendar")}
+                />
+              )}
               {day.events.length === 0 && (
                 <div className="h-16 rounded-lg border-2 border-dashed border-slate-100 dark:border-slate-800 flex items-center justify-center">
                   <span className="text-[10px] text-slate-300 dark:text-slate-600 font-medium">

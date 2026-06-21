@@ -183,3 +183,9 @@
 html {
   font-size: var(--font-size);
 }
+
+.custom-datepicker::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+

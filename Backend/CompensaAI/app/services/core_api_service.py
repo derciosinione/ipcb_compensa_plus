@@ -10,10 +10,22 @@ class CoreApiService:
     def __init__(self):
         self.base_url = settings.CORE_API_URL or "http://core-api:8080"
 
-    def _get_headers(self, token: Optional[str] = None):
+    def _get_headers(self, token: Optional[Any] = None):
         headers = {}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        if not token:
+            return headers
+
+        actual_token = token
+        active_role = None
+
+        if isinstance(token, dict):
+            actual_token = token.get("token")
+            active_role = token.get("role")
+
+        if actual_token:
+            headers["Authorization"] = f"Bearer {actual_token}"
+        if active_role:
+            headers["X-Active-Role"] = active_role
         return headers
 
     async def get_user_assignments(self, user_id: str, token: Optional[str] = None):

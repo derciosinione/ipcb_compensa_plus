@@ -152,6 +152,11 @@ public sealed class CompensationRequestsController : ControllerBase
 
         using var stream = file.OpenReadStream();
         var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
+        
+        string role = "teacher";
+        if (isAdmin) role = "admin";
+        else if (isCoordinator) role = "coordinator";
+
         var uploaded = await _service.UploadDocumentAsync(
             id,
             stream,
@@ -159,6 +164,8 @@ public sealed class CompensationRequestsController : ControllerBase
             file.ContentType,
             file.Length,
             this.GetCurrentUserId(),
+            this.GetCurrentUserName(),
+            role,
             isCoordinator,
             isAdmin,
             cancellationToken);
@@ -224,4 +231,32 @@ public sealed class CompensationRequestsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/comments")]
+    [Authorize(Roles = "Teacher,Coordinator,Admin")]
+    [ProducesResponseType(typeof(ApiResponse<CompensationRequestCommentResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<CompensationRequestCommentResponse>>> AddComment(
+        Guid id,
+        [FromBody] AddCommentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Text))
+            return BadRequest(ApiResponse<object>.Fail("Comment text cannot be empty."));
+
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
+        
+        string role = "teacher";
+        if (isAdmin) role = "admin";
+        else if (isCoordinator) role = "coordinator";
+
+        var comment = await _service.AddCommentAsync(
+            id,
+            request.Text,
+            this.GetCurrentUserId(),
+            this.GetCurrentUserName(),
+            role,
+            cancellationToken);
+
+        return Created("", ApiResponse<CompensationRequestCommentResponse>.Ok("Comment added successfully.", comment));
+    }
 }

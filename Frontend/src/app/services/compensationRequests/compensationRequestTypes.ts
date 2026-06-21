@@ -70,4 +70,15 @@ export interface CompensationRequest {
   createdAt: string;
   updatedAt: string;
   documents: CompensationRequestDocument[];
+  comments?: CompensationRequestComment[];
+}
+
+export interface CompensationRequestComment {
+  id: string;
+  compensationRequestId: string;
+  authorUserId: string;
+  authorName: string;
+  role: string;
+  text: string;
+  createdAt: string;
 }

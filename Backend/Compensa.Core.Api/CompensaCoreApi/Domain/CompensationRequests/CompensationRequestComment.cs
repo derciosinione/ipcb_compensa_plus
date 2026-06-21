@@ -1,15 +1,16 @@
+using System;
+
 namespace CompensaCoreApi.Domain.CompensationRequests;
 
-public sealed class CompensationRequestDocument
+public sealed class CompensationRequestComment
 {
     public Guid Id { get; set; }
     public Guid CompensationRequestId { get; set; }
     
-    public string FileName { get; set; } = string.Empty;
-    public string StoredFileName { get; set; } = string.Empty;
-    public string FilePath { get; set; } = string.Empty;
-    public string ContentType { get; set; } = string.Empty;
-    public long SizeInBytes { get; set; }
+    public string AuthorUserId { get; set; } = string.Empty;
+    public string AuthorName { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public string Text { get; set; } = string.Empty;
     
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 

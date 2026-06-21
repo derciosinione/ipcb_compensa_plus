@@ -406,6 +406,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
         string contentType,
         long sizeInBytes,
         string actorUserId,
+        string actorName,
+        string role,
         bool isCoordinator,
         bool isAdmin,
         CancellationToken cancellationToken = default)
@@ -413,7 +415,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
             ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
 
-        if (!isAdmin && request.TeacherUserId != actorUserId)
+        if (!isAdmin && !isCoordinator && request.TeacherUserId != actorUserId)
         {
             throw new ForbiddenException("You don't have permission to upload documents to this request.");
         }
@@ -439,6 +441,51 @@ public sealed class CompensationRequestService : ICompensationRequestService
         request.UpdatedAt = DateTimeOffset.UtcNow;
 
         await _repository.SaveChangesAsync(cancellationToken);
+
+        // Publish documents integration event for notification service
+        try
+        {
+            if (role == "teacher" && request.CourseId.HasValue)
+            {
+                var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
+                if (course != null)
+                {
+                    var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+                    foreach (var coordinatorUserId in coordinatorUserIds)
+                    {
+                        await _publishEndpoint.Publish(new RequestDocumentUploadedEvent
+                        {
+                            RequestId = request.Id,
+                            TeacherUserId = request.TeacherUserId,
+                            CoordinatorUserId = coordinatorUserId,
+                            AuthorUserId = actorUserId,
+                            AuthorName = actorName,
+                            Role = role,
+                            FileName = fileName,
+                            CreatedAt = document.CreatedAt.UtcDateTime
+                        }, cancellationToken);
+                    }
+                }
+            }
+            else if (role == "coordinator" || role == "admin")
+            {
+                await _publishEndpoint.Publish(new RequestDocumentUploadedEvent
+                {
+                    RequestId = request.Id,
+                    TeacherUserId = request.TeacherUserId,
+                    CoordinatorUserId = actorUserId,
+                    AuthorUserId = actorUserId,
+                    AuthorName = actorName,
+                    Role = role,
+                    FileName = fileName,
+                    CreatedAt = document.CreatedAt.UtcDateTime
+                }, cancellationToken);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            // Logging warning or swallowing integration event fail to keep request logic working
+        }
 
         return ToDocumentResponse(document);
     }
@@ -858,7 +905,10 @@ public sealed class CompensationRequestService : ICompensationRequestService
             request.SubmittedAt,
             request.CreatedAt,
             request.UpdatedAt,
-            request.Documents.Select(ToDocumentResponse).ToArray());
+            request.Documents.Select(ToDocumentResponse).ToArray(),
+            request.Comments != null
+                ? request.Comments.Select(ToCommentResponse).OrderBy(c => c.CreatedAt).ToArray()
+                : Array.Empty<CompensationRequestCommentResponse>());
     }
 
     private static CompensationRequestDocumentResponse ToDocumentResponse(CompensationRequestDocument doc)
@@ -870,6 +920,98 @@ public sealed class CompensationRequestService : ICompensationRequestService
             doc.SizeInBytes,
             doc.ContentType,
             doc.CreatedAt);
+    }
+
+    private static CompensationRequestCommentResponse ToCommentResponse(CompensationRequestComment c)
+    {
+        return new CompensationRequestCommentResponse(
+            c.Id,
+            c.CompensationRequestId,
+            c.AuthorUserId,
+            c.AuthorName,
+            c.Role,
+            c.Text,
+            c.CreatedAt);
+    }
+
+    public async Task<CompensationRequestCommentResponse> AddCommentAsync(
+        Guid requestId,
+        string text,
+        string actorUserId,
+        string actorName,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
+
+        var (isCoordinator, isAdmin) = (role == "coordinator", role == "admin");
+        if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
+        {
+            throw new ForbiddenException("You don't have permission to comment on this request.");
+        }
+
+        var comment = new CompensationRequestComment
+        {
+            CompensationRequestId = requestId,
+            AuthorUserId = actorUserId,
+            AuthorName = actorName,
+            Role = role,
+            Text = text.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        request.Comments.Add(comment);
+        request.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        // Publish comments integration event for notification service
+        try
+        {
+            if (role == "teacher" && request.CourseId.HasValue)
+            {
+                var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
+                if (course != null)
+                {
+                    var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+                    foreach (var coordinatorUserId in coordinatorUserIds)
+                    {
+                        await _publishEndpoint.Publish(new RequestCommentAddedEvent
+                        {
+                            RequestId = request.Id,
+                            TeacherUserId = request.TeacherUserId,
+                            CoordinatorUserId = coordinatorUserId,
+                            AuthorUserId = actorUserId,
+                            AuthorName = actorName,
+                            Role = role,
+                            CommentText = comment.Text,
+                            CreatedAt = comment.CreatedAt.UtcDateTime
+                        }, cancellationToken);
+                    }
+                }
+            }
+            else if (role == "coordinator" || role == "admin")
+            {
+                await _publishEndpoint.Publish(new RequestCommentAddedEvent
+                {
+                    RequestId = request.Id,
+                    TeacherUserId = request.TeacherUserId,
+                    CoordinatorUserId = actorUserId,
+                    AuthorUserId = actorUserId,
+                    AuthorName = actorName,
+                    Role = role,
+                    CommentText = comment.Text,
+                    CreatedAt = comment.CreatedAt.UtcDateTime
+                }, cancellationToken);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            // Logging warning or swallowing integration event fail to keep request logic working
+        }
+
+        return ToCommentResponse(comment);
     }
 
     private async Task InvalidateDashboardCacheAsync(CancellationToken cancellationToken)

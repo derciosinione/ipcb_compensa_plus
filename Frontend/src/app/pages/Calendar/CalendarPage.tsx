@@ -10,9 +10,15 @@ import {
   LayoutGrid,
   List,
   Columns,
+  User,
+  Users,
+  BookOpen,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
+import { Separator } from "../../components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -91,8 +97,6 @@ type CalendarHoliday = {
   name: string;
 };
 
-const holidays: CalendarHoliday[] = [];
-
 const toClassRequest = (request: CompensationRequest): ClassRequest => ({
   id: request.id,
   course: request.course,
@@ -112,7 +116,15 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
   submittedAt: request.submittedAt.split("T")[0],
   hasConflict: request.hasConflict,
   rejectionReason: request.decisionComment ?? undefined,
-  comments: [],
+  comments: request.comments
+    ? request.comments.map((c) => ({
+        id: c.id,
+        authorName: c.authorName,
+        role: c.role.toLowerCase() as any,
+        text: c.text,
+        createdAt: c.createdAt.split(".")[0].replace("T", " ").substring(0, 16),
+      }))
+    : [],
   documents: (request.documents || []).map((doc) => ({
     id: doc.id,
     requestId: doc.compensationRequestId,
@@ -187,6 +199,39 @@ export const CalendarPage = ({
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("requests");
   const { t } = useLanguage();
 
+  // Dynamic holidays loaded from localStorage (to sync with SystemCalendarPage manager)
+  const [holidays, setHolidays] = useState<CalendarHoliday[]>([]);
+
+  useEffect(() => {
+    const loadHolidays = () => {
+      const stored = localStorage.getItem("compensa_holidays");
+      if (stored) {
+        setHolidays(JSON.parse(stored));
+      } else {
+        const defaults = [
+          { id: "holiday-christmas", date: "2025-12-25", name: "Christmas Day" },
+          { id: "holiday-newyear", date: "2026-01-01", name: "New Year's Day" },
+          { id: "holiday-carnival", date: "2026-02-16", name: "Carnival Break" }
+        ];
+        localStorage.setItem("compensa_holidays", JSON.stringify(defaults));
+        setHolidays(defaults);
+      }
+    };
+
+    loadHolidays();
+
+    const handleUpdate = () => {
+      loadHolidays();
+    };
+    window.addEventListener("compensa_holidays_updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+
+    return () => {
+      window.removeEventListener("compensa_holidays_updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, []);
+
   // Filters
   const [filterCourse, setFilterCourse] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all"); // For Requests mode
@@ -198,6 +243,8 @@ export const CalendarPage = ({
   // Modal States
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isDayEventsModalOpen, setIsDayEventsModalOpen] = useState(false);
+  const [dayEventsDate, setDayEventsDate] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | undefined>(
     undefined,
@@ -302,24 +349,24 @@ export const CalendarPage = ({
     const dateStr = formatDate(date);
 
     if (calendarMode === "requests") {
-      return requests.filter((req) => {
-        const matchesDate = req.newDate === dateStr;
-        const matchesCourse =
-          filterCourse === "all" || req.course === filterCourse;
-        const matchesStatus =
-          filterStatus === "all" || req.status === filterStatus;
-        return matchesDate && matchesCourse && matchesStatus;
-      });
+      return requests
+        .filter((req) => {
+          const matchesDate = req.newDate === dateStr;
+          const matchesCourse =
+            filterCourse === "all" || req.course === filterCourse;
+          const matchesStatus =
+            filterStatus === "all" || req.status === filterStatus;
+          return matchesDate && matchesCourse && matchesStatus;
+        })
+        .map((req) => ({
+          ...req,
+          isTimetable: false,
+        }));
     } else if (calendarMode === "timetable") {
       const dayOfWeek = toIsoDayOfWeek(date);
       return timetableEvents
         .filter((slot) => {
           const matchesDay = slot.dayOfWeek === dayOfWeek;
-
-          // Strict filtering for Timetables as requested
-          // Must match Course AND Year AND Class (if selected)
-          // If filters are"all", we show everything (or could force selection, but"all" is safer for UX start)
-
           const matchesCourse =
             filterCourse === "all" || slot.course === filterCourse;
           const matchesYear =
@@ -331,17 +378,14 @@ export const CalendarPage = ({
         })
         .map((slot) => ({
           ...slot,
-          // Adapt to generic event structure for rendering
           id: `tt-${slot.id}-${dateStr}`,
           newTime: slot.startTime,
           endTime: slot.endTime,
           teacherName: "Regular Class",
-          status: "approved", // Timetables are always"approved"
+          status: "approved",
+          isTimetable: true,
         }));
     } else if (calendarMode === "occupancy") {
-      // If no room selected, return nothing or maybe everything? Let's require a room or type
-      if (filterRoom === "all" && filterRoomType === "all") return [];
-
       const dayOfWeek = toIsoDayOfWeek(date);
 
       // 1. Get Timetable Events for this room(s)
@@ -349,7 +393,6 @@ export const CalendarPage = ({
         .filter((slot) => {
           const roomMatches =
             filterRoom === "all" || slot.roomId === filterRoom;
-          // Find room details to check type
           const typeMatches =
             filterRoomType === "all" || slot.roomType === filterRoomType;
 
@@ -361,8 +404,9 @@ export const CalendarPage = ({
           newTime: slot.startTime,
           endTime: slot.endTime,
           teacherName: "Occupied",
-          status: "occupied-class", // Special status for styling
+          status: "occupied-class",
           isOccupancy: true,
+          isTimetable: true,
         }));
 
       // 2. Get Requests for this room(s)
@@ -389,6 +433,7 @@ export const CalendarPage = ({
           status:
             req.status === "approved" ? "occupied-request" : "pending-request",
           isOccupancy: true,
+          isTimetable: false,
         }));
 
       return [...occupiedTimetableEvents, ...requestEvents];
@@ -433,13 +478,6 @@ export const CalendarPage = ({
 
   const handleEventClick = (e: React.MouseEvent, event: any) => {
     e.stopPropagation();
-    if (calendarMode === "timetable") {
-      // Show simplified info for timetable
-      toast.info(
-        `Timetable: ${event.unit} (${event.startTime} - ${event.endTime})`,
-      );
-      return;
-    }
     setSelectedEvent(event);
     setIsEventModalOpen(true);
   };
@@ -505,9 +543,24 @@ export const CalendarPage = ({
     return (
       <div
         key={date.toISOString()}
-        onClick={() => handleSlotClick(date)}
+        role={isAdmin || isDayHoliday ? undefined : "button"}
+        tabIndex={isAdmin || isDayHoliday ? undefined : 0}
+        aria-label={
+          isDayHoliday
+            ? `${date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}. Holiday: ${holidayInfo?.name || "Closed"}`
+            : isAdmin
+              ? `${date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}`
+              : `Create new compensation request on ${date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}`
+        }
+        onClick={() => !isDayHoliday && handleSlotClick(date)}
+        onKeyDown={(e) => {
+          if (!isAdmin && !isDayHoliday && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            handleSlotClick(date);
+          }
+        }}
         className={cn(
-          "min-h-[120px] p-2 border-b border-r border-slate-100 dark:border-slate-800 transition-colors relative group",
+          "min-h-[120px] p-2 border-b border-r border-slate-100 dark:border-slate-800 transition-colors relative group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset",
           isDayHoliday
             ? "bg-slate-50 dark:bg-slate-950/50 cursor-not-allowed pattern-diagonal-lines pattern-slate-100 pattern-bg-white pattern-size-2 pattern-opacity-20"
             : isAdmin
@@ -551,9 +604,18 @@ export const CalendarPage = ({
           {dayEvents.slice(0, 4).map((event: any) => (
             <div
               key={event.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`${event.isTimetable ? "Timetable Class" : "Compensation Request"}: ${event.unit} at ${event.newTime || event.startTime}. Click to view details.`}
               onClick={(e) => handleEventClick(e, event)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  handleEventClick(e as any, event);
+                }
+              }}
               className={cn(
-                "px-2 py-1 rounded text-[10px] font-medium border truncate shadow-sm transition-all hover:scale-[1.02] cursor-pointer",
+                "px-2 py-1 rounded text-[10px] font-medium border truncate shadow-sm transition-all hover:scale-[1.02] cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500",
                 event.status === "approved"
                   ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300"
                   : event.status === "rejected"
@@ -575,7 +637,14 @@ export const CalendarPage = ({
             </div>
           ))}
           {dayEvents.length > 4 && (
-            <div className="text-[10px] text-slate-400 pl-1 font-medium">
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                setDayEventsDate(date);
+                setIsDayEventsModalOpen(true);
+              }}
+              className="text-[10px] text-slate-400 hover:text-blue-600 hover:underline pl-1 font-medium cursor-pointer transition-colors"
+            >
               + {dayEvents.length - 4} more
             </div>
           )}
@@ -661,14 +730,29 @@ export const CalendarPage = ({
                   {hours.map((hour) => (
                     <div
                       key={hour}
-                      className="h-20 border-b border-slate-50 dark:border-slate-800/50 box-border hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
-                      onClick={() => handleSlotClick(day, `${hour}:00`)}
+                      role={isAdmin || isDayHoliday ? undefined : "button"}
+                      tabIndex={isAdmin || isDayHoliday ? undefined : 0}
+                      aria-label={
+                        isDayHoliday
+                          ? `${day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${hour}:00 (Holiday - Closed)`
+                          : isAdmin
+                            ? `${day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${hour}:00`
+                            : `Request compensation class on ${day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${hour}:00`
+                      }
+                      className="h-20 border-b border-slate-50 dark:border-slate-800/50 box-border hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
+                      onClick={() => !isDayHoliday && handleSlotClick(day, `${hour}:00`)}
+                      onKeyDown={(e) => {
+                        if (!isAdmin && !isDayHoliday && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          handleSlotClick(day, `${hour}:00`);
+                        }
+                      }}
                     />
                   ))}
 
                   {/* Events Positioning */}
                   {dayEvents.map((event: any) => {
-                    // Handle"HH:MM - HH:Mm" format in newTime (from Requests) vs'HH:Mm' (from Timetable)
+                    // Handle "HH:MM - HH:Mm" format in newTime (from Requests) vs 'HH:Mm' (from Timetable)
                     let startTimeStr = event.newTime;
                     let endTimeStr = event.endTime;
 
@@ -702,8 +786,11 @@ export const CalendarPage = ({
                     return (
                       <div
                         key={event.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${event.isTimetable ? "Timetable Class" : "Compensation Request"}: ${event.unit} at ${event.newTime || event.startTime}. Click to view details.`}
                         className={cn(
-                          "absolute inset-x-1 rounded-md p-2 text-xs border shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all z-10 overflow-hidden",
+                          "absolute inset-x-1 rounded-md p-2 text-xs border shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all z-10 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500",
                           event.status === "approved"
                             ? "bg-green-100/90 border-green-200 text-green-800 dark:bg-green-900/50 dark:border-green-800 dark:text-green-200"
                             : event.status === "rejected"
@@ -719,6 +806,12 @@ export const CalendarPage = ({
                         )}
                         style={{ top: `${top}px`, height: `${height}px` }}
                         onClick={(e) => handleEventClick(e, event)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleEventClick(e as any, event);
+                          }
+                        }}
                       >
                         <div className="font-bold">{event.unit}</div>
                         <div className="flex items-center gap-1 mt-1 opacity-80">
@@ -821,10 +914,14 @@ export const CalendarPage = ({
             </Button>
           </div>
 
-          {/* Mode Select */}
           <Select
             value={calendarMode}
-            onValueChange={(v: CalendarMode) => setCalendarMode(v)}
+            onValueChange={(v: CalendarMode) => {
+              setCalendarMode(v);
+              if (v === "occupancy" && filterRoom === "all" && classrooms.length > 0) {
+                setFilterRoom(classrooms[0].id);
+              }
+            }}
           >
             <SelectTrigger className="w-[160px] bg-white dark:bg-slate-900 font-medium">
               <SelectValue />
@@ -903,19 +1000,21 @@ export const CalendarPage = ({
           <Filter className="w-3 h-3" /> {t("calendar.filters")}:
         </Badge>
 
-        <Select value={filterCourse} onValueChange={setFilterCourse}>
-          <SelectTrigger className="h-8 min-w-[140px] text-xs bg-white dark:bg-slate-900">
-            <SelectValue placeholder="Course" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("requests.all_courses")}</SelectItem>
-            {courses.map((course) => (
-              <SelectItem key={course.id} value={course.name}>
-                {course.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {calendarMode !== "occupancy" && (
+          <Select value={filterCourse} onValueChange={setFilterCourse}>
+            <SelectTrigger className="h-8 min-w-[140px] text-xs bg-white dark:bg-slate-900">
+              <SelectValue placeholder="Course" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("requests.all_courses")}</SelectItem>
+              {courses.map((course) => (
+                <SelectItem key={course.id} value={course.name}>
+                  {course.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {calendarMode === "requests" && (
           <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -1036,7 +1135,284 @@ export const CalendarPage = ({
         onOpenChange={setIsSheetOpen}
         onSubmit={handleCreateRequest}
         user={user}
+        initialData={
+          selectedDate
+            ? {
+                newDate: formatDate(selectedDate),
+                newTime: selectedTime,
+              }
+            : undefined
+        }
       />
+
+      <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          {selectedEvent && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  {selectedEvent.isTimetable ? (
+                    <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-200 uppercase text-[10px]">
+                      Regular Timetable
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "uppercase text-[10px] border capitalize",
+                        selectedEvent.status === "approved" || selectedEvent.status === "occupied-request"
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : selectedEvent.status === "rejected"
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                      )}
+                    >
+                      {selectedEvent.status === "occupied-request" ? "Approved Request" : selectedEvent.status}
+                    </Badge>
+                  )}
+                  {!selectedEvent.isTimetable && selectedEvent.componentType && (
+                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 uppercase text-[10px]">
+                      {selectedEvent.componentType}
+                    </Badge>
+                  )}
+                </div>
+                <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
+                  {selectedEvent.unit}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4 text-sm">
+                {/* Course Name */}
+                <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                  <BookOpen className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <span className="text-xs text-slate-400 block font-medium">Course</span>
+                    <span className="font-semibold">{selectedEvent.course}</span>
+                  </div>
+                </div>
+
+                {selectedEvent.isTimetable ? (
+                  <>
+                    {/* Class & Year Groups */}
+                    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                      <Users className="w-4 h-4 text-slate-400 shrink-0" />
+                      <div>
+                        <span className="text-xs text-slate-400 block font-medium">Year & Class Groups</span>
+                        <span className="font-medium">
+                          {selectedEvent.yearGroup} — {selectedEvent.classGroup}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Schedule */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                        <Clock className="w-4 h-4 text-slate-400 shrink-0" />
+                        <div>
+                          <span className="text-xs text-slate-400 block font-medium">Time Slot</span>
+                          <span className="font-medium">{selectedEvent.startTime} - {selectedEvent.endTime}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                        <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                        <div>
+                          <span className="text-xs text-slate-400 block font-medium">Room</span>
+                          <span className="font-medium">{selectedEvent.room}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Teacher */}
+                    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-300">
+                      <User className="w-4 h-4 text-slate-400 shrink-0" />
+                      <div>
+                        <span className="text-xs text-slate-400 block font-medium">Teacher</span>
+                        <span className="font-medium">{selectedEvent.teacherName}</span>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Comparison Schedule Grid */}
+                    <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                      {/* Original Schedule */}
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Original Schedule
+                        </span>
+                        <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center gap-1.5">
+                            <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{selectedEvent.originalDate}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{selectedEvent.originalTime}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="truncate">{selectedEvent.originalRoom}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Proposed Schedule */}
+                      <div className="space-y-2 relative border-l border-slate-200 dark:border-slate-700 pl-4">
+                        <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">
+                          Proposed Schedule
+                        </span>
+                        <div className="space-y-1 text-xs text-slate-900 dark:text-slate-200">
+                          <div className="flex items-center gap-1.5">
+                            <CalendarIcon className="w-3.5 h-3.5 text-blue-500" />
+                            <span className="font-semibold">{selectedEvent.newDate}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-blue-500" />
+                            <span className="font-semibold">{selectedEvent.newTime}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-blue-500" />
+                            <span className="font-semibold truncate">{selectedEvent.newRoom}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Conflict Alert */}
+                    {selectedEvent.hasConflict && (
+                      <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
+                        <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="font-bold block">Schedule Conflict Detected</span>
+                          <span>Another event occupies {selectedEvent.newRoom} at this time.</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Justification */}
+                    {selectedEvent.reason && (
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                          Justification
+                        </span>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 italic">
+                          "{selectedEvent.reason}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Rejection Comment */}
+                    {selectedEvent.status === "rejected" && selectedEvent.rejectionReason && (
+                      <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
+                        <Info className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                        <div>
+                          <span className="font-bold block">Rejection Reason</span>
+                          <span className="italic">"{selectedEvent.rejectionReason}"</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <Button variant="outline" onClick={() => setIsEventModalOpen(false)}>
+                  Close
+                </Button>
+                {!selectedEvent.isTimetable && (
+                  <Button onClick={navigateToDetails} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    View Full Details & Discussion
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDayEventsModalOpen} onOpenChange={setIsDayEventsModalOpen}>
+        <DialogContent className="sm:max-w-[480px] w-full max-w-[calc(100%-2rem)]">
+          <DialogHeader className="w-full min-w-0">
+            <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">
+              Events for {dayEventsDate?.toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4 w-full min-w-0">
+            {dayEventsDate && (
+              <div className="space-y-2.5 max-h-[420px] overflow-y-auto overflow-x-hidden pr-1 w-full min-w-0">
+                {getEventsForDate(dayEventsDate).length === 0 ? (
+                  <p className="text-center text-sm text-slate-400 py-6">No events scheduled on this day.</p>
+                ) : (
+                  getEventsForDate(dayEventsDate).map((event: any) => (
+                    <div
+                      key={event.id}
+                      onClick={(e) => {
+                        handleEventClick(e, event);
+                        setIsDayEventsModalOpen(false);
+                      }}
+                      className={cn(
+                        "p-3.5 rounded-xl border transition-all hover:scale-[1.01] hover:shadow-sm cursor-pointer flex items-center justify-between gap-3 text-left w-full min-w-0",
+                        event.status === "approved" || event.status === "occupied-request"
+                          ? "bg-green-50/50 hover:bg-green-50 border-green-100 hover:border-green-200"
+                          : event.status === "rejected"
+                            ? "bg-red-50/50 hover:bg-red-50 border-red-100 hover:border-red-200"
+                            : event.status === "pending" || event.status === "pending-request"
+                              ? "bg-amber-50/50 hover:bg-amber-50 border-amber-100 hover:border-amber-200"
+                              : "bg-slate-50/50 hover:bg-slate-50 border-slate-100 hover:border-slate-200"
+                      )}
+                    >
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        <span className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">
+                          {event.unit}
+                        </span>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {event.newTime || event.startTime} {event.endTime && ` - ${event.endTime}`}
+                          </span>
+                          <span>•</span>
+                          <span className="truncate">{event.course}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-slate-400">
+                          <MapPin className="w-3.5 h-3.5 text-slate-300" />
+                          <span className="truncate">{event.newRoom || event.room}</span>
+                        </div>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "capitalize text-[10px] shrink-0 border font-semibold",
+                          event.status === "approved" || event.status === "occupied-request"
+                            ? "bg-green-100 text-green-800 border-green-200"
+                            : event.status === "rejected"
+                              ? "bg-red-100 text-red-800 border-red-200"
+                              : event.status === "pending" || event.status === "pending-request"
+                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                                : "bg-slate-100 text-slate-800 border-slate-200"
+                        )}
+                      >
+                        {event.status === "occupied-request" ? "Approved Request" :
+                         event.status === "occupied-class" ? "Regular Class" :
+                         event.status === "pending-request" ? "Pending Request" : event.status}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 w-full min-w-0">
+            <Button variant="outline" onClick={() => setIsDayEventsModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

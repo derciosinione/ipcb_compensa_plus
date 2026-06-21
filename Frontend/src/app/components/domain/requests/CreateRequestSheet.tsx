@@ -346,11 +346,16 @@ export const CreateRequestSheet = ({
                 <CalendarIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
                 <Input
                   type="date"
-                  className="pl-9"
+                  className="pl-9 custom-datepicker cursor-pointer"
                   value={formData.date}
                   onChange={(e) =>
                     setFormData({ ...formData, date: e.target.value })
                   }
+                  onClick={(e) => {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }}
                 />
               </div>
               <div className="relative w-24">

@@ -45,4 +45,11 @@ public static class ControllerExtensions
             ?? controller.User.FindFirstValue("email")
             ?? string.Empty;
     }
+
+    public static string GetCurrentUserName(this ControllerBase controller)
+    {
+        return controller.User.FindFirstValue(ClaimTypes.Name)
+            ?? controller.User.FindFirstValue("name")
+            ?? "Unknown User";
+    }
 }

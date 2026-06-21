@@ -156,7 +156,7 @@ class CompensaGemini_Service:
     async def _execute_tool(self, fc, chat_session, user_context):
         name = fc.name
         args = {k: v for k, v in fc.args.items()}
-        token = user_context.get("token") if user_context else None
+        auth_ctx = user_context
         
         if name == "create_compensation_request":
             return {"type": "action", "action": "CreateCompensationRequest", "data": args}
@@ -165,30 +165,30 @@ class CompensaGemini_Service:
         try:
             if name == "get_user_assignments":
                 uid = args.get("userId") or (user_context.get("id") if user_context else None)
-                result = await core_api_service.get_user_assignments(uid, token)
+                result = await core_api_service.get_user_assignments(uid, auth_ctx)
             elif name == "get_available_rooms":
-                result = await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), token)
+                result = await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), auth_ctx)
             elif name == "get_classrooms":
-                result = await core_api_service.get_classrooms(args.get("search"), token)
+                result = await core_api_service.get_classrooms(args.get("search"), auth_ctx)
             elif name == "get_dashboard_summary":
-                result = await core_api_service.get_dashboard_summary(token)
+                result = await core_api_service.get_dashboard_summary(auth_ctx)
             elif name == "search_global":
-                result = await core_api_service.search_global(args.get("query"), token)
+                result = await core_api_service.search_global(args.get("query"), auth_ctx)
             elif name == "get_my_compensation_requests":
                 uid = args.get("teacherUserId") or (user_context.get("id") if user_context else None)
-                result = await core_api_service.get_compensation_requests(uid, args.get("status"), token)
+                result = await core_api_service.get_compensation_requests(uid, args.get("status"), auth_ctx)
             elif name == "submit_compensation_request":
-                result = await core_api_service.submit_compensation_request(args, token)
+                result = await core_api_service.submit_compensation_request(args, auth_ctx)
             elif name == "get_request_details":
-                result = await core_api_service.get_request_details(args.get("requestId"), token)
+                result = await core_api_service.get_request_details(args.get("requestId"), auth_ctx)
             elif name == "update_request_status":
-                result = await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), token)
+                result = await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), auth_ctx)
             elif name == "get_courses":
-                result = await core_api_service.get_courses(args.get("search"), token)
+                result = await core_api_service.get_courses(args.get("search"), auth_ctx)
             elif name == "get_course_details":
-                result = await core_api_service.get_course_details(args.get("courseId"), token)
+                result = await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
-                result = await core_api_service.get_academic_years(token)
+                result = await core_api_service.get_academic_years(auth_ctx)
             
             if result is not None:
                 response = await chat_session.send_message_async({"parts": [{"function_response": {"name": name, "response": {"result": result}}}]})
@@ -197,5 +197,12 @@ class CompensaGemini_Service:
             logger.error(f"Tool error {name}: {e}")
             return {"type": "text", "content": f"Erro em {name}: {str(e)}"}
         return {"type": "text", "content": "Não implementado."}
+
+    async def delete_thread(self, thread_id: str) -> bool:
+        if thread_id in self.sessions:
+            del self.sessions[thread_id]
+            logger.info(f"Deleted Gemini chat session thread: {thread_id}")
+            return True
+        return False
 
 gemini_service = CompensaGemini_Service()

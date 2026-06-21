@@ -10,7 +10,7 @@ import {
 import { AIChatInterface } from "./AIChatInterface";
 import { motion, AnimatePresence } from "motion/react";
 
-export function FloatingAIChat() {
+export function FloatingAIChat({ userRole }: { userRole?: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -62,7 +62,7 @@ export function FloatingAIChat() {
           </DialogHeader>
 
           <div className="flex-1 overflow-hidden px-6 pb-6">
-            <AIChatInterface compact maxHeight="100%" />
+            <AIChatInterface userRole={userRole} compact maxHeight="100%" />
           </div>
         </DialogContent>
       </Dialog>

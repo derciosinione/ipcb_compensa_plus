@@ -28,6 +28,10 @@ async def process_message(message: IncomingMessage):
                     await handle_request_created(actual_message, db)
                 elif "RequestStatusUpdatedEvent" in message_type:
                     await handle_request_status_updated(actual_message, db)
+                elif "RequestCommentAddedEvent" in message_type:
+                    await handle_comment_added(actual_message, db)
+                elif "RequestDocumentUploadedEvent" in message_type:
+                    await handle_document_uploaded(actual_message, db)
                     
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -94,6 +98,60 @@ async def handle_request_status_updated(data: dict, db):
     
     await notify_user(target_user_id, title, msg, db)
 
+async def handle_comment_added(data: dict, db):
+    author_role = data.get("role", "").lower()
+    if author_role == "teacher":
+        target_user_id = data.get("coordinatorUserId")
+    else:
+        target_user_id = data.get("teacherUserId")
+
+    if not target_user_id:
+        return
+
+    author_name = data.get("authorName") or "Someone"
+    comment_text = data.get("commentText") or ""
+    
+    title = "New Comment on Request"
+    msg = f"{author_name} added a comment: \"{comment_text}\""
+
+    notification = Notification(
+        user_id=target_user_id,
+        title=title,
+        message=msg,
+        type="RequestCommentAdded"
+    )
+    db.add(notification)
+    await db.commit()
+
+    await notify_user(target_user_id, title, msg, db)
+
+async def handle_document_uploaded(data: dict, db):
+    author_role = data.get("role", "").lower()
+    if author_role == "teacher":
+        target_user_id = data.get("coordinatorUserId")
+    else:
+        target_user_id = data.get("teacherUserId")
+
+    if not target_user_id:
+        return
+
+    author_name = data.get("authorName") or "Someone"
+    file_name = data.get("fileName") or "document"
+    
+    title = "New Document Uploaded"
+    msg = f"{author_name} uploaded a document: {file_name}"
+
+    notification = Notification(
+        user_id=target_user_id,
+        title=title,
+        message=msg,
+        type="RequestDocumentUploaded"
+    )
+    db.add(notification)
+    await db.commit()
+
+    await notify_user(target_user_id, title, msg, db)
+
 async def notify_user(user_id: str, subject: str, message: str, db):
     result = await db.execute(select(NotificationPreference).filter_by(user_id=user_id))
     pref = result.scalar_one_or_none()
@@ -117,7 +175,9 @@ async def start_consumers():
     exchanges_to_bind = [
         "CompensaIdentityApi.IntegrationEvents:UserRegisteredEvent",
         "CompensaCoreApi.IntegrationEvents:RequestCreatedEvent",
-        "CompensaCoreApi.IntegrationEvents:RequestStatusUpdatedEvent"
+        "CompensaCoreApi.IntegrationEvents:RequestStatusUpdatedEvent",
+        "CompensaCoreApi.IntegrationEvents:RequestCommentAddedEvent",
+        "CompensaCoreApi.IntegrationEvents:RequestDocumentUploadedEvent"
     ]
     
     for exchange_name in exchanges_to_bind:

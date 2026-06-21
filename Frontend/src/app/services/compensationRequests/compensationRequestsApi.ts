@@ -115,3 +115,26 @@ export const deleteCompensationRequest = async (id: string) => {
     },
   );
 };
+
+export const getCompensationRequest = async (id: string) => {
+  const response = await authenticatedApiRequest<CompensationRequest>(
+    coreApiBaseUrl,
+    `/api/compensation-requests/${id}`,
+  );
+  return response.data;
+};
+
+export const addCompensationRequestComment = async (
+  requestId: string,
+  text: string,
+) => {
+  const response = await authenticatedApiRequest<any>(
+    coreApiBaseUrl,
+    `/api/compensation-requests/${requestId}/comments`,
+    {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    },
+  );
+  return response.data;
+};

@@ -37,7 +37,8 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
         
         if (includeDocuments)
         {
-            query = query.Include(request => request.Documents);
+            query = query.Include(request => request.Documents)
+                         .Include(request => request.Comments);
         }
         
         return await query.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);

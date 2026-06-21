@@ -164,7 +164,7 @@ export const SignInPage = ({ onNavigate }: SignInPageProps) => {
                 <div className="mx-auto w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
                   <Mail className="w-8 h-8" />
                 </div>
-                {devMagicLink && (
+                {devMagicLink && import.meta.env.VITE_ENABLE_DEV_LOGIN === "true" && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg text-left">
                     <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 mb-1">
                       [Dev Mode] Auto-Login Link:

@@ -26,9 +26,28 @@ const translations: Record<Language, Record<string, string>> = {
     "menu.holidays": "Holidays & Calendar",
     "menu.settings": "Settings",
     "menu.help": "Help & Support",
+    "menu.ai_converter": "AI Assistant",
+    "menu.academic_years": "Academic Years",
+
+    // System Settings Page
+    "settings.title": "System Settings",
+    "settings.subtitle": "Manage global academic regulations, automation, notifications, and integration configurations.",
+    "settings.tab_academic": "Academic Rules",
+    "settings.tab_notifications": "System Notifications",
+    "settings.tab_database": "System Sync",
+    "settings.save_success": "System settings updated successfully.",
+
+    // Preferences Page
+    "preferences.title": "User Preferences",
+    "preferences.subtitle": "Personalize your interface, calendar views, and notification channels.",
+    "preferences.tab_display": "Display & Language",
+    "preferences.tab_calendar": "Calendar Settings",
+    "preferences.tab_notifications": "My Notifications",
+    "preferences.save_success": "Your preferences have been saved.",
 
     // Header
     "header.academic_year": "Academic Year",
+    "header.select_academic_year": "Select Academic Year",
     "header.active": "Active",
     "header.notifications": "Notifications",
     "header.all": "All",
@@ -163,6 +182,8 @@ const translations: Record<Language, Record<string, string>> = {
     "requests.approved": "Approved",
     "requests.rejected": "Rejected",
     "requests.reason": "Reason",
+    "requests.ends_at": "Ends at",
+    "requests.class_group_free_hours": "Class Group Free Hours",
     "requests.conflict_alert": "Room {room} is occupied.",
     "requests.soon_alert": "Scheduled date is approaching.",
     "requests.view_details": "View Details",
@@ -223,7 +244,7 @@ const translations: Record<Language, Record<string, string>> = {
     "form.submit_one": "Update Request",
     "form.conflict_detected": "Conflict detected: '{room}' is occupied.",
     "form.fill_required":
-      "Please fill in all required fields (Course, Unit, Groups, Dates, Reason)",
+      "Please fill in all required fields.",
     "form.added_queue": "Request added to queue",
     "form.updated_success": "Request updated successfully",
     "form.no_submit": "No requests to submit",
@@ -295,10 +316,12 @@ const translations: Record<Language, Record<string, string>> = {
       "Monthly breakdown of compensation requests and approvals.",
     "chart.select_year": "Select Year",
     "chart.total": "Total Requests",
+    "chart.pending": "Pending",
     "chart.approved": "Approved",
     "chart.rejected": "Rejected",
     "chart.loading": "Loading Chart...",
     "chart.total_label": "Total:",
+    "chart.pending_label": "Pending:",
     "chart.approved_label": "Approved:",
     "chart.rejected_label": "Rejected:",
     // Month abbreviations
@@ -332,9 +355,28 @@ const translations: Record<Language, Record<string, string>> = {
     "menu.holidays": "Feriados e Calendário",
     "menu.settings": "Configurações",
     "menu.help": "Ajuda e Suporte",
+    "menu.ai_converter": "Assistente de IA",
+    "menu.academic_years": "Anos Letivos",
+
+    // System Settings Page
+    "settings.title": "Configurações do Sistema",
+    "settings.subtitle": "Gerencie regulamentos acadêmicos globais, automação, notificações e configurações de integração.",
+    "settings.tab_academic": "Regras Acadêmicas",
+    "settings.tab_notifications": "Notificações do Sistema",
+    "settings.tab_database": "Sincronização",
+    "settings.save_success": "Configurações do sistema atualizadas com sucesso.",
+
+    // Preferences Page
+    "preferences.title": "Preferências do Usuário",
+    "preferences.subtitle": "Personalize sua interface, visualizações de calendário e canais de notificação.",
+    "preferences.tab_display": "Exibição e Idioma",
+    "preferences.tab_calendar": "Configurações do Calendário",
+    "preferences.tab_notifications": "Minhas Notificações",
+    "preferences.save_success": "Suas preferências foram salvas com sucesso.",
 
     // Header
     "header.academic_year": "Ano Letivo",
+    "header.select_academic_year": "Selecionar Ano Letivo",
     "header.active": "Ativo",
     "header.notifications": "Notificações",
     "header.all": "Todas",
@@ -470,6 +512,8 @@ const translations: Record<Language, Record<string, string>> = {
     "requests.approved": "Aprovado",
     "requests.rejected": "Rejeitado",
     "requests.reason": "Motivo",
+    "requests.ends_at": "Termina às",
+    "requests.class_group_free_hours": "Horários Livres da Turma",
     "requests.conflict_alert": "Sala {room} está ocupada.",
     "requests.soon_alert": "A data agendada está próxima.",
     "requests.view_details": "Ver Detalhes",
@@ -530,7 +574,7 @@ const translations: Record<Language, Record<string, string>> = {
     "form.submit_one": "Atualizar Solicitação",
     "form.conflict_detected": "Conflito detectado: '{room}' está ocupada.",
     "form.fill_required":
-      "Por favor, preencha todos os campos obrigatórios (Curso, Unidade, Grupos, Datas, Justificativa)",
+      "Por favor, preencha todos os campos obrigatórios.",
     "form.added_queue": "Solicitação adicionada à fila",
     "form.updated_success": "Solicitação atualizada com sucesso",
     "form.no_submit": "Nenhuma solicitação para enviar",
@@ -603,10 +647,12 @@ const translations: Record<Language, Record<string, string>> = {
       "Detalhamento mensal das solicitações e aprovações de compensação.",
     "chart.select_year": "Selecionar Ano",
     "chart.total": "Total de Solicitações",
+    "chart.pending": "Pendentes",
     "chart.approved": "Aprovadas",
     "chart.rejected": "Rejeitadas",
     "chart.loading": "Carregando Gráfico...",
     "chart.total_label": "Total:",
+    "chart.pending_label": "Pendentes:",
     "chart.approved_label": "Aprovadas:",
     "chart.rejected_label": "Rejeitadas:",
     // Month abbreviations

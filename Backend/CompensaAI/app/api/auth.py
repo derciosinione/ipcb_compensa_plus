@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Request, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import get_settings
@@ -31,6 +31,7 @@ def _normalize_role(role: str) -> str:
 
 
 def get_current_user_context(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> Dict[str, Any]:
     token = credentials.credentials
@@ -54,11 +55,21 @@ def get_current_user_context(
 
     roles = [_normalize_role(role) for role in _as_list(payload.get(ROLE_CLAIM) or payload.get("role"))]
 
+    active_role = request.headers.get("x-active-role")
+    if active_role:
+        active_role = _normalize_role(active_role)
+
+    selected_role = "teacher"
+    if active_role and active_role in roles:
+        selected_role = active_role
+    elif roles:
+        selected_role = roles[0]
+
     return {
         "id": str(user_id),
         "name": payload.get(NAME_CLAIM) or payload.get("name") or payload.get("email") or str(user_id),
         "email": payload.get(EMAIL_CLAIM) or payload.get("email"),
-        "role": roles[0] if roles else "teacher",
+        "role": selected_role,
         "roles": roles,
         "token": token,
     }

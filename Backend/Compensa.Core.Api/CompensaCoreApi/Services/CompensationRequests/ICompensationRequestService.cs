@@ -50,7 +50,6 @@ public interface ICompensationRequestService
         bool isAdmin,
         CancellationToken cancellationToken = default);
 
-    // Document methods
     Task<CompensationRequestDocumentResponse> UploadDocumentAsync(
         Guid requestId,
         Stream fileStream,
@@ -58,6 +57,8 @@ public interface ICompensationRequestService
         string contentType,
         long sizeInBytes,
         string actorUserId,
+        string actorName,
+        string role,
         bool isCoordinator,
         bool isAdmin,
         CancellationToken cancellationToken = default);
@@ -83,5 +84,14 @@ public interface ICompensationRequestService
         string actorUserId,
         bool isCoordinator,
         bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    // Comment methods
+    Task<CompensationRequestCommentResponse> AddCommentAsync(
+        Guid requestId,
+        string text,
+        string actorUserId,
+        string actorName,
+        string role,
         CancellationToken cancellationToken = default);
 }

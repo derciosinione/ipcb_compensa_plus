@@ -16,7 +16,7 @@ class AI_Coordinator:
             return gemini_service.create_thread()
         
         try:
-            return openai_service.create_thread()
+            return await openai_service.create_thread()
         except Exception as e:
             logger.warning(f"Failed to create OpenAI thread: {e}. Using Gemini.")
             return gemini_service.create_thread()
@@ -26,12 +26,21 @@ class AI_Coordinator:
             return gemini_service.upload_file(file_path)
             
         try:
-            return openai_service.upload_file(file_path)
+            return await openai_service.upload_file(file_path)
         except Exception as e:
             logger.warning(f"Failed to upload to OpenAI: {e}. Using Gemini.")
             return gemini_service.upload_file(file_path)
 
     async def send_message(self, thread_id: str, content: str, file_ids: Optional[List[str]] = None, user_context: Optional[Dict] = None) -> Dict[str, Any]:
+        # Check if keys are configured
+        from app.core.config import get_settings
+        settings = get_settings()
+        if not settings.OPENAI_API_KEY and not settings.GEMINI_API_KEY:
+            return {
+                "type": "text",
+                "content": "⚠️ **Assistente de IA Não Configurado**\n\nNão foi detetada nenhuma chave de API para o **Gemini** ou **OpenAI** no seu ficheiro `.env`.\n\nPara ativar o Assistente de IA, por favor siga estes passos:\n\n1. Abra o ficheiro `.env` na raiz do projeto.\n2. Adicione a sua chave de API:\n   ```env\n   GEMINI_API_KEY=sua_chave_gemini_aqui\n   # ou\n   OPENAI_API_KEY=sua_chave_openai_aqui\n   ```\n3. Reinicie os contentores do Docker executando:\n   ```bash\n   docker compose up -d --build\n   ```\n\n*Nota: Se já configurou as chaves, certifique-se de que executou o comando acima para atualizar as variáveis de ambiente nos contentores.*"
+            }
+
         # Try cache first (only for text-only requests without files for now to be safe)
         cache_key = None
         if not file_ids:
@@ -81,5 +90,11 @@ class AI_Coordinator:
         response = await gemini_service.send_message(new_thread, content, file_ids, user_context)
         response["thread_id"] = new_thread
         return response
+
+    async def delete_thread(self, thread_id: str) -> bool:
+        if thread_id.startswith("gemini_thread_"):
+            return await gemini_service.delete_thread(thread_id)
+        else:
+            return await openai_service.delete_thread(thread_id)
 
 ai_coordinator = AI_Coordinator()

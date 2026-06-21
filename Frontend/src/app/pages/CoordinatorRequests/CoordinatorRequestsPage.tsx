@@ -1,6 +1,7 @@
 import React, { useCallback, useState, useEffect } from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { ClassRequest } from "../../types/requests";
 import { RequestDetailsPage } from "../../components/domain/requests/RequestDetailsPage";
@@ -18,13 +19,23 @@ import {
   getDocumentDownloadUrl,
   listCompensationRequests,
   updateCompensationRequestStatus,
+  getCompensationRequest,
+  addCompensationRequestComment,
+  uploadCompensationRequestDocument,
+  deleteCompensationRequestDocument,
 } from "../../services/compensationRequests/compensationRequestsApi";
 import type { CompensationRequest } from "../../services/compensationRequests/compensationRequestTypes";
+import { Download } from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { ExportRequestsModal } from "../../components/domain/requests/ExportRequestsModal";
+import type { AuthenticatedUser } from "../../types/user";
 import { getErrorMessage } from "../../utils/errors";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
 
 interface CoordinatorRequestsPageProps {
+  user: AuthenticatedUser;
   userRole?: "coordinator" | "admin" | "teacher";
+  requestId?: string;
 }
 
 const toClassRequest = (request: CompensationRequest): ClassRequest => ({
@@ -46,7 +57,15 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
   submittedAt: request.submittedAt.split("T")[0],
   hasConflict: request.hasConflict,
   rejectionReason: request.decisionComment ?? undefined,
-  comments: [],
+  comments: request.comments
+    ? request.comments.map((c) => ({
+        id: c.id,
+        authorName: c.authorName,
+        role: c.role.toLowerCase() as any,
+        text: c.text,
+        createdAt: c.createdAt.split(".")[0].replace("T", " ").substring(0, 16),
+      }))
+    : [],
   documents: request.documents.map((doc) => ({
     id: doc.id,
     requestId: doc.compensationRequestId,
@@ -58,12 +77,17 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
 });
 
 export const CoordinatorRequestsPage = ({
+  user,
   userRole = "coordinator",
+  requestId,
 }: CoordinatorRequestsPageProps) => {
+  const navigate = useNavigate();
+
   // Filter States
   const [viewMode, setViewMode] = useState<ViewMode>("board");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCourse, setFilterCourse] = useState<CourseFilter>("all");
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [showHistory, setShowHistory] = useState(false);
@@ -71,6 +95,7 @@ export const CoordinatorRequestsPage = ({
 
   // Data State
   const [requests, setRequests] = useState<ClassRequest[]>([]);
+  const [requestsLoaded, setRequestsLoaded] = useState(false);
   const [viewState, setViewState] = useState<"list" | "details">("list");
   const [selectedRequest, setSelectedRequest] = useState<ClassRequest | null>(
     null,
@@ -86,6 +111,7 @@ export const CoordinatorRequestsPage = ({
     try {
       const loadedRequests = await listCompensationRequests(undefined, undefined, selectedYear.id);
       setRequests(loadedRequests.map(toClassRequest));
+      setRequestsLoaded(true);
     } catch (error) {
       toast.error(
         getErrorMessage(error, "Unable to load compensation requests."),
@@ -115,6 +141,34 @@ export const CoordinatorRequestsPage = ({
   useEffect(() => {
     void loadRequests();
   }, [loadRequests]);
+
+  // Sync selectedRequest with requestId prop
+  useEffect(() => {
+    if (!requestsLoaded) return;
+
+    if (requestId) {
+      const fetchRequest = async () => {
+        try {
+          const req = await getCompensationRequest(requestId);
+          if (req) {
+            const mapped = toClassRequest(req);
+            setSelectedRequest(mapped);
+            setViewState("details");
+          } else {
+            toast.error("Compensation request not found.");
+            navigate("/requests");
+          }
+        } catch (err) {
+          toast.error("Unable to load request details.");
+          navigate("/requests");
+        }
+      };
+      void fetchRequest();
+    } else {
+      setSelectedRequest(null);
+      setViewState("list");
+    }
+  }, [requestId, requestsLoaded, navigate]);
 
   const handleStatusChange = async (
     requestId: string,
@@ -165,39 +219,103 @@ export const CoordinatorRequestsPage = ({
     }
   };
 
-  const handleAddComment = (requestId: string, text: string) => {
-    const newComment = {
-      id: createLocalId(),
-      authorName: isAdmin ? "Admin" : "Coordinator",
-      role: userRole as any,
-      text,
-      createdAt: new Date().toISOString().replace("T", "").substring(0, 16),
-    };
+  const handleAddComment = async (requestId: string, text: string) => {
+    try {
+      const savedComment = await addCompensationRequestComment(requestId, text);
+      if (savedComment) {
+        const mappedComment = {
+          id: savedComment.id,
+          authorName: savedComment.authorName,
+          role: savedComment.role.toLowerCase() as any,
+          text: savedComment.text,
+          createdAt: savedComment.createdAt.split(".")[0].replace("T", " ").substring(0, 16),
+        };
 
-    setRequests((prev) =>
-      prev.map((req) => {
-        if (req.id === requestId) {
-          const updated = { ...req, comments: [...req.comments, newComment] };
-          if (selectedRequest?.id === requestId) {
-            setSelectedRequest(updated);
-          }
-          return updated;
-        }
-        return req;
-      }),
-    );
+        setRequests((prev) =>
+          prev.map((req) => {
+            if (req.id === requestId) {
+              const updated = {
+                ...req,
+                comments: [...req.comments, mappedComment],
+              };
+              if (selectedRequest?.id === requestId) {
+                setSelectedRequest(updated);
+              }
+              return updated;
+            }
+            return req;
+          }),
+        );
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to save comment."));
+    }
   };
 
-  const createLocalId = () => crypto.randomUUID?.() ?? `local-${Date.now()}`;
+  const handleUploadDocument = async (requestId: string, file: File) => {
+    try {
+      const uploaded = await uploadCompensationRequestDocument(requestId, file);
+      if (uploaded) {
+        setRequests((prev) =>
+          prev.map((req) => {
+            if (req.id === requestId) {
+              const newDoc = {
+                id: uploaded.id,
+                requestId: uploaded.compensationRequestId,
+                fileName: uploaded.fileName,
+                sizeInBytes: uploaded.sizeInBytes,
+                contentType: uploaded.contentType,
+                createdAt: uploaded.createdAt,
+              };
+              const updated = {
+                ...req,
+                documents: [...req.documents, newDoc],
+              };
+              if (selectedRequest?.id === requestId) {
+                setSelectedRequest(updated);
+              }
+              return updated;
+            }
+            return req;
+          }),
+        );
+        toast.success("Document uploaded successfully.");
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to upload document."));
+    }
+  };
+
+  const handleDeleteDocument = async (requestId: string, documentId: string) => {
+    try {
+      await deleteCompensationRequestDocument(requestId, documentId);
+      setRequests((prev) =>
+        prev.map((req) => {
+          if (req.id === requestId) {
+            const updated = {
+              ...req,
+              documents: req.documents.filter((d) => d.id !== documentId),
+            };
+            if (selectedRequest?.id === requestId) {
+              setSelectedRequest(updated);
+            }
+            return updated;
+          }
+          return req;
+        }),
+      );
+      toast.success("Document deleted successfully.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to delete document."));
+    }
+  };
 
   const openDetails = (req: ClassRequest) => {
-    setSelectedRequest(req);
-    setViewState("details");
+    navigate(`/requests/${req.id}`);
   };
 
   const backToList = () => {
-    setViewState("list");
-    setSelectedRequest(null);
+    navigate("/requests");
   };
 
   // Filter requests
@@ -243,6 +361,8 @@ export const CoordinatorRequestsPage = ({
         onBack={backToList}
         onAddComment={handleAddComment}
         onStatusChange={isAdmin ? undefined : handleStatusChange}
+        onUploadDocument={handleUploadDocument}
+        onDeleteDocument={handleDeleteDocument}
         onDownloadDocument={handleDownloadDocument}
         userRole={userRole}
       />
@@ -261,6 +381,15 @@ export const CoordinatorRequestsPage = ({
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
               {isAdmin ? "Monitor" : "Manage"} and track compensation requests.
             </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsExportOpen(true)}
+              className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 px-5 h-9"
+            >
+              <Download className="mr-2 h-4 w-4" /> Export Report
+            </Button>
           </div>
         </div>
 
@@ -306,6 +435,12 @@ export const CoordinatorRequestsPage = ({
           open={!!requestToReject}
           onOpenChange={(open) => !open && setRequestToReject(null)}
           onConfirm={confirmRejection}
+        />
+
+        <ExportRequestsModal
+          isOpen={isExportOpen}
+          onClose={() => setIsExportOpen(false)}
+          user={user}
         />
       </div>
     </DndProvider>

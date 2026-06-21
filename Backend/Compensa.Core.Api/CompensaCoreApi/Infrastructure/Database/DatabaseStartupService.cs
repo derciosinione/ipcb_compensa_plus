@@ -519,6 +519,18 @@ public sealed class DatabaseStartupService : IHostedService
                     alter table compensation_requests add constraint "FK_compensation_requests_classrooms_NewClassroomId" foreign key ("NewClassroomId") references classrooms ("Id") on delete restrict;
                 end if;
             end $$;
+
+            create table if not exists compensation_request_comments (
+                "Id" uuid primary key,
+                "CompensationRequestId" uuid not null,
+                "AuthorUserId" varchar(128) not null,
+                "AuthorName" varchar(200) not null,
+                "Role" varchar(32) not null,
+                "Text" varchar(2000) not null,
+                "CreatedAt" timestamp with time zone not null,
+                constraint "FK_compensation_request_comments_requests_RequestId" foreign key ("CompensationRequestId") references compensation_requests ("Id") on delete cascade
+            );
+            create index if not exists "IX_compensation_request_comments_RequestId" on compensation_request_comments ("CompensationRequestId");
             """,
             cancellationToken);
     }

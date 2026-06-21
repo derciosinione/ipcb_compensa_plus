@@ -18,7 +18,7 @@ export interface UploadFileResponse {
 }
 
 import { API_BASE_URL } from "./httpClient";
-import { getStoredAccessToken } from "../auth/authSession";
+import { getStoredAccessToken, getStoredActiveRole } from "../auth/authSession";
 
 const AI_API_URL = `${API_BASE_URL}/api/chat`;
 
@@ -29,7 +29,13 @@ export const IAService = {
       throw new Error("Authentication required");
     }
 
-    return { Authorization: `Bearer ${token}` };
+    const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+    const activeRole = getStoredActiveRole();
+    if (activeRole) {
+      headers["X-Active-Role"] = activeRole;
+    }
+
+    return headers;
   },
 
   async uploadDocument(file: File): Promise<UploadFileResponse> {
@@ -64,5 +70,21 @@ export const IAService = {
     }
 
     return response.json();
+  },
+
+  async deleteThread(threadId: string): Promise<boolean> {
+    if (!threadId || threadId.startsWith("local-")) {
+      return true;
+    }
+    try {
+      const response = await fetch(`${AI_API_URL}/thread/${threadId}`, {
+        method: "DELETE",
+        headers: this.getAuthHeaders(),
+      });
+      return response.ok;
+    } catch (e) {
+      console.error("Failed to delete thread on backend:", e);
+      return false;
+    }
   },
 };

@@ -16,6 +16,7 @@ public sealed class CoreDbContext : DbContext
 
     public DbSet<CompensationRequest> CompensationRequests => Set<CompensationRequest>();
     public DbSet<CompensationRequestDocument> CompensationRequestDocuments => Set<CompensationRequestDocument>();
+    public DbSet<CompensationRequestComment> CompensationRequestComments => Set<CompensationRequestComment>();
     public DbSet<AcademicYear> AcademicYears => Set<AcademicYear>();
     public DbSet<Classroom> Classrooms => Set<Classroom>();
     public DbSet<Course> Courses => Set<Course>();
@@ -152,6 +153,11 @@ public sealed class CoreDbContext : DbContext
                 .WithOne(doc => doc.CompensationRequest)
                 .HasForeignKey(doc => doc.CompensationRequestId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(request => request.Comments)
+                .WithOne(c => c.CompensationRequest)
+                .HasForeignKey(c => c.CompensationRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<CompensationRequestDocument>(entity =>
@@ -165,6 +171,19 @@ public sealed class CoreDbContext : DbContext
             entity.Property(doc => doc.ContentType).HasMaxLength(100).IsRequired();
             
             entity.HasIndex(doc => doc.CompensationRequestId);
+        });
+
+        modelBuilder.Entity<CompensationRequestComment>(entity =>
+        {
+            entity.ToTable("compensation_request_comments");
+            entity.HasKey(c => c.Id);
+            
+            entity.Property(c => c.AuthorUserId).HasMaxLength(128).IsRequired();
+            entity.Property(c => c.AuthorName).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.Role).HasMaxLength(32).IsRequired();
+            entity.Property(c => c.Text).HasMaxLength(2000).IsRequired();
+            
+            entity.HasIndex(c => c.CompensationRequestId);
         });
 
         modelBuilder.Entity<Classroom>(entity =>

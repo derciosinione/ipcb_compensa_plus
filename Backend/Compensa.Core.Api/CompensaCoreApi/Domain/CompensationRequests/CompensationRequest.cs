@@ -41,4 +41,5 @@ public sealed class CompensationRequest
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     
     public ICollection<CompensationRequestDocument> Documents { get; set; } = [];
+    public ICollection<CompensationRequestComment> Comments { get; set; } = [];
 }

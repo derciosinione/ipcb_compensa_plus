@@ -25,6 +25,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   const { t } = useLanguage();
 
   if (active && payload && payload.length) {
+    const total = payload.find((p: any) => p.dataKey === "total")?.value ?? 0;
+    const pending = payload.find((p: any) => p.dataKey === "pending")?.value ?? 0;
+    const approved = payload.find((p: any) => p.dataKey === "approved")?.value ?? 0;
+    const rejected = payload.find((p: any) => p.dataKey === "rejected")?.value ?? 0;
+
     return (
       <div className="bg-white dark:bg-slate-900 p-3 border border-slate-100 dark:border-slate-800 shadow-xl rounded-xl text-sm">
         <p className="font-bold text-slate-700 dark:text-slate-200 mb-2">
@@ -37,7 +42,16 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               {t("chart.total_label")}
             </span>
             <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {payload[0].value}
+              {total}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="text-slate-500 dark:text-slate-400">
+              {t("chart.pending_label")}
+            </span>
+            <span className="font-semibold text-slate-900 dark:text-slate-100">
+              {pending}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -46,7 +60,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               {t("chart.approved_label")}
             </span>
             <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {payload[1].value}
+              {approved}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -55,7 +69,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
               {t("chart.rejected_label")}
             </span>
             <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {payload[2].value}
+              {rejected}
             </span>
           </div>
         </div>
@@ -77,11 +91,15 @@ export const CompensationChart = ({
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const chartData: ChartPoint[] = data.map((point) => ({
-    ...point,
-    id: point.period,
-    name: point.period,
-  }));
+  const chartData = data.map((point) => {
+    const pending = Math.max(0, point.total - point.approved - point.rejected);
+    return {
+      ...point,
+      id: point.period,
+      name: point.period,
+      pending,
+    };
+  });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -188,6 +206,15 @@ export const CompensationChart = ({
                 name={t("chart.total")}
                 dataKey="total"
                 fill="#3b82f6"
+                radius={[4, 4, 0, 0]}
+                barSize={12}
+                animationDuration={1500}
+              />
+              <Bar
+                key="pending-bar"
+                name={t("chart.pending")}
+                dataKey="pending"
+                fill="#f59e0b"
                 radius={[4, 4, 0, 0]}
                 barSize={12}
                 animationDuration={1500}

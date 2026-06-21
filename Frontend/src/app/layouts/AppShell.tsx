@@ -15,7 +15,7 @@ export const AppShell = ({ user, onLogout, onRoleChange }: AppShellProps) => {
       <Layout user={user} onLogout={onLogout} onRoleChange={onRoleChange}>
         <Outlet />
       </Layout>
-      <FloatingAIChat />
+      <FloatingAIChat userRole={user.role} />
     </>
   );
 };

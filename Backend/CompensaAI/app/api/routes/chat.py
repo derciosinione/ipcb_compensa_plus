@@ -78,3 +78,17 @@ async def upload_file(
         return {"file_id": file_id, "filename": file.filename}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/thread/{thread_id}")
+async def delete_thread(
+    thread_id: str,
+    user_context: Dict[str, Any] = Depends(get_current_user_context),
+):
+    try:
+        success = await ai_coordinator.delete_thread(thread_id)
+        return {"success": success}
+    except Exception as e:
+        import traceback
+        print(f"DELETE THREAD ROUTE ERROR: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

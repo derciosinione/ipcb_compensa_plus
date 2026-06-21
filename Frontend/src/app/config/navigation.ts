@@ -57,9 +57,9 @@ export const getMainNavigationItems = ({
   }
 
   items.push({
-    path: appPaths.aiConverter,
+    path: appPaths.aiAssistant,
     icon: Sparkles,
-    label: t("menu.ai_converter") || "AI Converter",
+    label: t("menu.ai_converter") || "AI Assistant",
   });
 
   return items;

@@ -33,4 +33,5 @@ public sealed record CompensationRequestResponse(
     DateTimeOffset SubmittedAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    IReadOnlyCollection<CompensationRequestDocumentResponse> Documents);
+    IReadOnlyCollection<CompensationRequestDocumentResponse> Documents,
+    IReadOnlyCollection<CompensationRequestCommentResponse> Comments);

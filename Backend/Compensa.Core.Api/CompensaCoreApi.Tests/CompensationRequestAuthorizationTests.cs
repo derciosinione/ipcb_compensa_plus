@@ -210,6 +210,14 @@ public sealed class CompensationRequestAuthorizationTests
             return Task.FromResult<IReadOnlyCollection<CompensationRequest>>([]);
         }
 
+        public Task<IReadOnlyCollection<CompensationRequest>> ListActiveForTeacherOnDateAsync(
+            string teacherUserId,
+            DateOnly date,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyCollection<CompensationRequest>>([]);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -245,6 +253,8 @@ public sealed class CompensationRequestAuthorizationTests
         public Task AddOfferingAsync(CourseOffering offering, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task AddUnitOfferingAsync(CurricularUnitOffering offering, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCourseAssignmentsAsync(Guid courseId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<CourseTeacherAssignment>>([]);
+        public Task<IReadOnlyCollection<CourseTeacherAssignment>> ListAllCourseAssignmentsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<CourseTeacherAssignment>>([]);
+        public Task<IReadOnlyCollection<ClassSchedule>> ListTeacherSchedulesForDayAsync(string teacherUserId, int dayOfWeek, Guid academicYearId, int semester, Guid? excludedScheduleId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyCollection<ClassSchedule>>([]);
 
         public Task<IReadOnlyCollection<Course>> ListAsync(string? search, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<Course?> GetByAbbreviationAsync(string abbreviation, CancellationToken cancellationToken = default) => throw new NotSupportedException();
