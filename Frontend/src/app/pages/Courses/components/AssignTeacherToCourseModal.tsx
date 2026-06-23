@@ -28,6 +28,7 @@ import { Search } from "lucide-react";
 import { Input } from "../../../components/ui/input";
 import { ScrollArea } from "../../../components/ui/scroll-area";
 import type { PlatformUser } from "../../../services/users/userTypes";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface AssignTeacherToCourseModalProps {
   isOpen: boolean;
@@ -51,6 +52,7 @@ export const AssignTeacherToCourseModal = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
   const [selectedUnitId, setSelectedUnitId] = useState<string>("");
+  const { t } = useLanguage();
 
   const [roles, setRoles] = useState({
     regent: false,
@@ -79,15 +81,15 @@ export const AssignTeacherToCourseModal = ({
 
   const handleSave = async () => {
     if (!selectedTeacherId) {
-      toast.error("Please select a teacher");
+      toast.error(t("assign_course.toast_select_teacher"));
       return;
     }
     if (!selectedUnitId) {
-      toast.error("Please select a curricular unit");
+      toast.error(t("assign_course.toast_select_unit"));
       return;
     }
     if (!roles.regent && !roles.theoretical && !roles.practical) {
-      toast.error("Please select at least one component to assign");
+      toast.error(t("assign_course.toast_select_component"));
       return;
     }
 
@@ -105,20 +107,20 @@ export const AssignTeacherToCourseModal = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <DialogHeader>
-          <DialogTitle>Assign Teacher to Course</DialogTitle>
+          <DialogTitle>{t("assign_course.title")}</DialogTitle>
           <DialogDescription>
-            Search for a teacher and assign them to a curricular unit component.
+            {t("assign_course.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
           {/* Left Column: Teacher Selection */}
           <div className="space-y-4">
-            <Label>1. Select Teacher</Label>
+            <Label>{t("assign_course.label_teacher")}</Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Search name..."
+                placeholder={t("assign_course.search_placeholder")}
                 className="pl-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -157,7 +159,7 @@ export const AssignTeacherToCourseModal = ({
                   ))}
                   {filteredTeachers.length === 0 && (
                     <p className="text-xs text-center text-slate-400 py-4">
-                      No teachers found
+                      {t("assign_course.no_teachers")}
                     </p>
                   )}
                 </div>
@@ -168,10 +170,10 @@ export const AssignTeacherToCourseModal = ({
           {/* Right Column: Unit & Role Selection */}
           <div className="space-y-6">
             <div className="space-y-3">
-              <Label>2. Select Curricular Unit</Label>
+              <Label>{t("assign_course.label_unit")}</Label>
               <Select value={selectedUnitId} onValueChange={setSelectedUnitId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select unit..." />
+                  <SelectValue placeholder={t("assign_course.placeholder_unit")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courseUnits.map((unit) => (
@@ -183,14 +185,16 @@ export const AssignTeacherToCourseModal = ({
               </Select>
               {selectedUnit && (
                 <div className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-800/50 p-2 rounded border border-slate-100 dark:border-slate-800">
-                  {selectedUnit.year}º Year • Semester {selectedUnit.semester}
+                  {t("assign_course.unit_info")
+                    .replace("{year}", selectedUnit.year.toString())
+                    .replace("{semester}", selectedUnit.semester.toString())}
                 </div>
               )}
             </div>
 
             <div className="space-y-3">
               <Label className={!selectedUnitId ? "opacity-50" : ""}>
-                3. Assign Components
+                {t("assign_course.label_components")}
               </Label>
               <div
                 className={`space-y-3 border border-slate-200 dark:border-slate-800 rounded-lg p-4 ${!selectedUnitId ? "opacity-50 pointer-events-none" : ""}`}
@@ -207,7 +211,7 @@ export const AssignTeacherToCourseModal = ({
                     htmlFor="role-regent"
                     className="font-normal cursor-pointer"
                   >
-                    Regent (Head)
+                    {t("assign_course.regent_head")}
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -227,7 +231,7 @@ export const AssignTeacherToCourseModal = ({
                       htmlFor="role-theoretical"
                       className="font-normal cursor-pointer"
                     >
-                      Theoretical
+                      {t("component.theoretical")}
                     </Label>
                   </div>
                 </div>
@@ -245,7 +249,7 @@ export const AssignTeacherToCourseModal = ({
                       htmlFor="role-practical"
                       className="font-normal cursor-pointer"
                     >
-                      Practical
+                      {t("component.practical")}
                     </Label>
                   </div>
                 </div>
@@ -255,8 +259,7 @@ export const AssignTeacherToCourseModal = ({
             {selectedTeacher && (
               <div className="pt-2">
                 <p className="text-xs text-slate-500 mb-2">
-                  Assigning <strong>{getTeacherName(selectedTeacher)}</strong>{" "}
-                  to selected components.
+                  {t("assign_course.assigning_info").replace("{name}", getTeacherName(selectedTeacher))}
                 </p>
               </div>
             )}
@@ -265,14 +268,14 @@ export const AssignTeacherToCourseModal = ({
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             type="submit"
             onClick={handleSave}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            Assign Teacher
+            {t("assign_course.btn_assign")}
           </Button>
         </DialogFooter>
       </DialogContent>

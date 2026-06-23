@@ -21,6 +21,7 @@ import { Badge } from "../../../components/ui/badge";
 import { toast } from "sonner";
 import { TimeSlot, ClassGroup, CurricularUnit } from "../../../types/academic";
 import type { Classroom } from "../../../services/classrooms/classroomTypes";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface AddScheduleModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const AddScheduleModal = ({
   courseUnits,
   classrooms,
 }: AddScheduleModalProps) => {
+  const { t } = useLanguage();
   const [dayOfWeek, setDayOfWeek] = useState<string>("1");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("11:00");
@@ -109,7 +111,7 @@ export const AddScheduleModal = ({
     const end = parseInt(endTime.replace(":", ""));
 
     if (start >= end) {
-      toast.error("End time must be after start time");
+      toast.error(t("schedule_modal.toast_time_error"));
       return false;
     }
 
@@ -143,7 +145,9 @@ export const AddScheduleModal = ({
 
     if (currentDailyMinutes + totalMinutes > 8 * 60) {
       toast.error(
-        `Daily limit exceeded. This group already has ${(currentDailyMinutes / 60).toFixed(1)} hours for ${selectedUnit.name}.`,
+        t("schedule_modal.toast_limit_exceeded")
+          .replace("{count}", (currentDailyMinutes / 60).toFixed(1))
+          .replace("{unit}", selectedUnit.name),
       );
       return false;
     }
@@ -159,7 +163,7 @@ export const AddScheduleModal = ({
     );
 
     if (roomConflict) {
-      toast.error(`Room ${room} is already occupied at this time.`);
+      toast.error(t("schedule_modal.toast_room_occupied").replace("{room}", room));
       return false;
     }
 
@@ -184,7 +188,10 @@ export const AddScheduleModal = ({
       if (slotsForTeacherClass.length > 0) {
         const conflictSlot = slotsForTeacherClass[0];
         toast.error(
-          `Teacher conflict: Teaching ${conflictSlot.unit} (${conflictSlot.classGroup}) at ${conflictSlot.startTime}.`,
+          t("schedule_modal.toast_teacher_conflict")
+            .replace("{unit}", conflictSlot.unit)
+            .replace("{classGroup}", conflictSlot.classGroup)
+            .replace("{time}", conflictSlot.startTime),
         );
         return false;
       }
@@ -204,7 +211,7 @@ export const AddScheduleModal = ({
 
   const handleSave = async () => {
     if (!room) {
-      toast.error("Please select a classroom");
+      toast.error(t("schedule_modal.toast_select_classroom_error"));
       return;
     }
     if (validateSchedule()) {
@@ -237,21 +244,21 @@ export const AddScheduleModal = ({
             </Badge>
           </div>
           <DialogTitle>
-            {initialData ? "Edit" : "Add"} Class Schedule
+            {initialData ? t("schedule_modal.title_edit") : t("schedule_modal.title_add")}
           </DialogTitle>
           <DialogDescription>
-            Configure the schedule for this class.
+            {t("schedule_modal.description")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="unit" className="text-right">
-              Unit
+              {t("form.select_unit")}
             </Label>
             <Select value={selectedUnitId} onValueChange={handleUnitChange}>
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select unit" />
+                <SelectValue placeholder={t("schedule_modal.select_unit")} />
               </SelectTrigger>
               <SelectContent>
                 {(courseUnits || []).map((u) => (
@@ -265,7 +272,7 @@ export const AddScheduleModal = ({
 
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="component" className="text-right">
-              Component
+              {t("form.component")}
             </Label>
             <Select
               value={componentType}
@@ -275,15 +282,15 @@ export const AddScheduleModal = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="theoretical">Theoretical</SelectItem>
-                <SelectItem value="practical">Practical</SelectItem>
+                <SelectItem value="theoretical">{t("component.theoretical")}</SelectItem>
+                <SelectItem value="practical">{t("component.practical")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="semester" className="text-right">
-              Semester
+              {t("uc_modal.semester_label")}
             </Label>
             <Select
               value={selectedSemester}
@@ -293,34 +300,34 @@ export const AddScheduleModal = ({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Semester 1</SelectItem>
-                <SelectItem value="2">Semester 2</SelectItem>
+                <SelectItem value="1">{t("courses.semester_label").replace("{semester}", "1")}</SelectItem>
+                <SelectItem value="2">{t("courses.semester_label").replace("{semester}", "2")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="day" className="text-right">
-              Day
+              {t("calendar.day")}
             </Label>
             <Select value={dayOfWeek} onValueChange={setDayOfWeek}>
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select day" />
+                <SelectValue placeholder={t("schedule_modal.select_day")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">Monday</SelectItem>
-                <SelectItem value="2">Tuesday</SelectItem>
-                <SelectItem value="3">Wednesday</SelectItem>
-                <SelectItem value="4">Thursday</SelectItem>
-                <SelectItem value="5">Friday</SelectItem>
-                <SelectItem value="6">Saturday</SelectItem>
+                <SelectItem value="1">{t("day.Monday")}</SelectItem>
+                <SelectItem value="2">{t("day.Tuesday")}</SelectItem>
+                <SelectItem value="3">{t("day.Wednesday")}</SelectItem>
+                <SelectItem value="4">{t("day.Thursday")}</SelectItem>
+                <SelectItem value="5">{t("day.Friday")}</SelectItem>
+                <SelectItem value="6">{t("day.Saturday")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="time" className="text-right">
-              Time
+              {t("common.time")}
             </Label>
             <div className="col-span-3 flex items-center gap-2">
               <Input
@@ -341,11 +348,11 @@ export const AddScheduleModal = ({
 
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="room" className="text-right">
-              Room
+              {t("form.room")}
             </Label>
             <Select value={room} onValueChange={setRoom}>
               <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select classroom" />
+                <SelectValue placeholder={t("schedule_modal.select_classroom")} />
               </SelectTrigger>
               <SelectContent>
                 {classrooms.map((r) => (
@@ -360,13 +367,13 @@ export const AddScheduleModal = ({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             onClick={handleSave}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {initialData ? "Update Schedule" : "Add Schedule"}
+            {initialData ? t("schedule_modal.btn_update") : t("schedule_modal.btn_add")}
           </Button>
         </DialogFooter>
       </DialogContent>

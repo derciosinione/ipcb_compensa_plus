@@ -63,10 +63,10 @@ export const SettingsPage = () => {
 
   const handleSyncNow = () => {
     setIsSyncing(true);
-    toast.info("Starting timetable synchronization...");
+    toast.info(t("settings.toast_sync_start"));
     setTimeout(() => {
       setIsSyncing(false);
-      toast.success("Timetable database successfully synchronized!");
+      toast.success(t("settings.toast_sync_success"));
     }, 2000);
   };
 
@@ -79,10 +79,10 @@ export const SettingsPage = () => {
             <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl">
               <SettingsIcon className="w-6 h-6" />
             </div>
-            {t("settings.title") || "System Settings"}
+            {t("settings.title")}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {t("settings.subtitle") || "Manage global academic regulations, automation, notifications, and integration configurations."}
+            {t("settings.subtitle")}
           </p>
         </div>
         <Button
@@ -90,7 +90,7 @@ export const SettingsPage = () => {
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium gap-2 shadow-lg shadow-blue-500/20 self-start md:self-auto transition-all hover:scale-[1.02]"
         >
           <Save className="w-4 h-4" />
-          <span>Save Settings</span>
+          <span>{t("settings.btn_save")}</span>
         </Button>
       </div>
 
@@ -101,21 +101,21 @@ export const SettingsPage = () => {
             className="rounded-lg text-xs font-semibold flex items-center gap-1.5 py-2.5"
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>{t("settings.tab_academic") || "Academic Rules"}</span>
+            <span>{t("settings.tab_academic")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="notifications"
             className="rounded-lg text-xs font-semibold flex items-center gap-1.5 py-2.5"
           >
             <Bell className="w-3.5 h-3.5" />
-            <span>{t("settings.tab_notifications") || "Notifications"}</span>
+            <span>{t("settings.tab_notifications")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="integration"
             className="rounded-lg text-xs font-semibold flex items-center gap-1.5 py-2.5"
           >
             <Database className="w-3.5 h-3.5" />
-            <span>{t("settings.tab_database") || "System Sync"}</span>
+            <span>{t("settings.tab_database")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -125,10 +125,10 @@ export const SettingsPage = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Shield className="w-4 h-4 text-blue-500" />
-                Compensation Regulations
+                {t("settings.regulations_title")}
               </CardTitle>
               <CardDescription>
-                Configure the deadlines and restrictions for substitute classes.
+                {t("settings.regulations_desc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -136,7 +136,7 @@ export const SettingsPage = () => {
                 {/* Advance Notice Window */}
                 <div className="space-y-2">
                   <Label htmlFor="advance-notice" className="font-semibold text-slate-700 dark:text-slate-300">
-                    Minimum Advance Notice (Days)
+                    {t("settings.min_advance")}
                   </Label>
                   <Input
                     id="advance-notice"
@@ -148,14 +148,14 @@ export const SettingsPage = () => {
                     className="max-w-[200px]"
                   />
                   <p className="text-xs text-slate-400">
-                    Teachers must request a compensation at least this many days before the proposed date.
+                    {t("settings.min_advance_desc")}
                   </p>
                 </div>
 
                 {/* Max Sessions per Semester */}
                 <div className="space-y-2">
                   <Label htmlFor="max-sessions" className="font-semibold text-slate-700 dark:text-slate-300">
-                    Max Compensations per Course
+                    {t("settings.max_sessions")}
                   </Label>
                   <Input
                     id="max-sessions"
@@ -167,7 +167,7 @@ export const SettingsPage = () => {
                     className="max-w-[200px]"
                   />
                   <p className="text-xs text-slate-400">
-                    Maximum number of rescheduled classes allowed per curricular unit in a single semester.
+                    {t("settings.max_sessions_desc")}
                   </p>
                 </div>
               </div>
@@ -178,10 +178,10 @@ export const SettingsPage = () => {
               <div className="space-y-4 max-w-[500px]">
                 <div className="flex justify-between items-center">
                   <Label className="font-semibold text-slate-700 dark:text-slate-300">
-                    Buffer Time Between Classes
+                    {t("settings.buffer_time")}
                   </Label>
                   <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400">
-                    {bufferTime[0]} minutes
+                    {t("settings.minutes").replace("{count}", bufferTime[0].toString())}
                   </Badge>
                 </div>
                 <Slider
@@ -193,7 +193,7 @@ export const SettingsPage = () => {
                   className="py-2"
                 />
                 <p className="text-xs text-slate-400">
-                  Minimum room empty window required between consecutive bookings to prevent overlapping entry/exit.
+                  {t("settings.buffer_time_desc")}
                 </p>
               </div>
 
@@ -204,10 +204,10 @@ export const SettingsPage = () => {
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                   <div className="space-y-0.5 pr-4">
                     <Label className="font-bold text-slate-700 dark:text-slate-200">
-                      Auto-Approve Non-Conflicting Requests
+                      {t("settings.auto_approve")}
                     </Label>
                     <p className="text-xs text-slate-400">
-                      Automatically approve a request if the room is vacant, the teacher is free, and the class group has no conflict.
+                      {t("settings.auto_approve_desc")}
                     </p>
                   </div>
                   <Switch
@@ -219,10 +219,10 @@ export const SettingsPage = () => {
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                   <div className="space-y-0.5 pr-4">
                     <Label className="font-bold text-slate-700 dark:text-slate-200">
-                      Allow Weekend Rescheduling
+                      {t("settings.allow_weekends")}
                     </Label>
                     <p className="text-xs text-slate-400">
-                      Allow teachers to schedule compensation classes on Saturdays and Sundays.
+                      {t("settings.allow_weekends_desc")}
                     </p>
                   </div>
                   <Switch
@@ -241,20 +241,20 @@ export const SettingsPage = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Bell className="w-4 h-4 text-indigo-500" />
-                Global Alerts Configuration
+                {t("settings.alerts_title")}
               </CardTitle>
               <CardDescription>
-                Customize when the system sends automated email and push notifications.
+                {t("settings.alerts_desc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                 <div className="space-y-0.5 pr-4">
                   <Label className="font-bold text-slate-700 dark:text-slate-200">
-                    System Email Notifications
+                    {t("settings.email_notif")}
                   </Label>
                   <p className="text-xs text-slate-400">
-                    Send automated emails to teachers and coordinators for all request status updates.
+                    {t("settings.email_notif_desc")}
                   </p>
                 </div>
                 <Switch
@@ -266,10 +266,10 @@ export const SettingsPage = () => {
               <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                 <div className="space-y-0.5 pr-4">
                   <Label className="font-bold text-slate-700 dark:text-slate-200">
-                    Coordinators Weekly Digest
+                    {t("settings.weekly_digest")}
                   </Label>
                   <p className="text-xs text-slate-400">
-                    Email a weekly summary report of pending/approved compensations to course coordinators every Monday.
+                    {t("settings.weekly_digest_desc")}
                   </p>
                 </div>
                 <Switch
@@ -281,10 +281,10 @@ export const SettingsPage = () => {
               <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                 <div className="space-y-0.5 pr-4">
                   <Label className="font-bold text-slate-700 dark:text-slate-200">
-                    Realtime Web Push Alerts
+                    {t("settings.push_alerts")}
                   </Label>
                   <p className="text-xs text-slate-400">
-                    Enable immediate in-app browser notifications for coordinators on new submissions.
+                    {t("settings.push_alerts_desc")}
                   </p>
                 </div>
                 <Switch
@@ -304,10 +304,10 @@ export const SettingsPage = () => {
               <CardHeader>
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <Database className="w-4 h-4 text-emerald-500" />
-                  Academic Timetable Sync
+                  {t("settings.sync_title")}
                 </CardTitle>
                 <CardDescription>
-                  Configure automated imports of schedule allocations from the university database.
+                  {t("settings.sync_desc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -315,28 +315,28 @@ export const SettingsPage = () => {
                   {/* Sync Frequency */}
                   <div className="space-y-2">
                     <Label className="font-semibold text-slate-700 dark:text-slate-300">
-                      Sync Schedule Frequency
+                      {t("settings.sync_freq")}
                     </Label>
                     <Select value={syncSchedule} onValueChange={setSyncSchedule}>
                       <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="hourly">Every Hour</SelectItem>
-                        <SelectItem value="daily">Nightly (04:00 AM)</SelectItem>
-                        <SelectItem value="weekly">Weekly (Sunday)</SelectItem>
-                        <SelectItem value="manual">Manual Trigger Only</SelectItem>
+                        <SelectItem value="hourly">{t("settings.freq_hourly")}</SelectItem>
+                        <SelectItem value="daily">{t("settings.freq_daily")}</SelectItem>
+                        <SelectItem value="weekly">{t("settings.freq_weekly")}</SelectItem>
+                        <SelectItem value="manual">{t("settings.freq_manual")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-slate-400">
-                      Determines how often class schedules and rooms are re-imported.
+                      {t("settings.sync_freq_desc")}
                     </p>
                   </div>
 
                   {/* Rejected Cleanup */}
                   <div className="space-y-2">
                     <Label htmlFor="cleanup" className="font-semibold text-slate-700 dark:text-slate-300">
-                      Cleanup Older Logs (Days)
+                      {t("settings.cleanup")}
                     </Label>
                     <Input
                       id="cleanup"
@@ -347,7 +347,7 @@ export const SettingsPage = () => {
                       onChange={(e) => setCleanupThreshold(parseInt(e.target.value) || 30)}
                     />
                     <p className="text-xs text-slate-400">
-                      Completed or rejected requests older than this threshold will be archived automatically.
+                      {t("settings.cleanup_desc")}
                     </p>
                   </div>
                 </div>
@@ -358,10 +358,10 @@ export const SettingsPage = () => {
                 <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-emerald-50/40 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-900/30 rounded-xl gap-4">
                   <div className="space-y-0.5 text-center sm:text-left">
                     <span className="text-sm font-bold text-emerald-800 dark:text-emerald-400 block">
-                      Force Database Sync
+                      {t("settings.force_sync")}
                     </span>
                     <span className="text-xs text-emerald-600/80 dark:text-emerald-500/80">
-                      Manually synchronize classrooms and timetables immediately.
+                      {t("settings.force_sync_desc")}
                     </span>
                   </div>
                   <Button
@@ -370,7 +370,7 @@ export const SettingsPage = () => {
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-2 px-5 shadow-md shadow-emerald-500/25 shrink-0 transition-all hover:scale-[1.01]"
                   >
                     <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-                    {isSyncing ? "Syncing..." : "Sync Now"}
+                    {isSyncing ? t("settings.sync_btn_syncing") : t("settings.sync_btn")}
                   </Button>
                 </div>
               </CardContent>
@@ -381,29 +381,29 @@ export const SettingsPage = () => {
               <CardHeader>
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-500" />
-                  API Status
+                  {t("settings.api_title")}
                 </CardTitle>
                 <CardDescription>
-                  Current integration endpoints state.
+                  {t("settings.api_desc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Identity DB API</span>
                   <Badge className="bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400 border border-green-200 dark:border-green-900/50 text-[10px]">
-                    Connected
+                    {t("settings.status_connected")}
                   </Badge>
                 </div>
                 <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Core Schedule Service</span>
                   <Badge className="bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400 border border-green-200 dark:border-green-900/50 text-[10px]">
-                    Connected
+                    {t("settings.status_connected")}
                   </Badge>
                 </div>
                 <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Notification Worker</span>
                   <Badge className="bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400 border border-green-200 dark:border-green-900/50 text-[10px]">
-                    Active
+                    {t("settings.status_active")}
                   </Badge>
                 </div>
                 
@@ -411,15 +411,15 @@ export const SettingsPage = () => {
                 
                 <div className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400 pt-1">
                   <div className="flex justify-between">
-                    <span>Last Sync Import:</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Today, 04:00 AM</span>
+                    <span>{t("settings.last_sync")}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{t("settings.last_sync_val")}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Classes Monitored:</span>
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">124 active groups</span>
+                    <span>{t("settings.classes_monitored")}</span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">{t("settings.classes_monitored_val")}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>System Version:</span>
+                    <span>{t("settings.sys_version")}</span>
                     <span className="font-semibold text-slate-700 dark:text-slate-300">v1.4.2-stable</span>
                   </div>
                 </div>

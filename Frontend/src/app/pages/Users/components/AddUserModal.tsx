@@ -17,6 +17,7 @@ import type {
   CreateUserRequest,
   UserRole,
 } from "../../../services/users/userTypes";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface AddUserModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ export const AddUserModal = ({
 }: AddUserModalProps) => {
   const { register, handleSubmit, reset } = useForm<FormData>();
   const [selectedRoles, setSelectedRoles] = useState<UserRole[]>(["Teacher"]);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (isOpen) {
@@ -73,34 +75,34 @@ export const AddUserModal = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[520px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <DialogHeader>
-          <DialogTitle>Add New User</DialogTitle>
+          <DialogTitle>{t("users.add_user_title")}</DialogTitle>
           <DialogDescription>
-            Create a platform user and assign one or more roles.
+            {t("users.add_user_desc")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 py-4">
           <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name</Label>
+            <Label htmlFor="fullName">{t("users.full_name")}</Label>
             <Input
               id="fullName"
-              placeholder="e.g. Dr. Jane Smith"
+              placeholder={t("users.placeholder_name")}
               {...register("fullName", { required: true })}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
+            <Label htmlFor="email">{t("users.email_address")}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="e.g. jane.smith@uni.edu"
+              placeholder={t("users.placeholder_email")}
               {...register("email", { required: true })}
             />
           </div>
 
           <div className="space-y-3">
-            <Label>Roles</Label>
+            <Label>{t("users.role")}</Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {roles.map((role) => {
                 const checked = selectedRoles.includes(role);
@@ -118,10 +120,10 @@ export const AddUserModal = ({
                         }
                       />
                       <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                        {role}
+                        {t(`role.${role.toLowerCase()}`)}
                       </span>
                     </div>
-                    {checked && <Badge variant="secondary">Selected</Badge>}
+                    {checked && <Badge variant="secondary">{t("users.selected")}</Badge>}
                   </label>
                 );
               })}
@@ -135,14 +137,14 @@ export const AddUserModal = ({
               onClick={onClose}
               disabled={isSaving}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white"
               disabled={isSaving}
             >
-              {isSaving ? "Creating..." : "Create User"}
+              {isSaving ? t("users.creating") : t("users.create_user_btn")}
             </Button>
           </DialogFooter>
         </form>

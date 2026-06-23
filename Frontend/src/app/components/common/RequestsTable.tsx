@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Card } from "../ui/card";
 import type { ClassRequest } from "../../types/requests";
 import { cn } from "../ui/utils";
+import { useLanguage } from "../../providers/LanguageContext";
 
 export interface RequestsTableProps {
   requests: ClassRequest[];
@@ -35,6 +36,7 @@ export interface RequestsTableProps {
 }
 
 const StatusBadge = ({ status }: { status: string }) => {
+  const { t } = useLanguage();
   const styles = {
     approved:
       "bg-green-50 text-green-700 ring-1 ring-green-600/20 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-900",
@@ -62,7 +64,7 @@ const StatusBadge = ({ status }: { status: string }) => {
               : "bg-red-500",
         )}
       />
-      {status}
+      {t(`requests.${status.toLowerCase()}`)}
     </Badge>
   );
 };
@@ -77,6 +79,7 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
   onViewDetails,
   onEdit,
 }) => {
+  const { t } = useLanguage();
   const isTeacher = userRole === "teacher";
 
   return (
@@ -86,31 +89,31 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
           <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10">
             <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
               <TableHead className="w-[300px] pl-6 text-slate-500 dark:text-slate-400">
-                Class Unit & Course
+                {t("requests.table_unit_course")}
               </TableHead>
               {!isTeacher && (
                 <TableHead className="text-slate-500 dark:text-slate-400">
-                  Teacher
+                  {t("requests.table_teacher")}
                 </TableHead>
               )}
               {showHistory && (
                 <TableHead className="text-slate-500 dark:text-slate-400">
-                  Original Date
+                  {t("requests.table_original_date")}
                 </TableHead>
               )}
               <TableHead className="text-slate-500 dark:text-slate-400">
-                {showHistory ? "New Date" : "Proposed Date & Time"}
+                {showHistory ? t("requests.table_new_date") : t("requests.table_proposed_date_time")}
               </TableHead>
               <TableHead className="text-slate-500 dark:text-slate-400">
-                Status
+                {t("requests.table_status")}
               </TableHead>
               {!showHistory && (
                 <TableHead className="text-slate-500 dark:text-slate-400">
-                  Reason
+                  {t("requests.table_reason")}
                 </TableHead>
               )}
               <TableHead className="text-right pr-6 text-slate-500 dark:text-slate-400">
-                Actions
+                {t("requests.table_actions")}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -218,7 +221,7 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
                         onViewDetails(request);
                       }}
                     >
-                      Details
+                      {t("requests.table_details")}
                     </Button>
                   )}
                 </TableCell>
@@ -233,8 +236,8 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
                   className="h-24 text-center text-slate-500"
                 >
                   {showHistory
-                    ? "No history records found."
-                    : "No requests found."}
+                    ? t("requests.no_history_records")
+                    : t("requests.no_requests_found")}
                 </TableCell>
               </TableRow>
             )}
@@ -276,7 +279,9 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
               {/* Mobile page indicator */}
               <div className="md:hidden flex items-center px-4">
                 <span className="text-sm text-slate-500">
-                  Page {currentPage} of {totalPages}
+                  {t("common.page_indicator")
+                    .replace("{current}", String(currentPage))
+                    .replace("{total}", String(totalPages))}
                 </span>
               </div>
 

@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge";
 import type { ClassRequest, RequestStatus } from "../../types/requests";
 import { RequestCard } from "./RequestCard";
 import { cn } from "../ui/utils";
+import { useLanguage } from "../../providers/LanguageContext";
 
 export interface DroppableColumnProps {
   status: RequestStatus;
@@ -33,6 +34,7 @@ export const DroppableColumn: React.FC<DroppableColumnProps> = ({
   onEdit,
   onCancel,
 }) => {
+  const { t } = useLanguage();
   const isAdmin = userRole === "admin";
   const isCompact = status !== "pending"; // Approved/Rejected usually compact
 
@@ -99,8 +101,8 @@ export const DroppableColumn: React.FC<DroppableColumnProps> = ({
         {requests.length === 0 && (
           <div className="text-center py-10 text-slate-400 text-xs italic border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-lg">
             {isOver && canDrop
-              ? `Drop to move to ${title}`
-              : `No ${status} requests`}
+              ? t("requests.drop_move").replace("{status}", title)
+              : t("requests.no_requests").replace("{status}", t(`requests.${status.toLowerCase()}`))}
           </div>
         )}
       </div>
@@ -127,6 +129,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onEdit,
   onCancel,
 }) => {
+  const { t } = useLanguage();
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const approvedRequests = requests.filter((r) => r.status === "approved");
   const rejectedRequests = requests.filter((r) => r.status === "rejected");
@@ -136,7 +139,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 flex-1 h-full min-h-0 overflow-y-auto">
       <DroppableColumn
         status="pending"
-        title="Pending Review"
+        title={t("requests.pending_review")}
         icon={<Clock className="w-4 h-4 text-amber-500" />}
         requests={pendingRequests}
         userRole={userRole}
@@ -148,7 +151,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       />
       <DroppableColumn
         status="approved"
-        title="Approved"
+        title={t("requests.approved")}
         icon={<Check className="w-4 h-4 text-emerald-500" />}
         requests={approvedRequests}
         userRole={userRole}
@@ -160,7 +163,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       />
       <DroppableColumn
         status="rejected"
-        title="Rejected"
+        title={t("requests.rejected")}
         icon={<X className="w-4 h-4 text-red-500" />}
         requests={rejectedRequests}
         userRole={userRole}
@@ -172,7 +175,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       />
       <DroppableColumn
         status="cancelled"
-        title="Cancelled"
+        title={t("requests.cancelled")}
         icon={<Inbox className="w-4 h-4 text-slate-500" />}
         requests={cancelledRequests}
         userRole={userRole}

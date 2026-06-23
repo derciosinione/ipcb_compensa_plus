@@ -23,6 +23,7 @@ import { PageHeader } from "../../../components/common/PageHeader";
 import { EmptyState } from "../../../components/common/EmptyState";
 import { LoadingSpinner } from "../../../components/common/LoadingSpinner";
 import { IAService } from "../../../services/api/ia.service";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface ExtractedData {
   headers: string[];
@@ -31,6 +32,7 @@ interface ExtractedData {
 }
 
 export function AIDocumentConverter() {
+  const { t } = useLanguage();
   const [viewMode, setViewMode] = useState<"upload" | "chat">("upload");
 
   // Upload mode states
@@ -50,7 +52,7 @@ export function AIDocumentConverter() {
 
   const handleUploadProcess = async () => {
     if (!uploadFile || !uploadPrompt.trim()) {
-      toast.error("Please upload a file and provide instructions");
+      toast.error(t("ai_converter.toast_fill_fields"));
       return;
     }
 
@@ -59,7 +61,7 @@ export function AIDocumentConverter() {
     try {
       const uploadedFile = await IAService.uploadDocument(uploadFile);
       const aiResponse = await IAService.sendMessage({
-        message: `${uploadPrompt}\n\nReturn the extracted result as concise structured data. If a table is appropriate, include it as JSON with"headers" and'rows'.`,
+        message: `${uploadPrompt}\n\nReturn the extracted result as concise structured data. If a table is appropriate, include it as JSON with "headers" and 'rows'.`,
         file_ids: [uploadedFile.file_id],
       });
 
@@ -68,10 +70,10 @@ export function AIDocumentConverter() {
           aiResponse.content ?? JSON.stringify(aiResponse.data ?? {}),
         ),
       );
-      toast.success("Document processed successfully!");
+      toast.success(t("ai_converter.toast_success"));
     } catch (error) {
       console.error("Error processing document:", error);
-      toast.error("Failed to process document. Please try again.");
+      toast.error(t("ai_converter.toast_error"));
     } finally {
       setUploadProcessing(false);
     }
@@ -83,8 +85,8 @@ export function AIDocumentConverter() {
       <div className="flex-shrink-0 pb-4 border-b border-slate-200 dark:border-slate-800">
         <PageHeader
           icon={Sparkles}
-          title="AI Document Converter"
-          description="Upload documents and extract structured data"
+          title={t("ai_converter.title")}
+          description={t("ai_converter.desc")}
           action={
             <Tabs
               value={viewMode}
@@ -93,11 +95,11 @@ export function AIDocumentConverter() {
               <TabsList>
                 <TabsTrigger value="upload" className="flex items-center gap-2">
                   <Upload className="w-4 h-4" />
-                  Upload Mode
+                  {t("ai_converter.upload_mode")}
                 </TabsTrigger>
                 <TabsTrigger value="chat" className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
-                  Chat Mode
+                  {t("ai_converter.chat_mode")}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -120,17 +122,17 @@ export function AIDocumentConverter() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Upload className="w-5 h-5" />
-                  Upload & Configure
+                  {t("ai_converter.upload_config")}
                 </CardTitle>
                 <CardDescription>
-                  Upload your document and describe what data to extract
+                  {t("ai_converter.upload_desc")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* File Upload */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Document File
+                    {t("ai_converter.doc_file")}
                   </label>
                   <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-slate-400 dark:hover:border-slate-500 transition-colors">
                     <input
@@ -158,10 +160,10 @@ export function AIDocumentConverter() {
                         <>
                           <Upload className="w-12 h-12 text-slate-400 mb-2" />
                           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                            Click to upload document
+                            {t("ai_converter.click_upload")}
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
-                            PDF, DOC, TXT, CSV, XLSX up to 10MB
+                            {t("ai_converter.upload_formats")}
                           </p>
                         </>
                       )}
@@ -172,12 +174,12 @@ export function AIDocumentConverter() {
                 {/* AI Instructions */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    AI Instructions
+                    {t("ai_converter.instructions")}
                   </label>
                   <Textarea
                     value={uploadPrompt}
                     onChange={(e) => setUploadPrompt(e.target.value)}
-                    placeholder="Example: Extract all student names, grades, and attendance from this report and format as a table with columns: Name, Grade, Attendance %"
+                    placeholder={t("ai_converter.instructions_placeholder")}
                     className="min-h-[120px]"
                   />
                 </div>
@@ -193,12 +195,12 @@ export function AIDocumentConverter() {
                   {uploadProcessing ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Processing with AI...
+                      {t("ai_converter.processing")}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 mr-2" />
-                      Process Document
+                      {t("ai_converter.process_btn")}
                     </>
                   )}
                 </Button>
@@ -210,18 +212,18 @@ export function AIDocumentConverter() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="w-5 h-5" />
-                  Extracted Data Preview
+                  {t("ai_converter.preview_title")}
                 </CardTitle>
                 <CardDescription>
-                  Review the extracted data returned by CompensaAI
+                  {t("ai_converter.preview_desc")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {!uploadExtractedData && !uploadProcessing && (
                   <EmptyState
                     icon={FileText}
-                    title="No data extracted yet"
-                    description="Upload a document and process it to see results"
+                    title={t("ai_converter.empty_title")}
+                    description={t("ai_converter.empty_desc")}
                     size="sm"
                     className="border-0"
                   />
@@ -231,7 +233,7 @@ export function AIDocumentConverter() {
                   <div className="py-12">
                     <LoadingSpinner
                       size="lg"
-                      text="AI is analyzing your document..."
+                      text={t("ai_converter.loading_text")}
                     />
                   </div>
                 )}
@@ -285,8 +287,8 @@ export function AIDocumentConverter() {
                         <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
                         <span className="text-sm font-medium text-green-700 dark:text-green-300">
                           {uploadExtractedData.rows.length > 0
-                            ? `${uploadExtractedData.rows.length} rows extracted`
-                            : "Document processed"}
+                            ? t("ai_converter.rows_extracted").replace("{count}", uploadExtractedData.rows.length.toString())
+                            : t("ai_converter.doc_processed")}
                         </span>
                       </div>
                     </div>
@@ -299,7 +301,7 @@ export function AIDocumentConverter() {
           {/* Instructions */}
           <Card>
             <CardHeader>
-              <CardTitle>How It Works</CardTitle>
+              <CardTitle>{t("ai_converter.how_it_works")}</CardTitle>
             </CardHeader>
             <CardContent>
               <ol className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
@@ -308,8 +310,7 @@ export function AIDocumentConverter() {
                     1
                   </span>
                   <span>
-                    Upload a document containing the data you want to extract
-                    (PDF, Word, Excel, etc.)
+                    {t("ai_converter.step_1")}
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -317,8 +318,7 @@ export function AIDocumentConverter() {
                     2
                   </span>
                   <span>
-                    Provide clear instructions describing what data to extract
-                    and how to structure it
+                    {t("ai_converter.step_2")}
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -326,8 +326,7 @@ export function AIDocumentConverter() {
                     3
                   </span>
                   <span>
-                    AI will analyze the document and extract structured data
-                    into a table format
+                    {t("ai_converter.step_3")}
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -335,7 +334,7 @@ export function AIDocumentConverter() {
                     4
                   </span>
                   <span>
-                    Review the extracted result returned by CompensaAI
+                    {t("ai_converter.step_4")}
                   </span>
                 </li>
               </ol>

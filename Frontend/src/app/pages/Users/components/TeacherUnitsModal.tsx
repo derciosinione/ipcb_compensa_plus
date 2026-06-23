@@ -26,6 +26,7 @@ import type {
 } from "../../../services/courses/courseTypes";
 import type { PlatformUser } from "../../../services/users/userTypes";
 import type { CourseAssignmentInput } from "../../../services/assignments/assignmentTypes";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface TeacherUnitsModalProps {
   isOpen: boolean;
@@ -60,6 +61,7 @@ export const TeacherUnitsModal = ({
   const [selectedCourses, setSelectedCourses] = useState<Map<string, boolean>>(
     new Map(),
   );
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (isOpen) {
@@ -154,11 +156,10 @@ export const TeacherUnitsModal = ({
       <DialogContent className="sm:max-w-[720px] md:max-w-[850px] lg:max-w-[950px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-6 rounded-2xl">
         <DialogHeader className="mb-4">
           <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            Assign Courses and Units
+            {t("users.assign_modal_title")}
           </DialogTitle>
           <DialogDescription className="text-slate-500 dark:text-slate-400">
-            Configure access and coordinator roles for{" "}
-            <strong className="text-slate-800 dark:text-slate-200">{user.fullName || user.email}</strong>.
+            {t("users.assign_modal_desc").replace("{name}", user.fullName || user.email)}
           </DialogDescription>
         </DialogHeader>
 
@@ -167,16 +168,16 @@ export const TeacherUnitsModal = ({
           <div className="flex flex-col space-y-3">
             <div>
               <Label className="text-slate-900 dark:text-slate-100 font-semibold text-sm">
-                1. Course Access & Coordinator Roles
+                {t("users.assign_course_access")}
               </Label>
               <p className="text-xs text-slate-500 mt-0.5">
-                Enable course access and check "Coordinator" if they coordinate the course.
+                {t("users.assign_course_access_desc")}
               </p>
             </div>
             
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex-1 flex flex-col min-h-[300px] md:min-h-[400px]">
               <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 font-semibold text-xs text-slate-500 tracking-wider uppercase">
-                Courses ({courses.length})
+                {t("users.courses_count").replace("{count}", courses.length.toString())}
               </div>
               <ScrollArea className="flex-1 h-[350px]">
                 <div className="p-3 space-y-2 bg-white dark:bg-slate-900">
@@ -225,7 +226,7 @@ export const TeacherUnitsModal = ({
                             }
                           />
                           <span className={isCoordinator ? "text-blue-600 dark:text-blue-400 animate-pulse" : "text-slate-500"}>
-                            Coordinator
+                            {t("role.coordinator")}
                           </span>
                         </label>
                       </div>
@@ -240,23 +241,23 @@ export const TeacherUnitsModal = ({
           <div className="flex flex-col space-y-4">
             <div>
               <Label className="text-slate-900 dark:text-slate-100 font-semibold text-sm">
-                2. Curricular Unit Assignments
+                {t("users.assign_units_title")}
               </Label>
               <p className="text-xs text-slate-500 mt-0.5">
-                Assign specific curricular units for courses they have access to.
+                {t("users.assign_units_desc")}
               </p>
             </div>
 
             <div className="space-y-2">
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Select Course to view Units
+                {t("users.select_course_view_units")}
               </Label>
               <Select
                 value={selectedCourseId}
                 onValueChange={setSelectedCourseId}
               >
                 <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-                  <SelectValue placeholder="Select course" />
+                  <SelectValue placeholder={t("users.select_course_placeholder")} />
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
                   {courses.map((course) => (
@@ -270,7 +271,7 @@ export const TeacherUnitsModal = ({
 
             <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden flex-1 flex flex-col min-h-[250px] md:min-h-[320px]">
               <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 font-semibold text-xs text-slate-500 tracking-wider uppercase flex justify-between items-center">
-                <span>Available Units</span>
+                <span>{t("users.available_units")}</span>
                 {currentCourse && (
                   <Badge variant="outline" className="bg-blue-100/50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 font-bold border-none px-2 py-0.5 text-[10px]">
                     {currentCourse.abbreviation}
@@ -282,7 +283,7 @@ export const TeacherUnitsModal = ({
                 <div className="p-3 space-y-2 bg-white dark:bg-slate-900">
                   {currentCourseUnits.length === 0 ? (
                     <div className="text-center text-slate-400 py-12 text-sm font-medium">
-                      No units found in this course.
+                      {t("users.no_units_course")}
                     </div>
                   ) : (
                     currentCourseUnits.map((unit) => {
@@ -316,19 +317,19 @@ export const TeacherUnitsModal = ({
                                 variant="outline"
                                 className="text-[10px] h-5 px-1.5 font-normal border-slate-200 dark:border-slate-800"
                               >
-                                Year {unit.year}
+                                {t("courses.year_label").replace("{year}", unit.year.toString())}
                               </Badge>
                               <Badge
                                 variant="outline"
                                 className="text-[10px] h-5 px-1.5 font-normal border-slate-200 dark:border-slate-800"
                               >
-                                S{unit.semester}
+                                {t("courses.semester_label").replace("{semester}", unit.semester.toString())}
                               </Badge>
                               <Badge
                                 variant="outline"
                                 className="text-[10px] h-5 px-1.5 font-normal border-slate-200 dark:border-slate-800"
                               >
-                                {unit.ects} ECTS
+                                {t("courses.ects_label").replace("{count}", unit.ects.toString())}
                               </Badge>
                             </div>
                           </div>
@@ -344,7 +345,9 @@ export const TeacherUnitsModal = ({
 
         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            Total courses assigned: <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedCourses.size}</span> · Total units assigned: <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedUnitIds.size}</span>
+            {t("users.total_courses_assigned")
+              .replace("{cCount}", selectedCourses.size.toString())
+              .replace("{uCount}", selectedUnitIds.size.toString())}
           </div>
           <DialogFooter className="w-full sm:w-auto flex gap-2 justify-end">
             <Button
@@ -354,14 +357,14 @@ export const TeacherUnitsModal = ({
               disabled={isSaving}
               className="rounded-xl flex-1 sm:flex-initial"
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleSave}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-1 sm:flex-initial shadow-md shadow-blue-500/20"
               disabled={isSaving}
             >
-              {isSaving ? "Saving..." : "Save Assignments"}
+              {isSaving ? t("users.saving") : t("assign_teachers.btn_save")}
             </Button>
           </DialogFooter>
         </div>

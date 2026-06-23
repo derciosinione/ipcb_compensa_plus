@@ -49,7 +49,7 @@ export const PreferencesPage = () => {
   const [notifFreq, setNotifFreq] = useState("realtime");
 
   const handleSave = () => {
-    toast.success(t("preferences.save_success") || "Your preferences have been saved.");
+    toast.success(t("preferences.save_success"));
   };
 
   return (
@@ -61,10 +61,10 @@ export const PreferencesPage = () => {
             <div className="p-2 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-xl">
               <PreferencesIcon className="w-6 h-6" />
             </div>
-            {t("preferences.title") || "User Preferences"}
+            {t("preferences.title")}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            {t("preferences.subtitle") || "Personalize your interface, calendar views, and notification channels."}
+            {t("preferences.subtitle")}
           </p>
         </div>
         <Button
@@ -72,7 +72,7 @@ export const PreferencesPage = () => {
           className="bg-blue-600 hover:bg-blue-700 text-white font-medium gap-2 shadow-lg shadow-blue-500/20 self-start md:self-auto transition-all hover:scale-[1.02]"
         >
           <Save className="w-4 h-4" />
-          <span>Save Preferences</span>
+          <span>{t("preferences.btn_save")}</span>
         </Button>
       </div>
 
@@ -83,21 +83,21 @@ export const PreferencesPage = () => {
             className="rounded-lg text-xs font-semibold flex items-center gap-1.5 py-2.5"
           >
             <Globe className="w-3.5 h-3.5" />
-            <span>{t("preferences.tab_display") || "Display & Language"}</span>
+            <span>{t("preferences.tab_display")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="calendar"
             className="rounded-lg text-xs font-semibold flex items-center gap-1.5 py-2.5"
           >
             <Calendar className="w-3.5 h-3.5" />
-            <span>{t("preferences.tab_calendar") || "Calendar"}</span>
+            <span>{t("preferences.tab_calendar")}</span>
           </TabsTrigger>
           <TabsTrigger
             value="notifications"
             className="rounded-lg text-xs font-semibold flex items-center gap-1.5 py-2.5"
           >
             <Bell className="w-3.5 h-3.5" />
-            <span>{t("preferences.tab_notifications") || "My Alerts"}</span>
+            <span>{t("preferences.tab_notifications")}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -107,17 +107,17 @@ export const PreferencesPage = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-500" />
-                Appearance Settings
+                {t("preferences.appearance_title")}
               </CardTitle>
               <CardDescription>
-                Customize theme selection and display language.
+                {t("preferences.appearance_desc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Language Selection */}
               <div className="space-y-3 max-w-[400px]">
                 <Label className="font-semibold text-slate-700 dark:text-slate-300">
-                  Application Language
+                  {t("preferences.app_lang")}
                 </Label>
                 <Select value={language} onValueChange={(val: any) => setLanguage(val)}>
                   <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
@@ -129,7 +129,7 @@ export const PreferencesPage = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-slate-400">
-                  Select your preferred language. All buttons, notifications, and calendar labels will change immediately.
+                  {t("preferences.app_lang_desc")}
                 </p>
               </div>
 
@@ -138,7 +138,7 @@ export const PreferencesPage = () => {
               {/* Theme Selector */}
               <div className="space-y-3">
                 <Label className="font-semibold text-slate-700 dark:text-slate-300 block">
-                  Appearance Theme
+                  {t("preferences.theme_title")}
                 </Label>
                 <div className="grid grid-cols-3 max-w-[480px] gap-3">
                   <button
@@ -151,7 +151,7 @@ export const PreferencesPage = () => {
                     )}
                   >
                     <Sun className="w-5 h-5 text-amber-500" />
-                    <span className="text-xs font-semibold">Light Mode</span>
+                    <span className="text-xs font-semibold">{t("preferences.theme_light")}</span>
                   </button>
 
                   <button
@@ -164,7 +164,7 @@ export const PreferencesPage = () => {
                     )}
                   >
                     <Moon className="w-5 h-5 text-indigo-400" />
-                    <span className="text-xs font-semibold">Dark Mode</span>
+                    <span className="text-xs font-semibold">{t("preferences.theme_dark")}</span>
                   </button>
 
                   <button
@@ -177,11 +177,11 @@ export const PreferencesPage = () => {
                     )}
                   >
                     <Monitor className="w-5 h-5 text-slate-500" />
-                    <span className="text-xs font-semibold">System Default</span>
+                    <span className="text-xs font-semibold">{t("preferences.theme_system")}</span>
                   </button>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Select a styling theme or sync automatically with your operating system color scheme.
+                  {t("preferences.theme_desc")}
                 </p>
               </div>
             </CardContent>
@@ -194,30 +194,30 @@ export const PreferencesPage = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-blue-500" />
-                Calendar Preferences
+                {t("preferences.cal_title")}
               </CardTitle>
               <CardDescription>
-                Define your default view settings and behavior for the Calendar page.
+                {t("preferences.cal_desc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Default View */}
               <div className="space-y-3 max-w-[400px]">
                 <Label className="font-semibold text-slate-700 dark:text-slate-300">
-                  Default View on Load
+                  {t("preferences.cal_default_view")}
                 </Label>
                 <Select value={defaultCalView} onValueChange={setDefaultCalView}>
                   <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="month">Month Grid</SelectItem>
-                    <SelectItem value="week">Weekly Timetable</SelectItem>
-                    <SelectItem value="day">Day Schedule</SelectItem>
+                    <SelectItem value="month">{t("preferences.cal_view_month")}</SelectItem>
+                    <SelectItem value="week">{t("preferences.cal_view_week")}</SelectItem>
+                    <SelectItem value="day">{t("preferences.cal_view_day")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-slate-400">
-                  Which calendar grid view you would like to see first when opening the calendar.
+                  {t("preferences.cal_default_view_desc")}
                 </p>
               </div>
 
@@ -228,10 +228,10 @@ export const PreferencesPage = () => {
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                   <div className="space-y-0.5 pr-4">
                     <Label className="font-bold text-slate-700 dark:text-slate-200">
-                      Start Week on Monday
+                      {t("preferences.cal_start_mon")}
                     </Label>
                     <p className="text-xs text-slate-400">
-                      Start calendar grids on Monday instead of Sunday.
+                      {t("preferences.cal_start_mon_desc")}
                     </p>
                   </div>
                   <Switch
@@ -243,10 +243,10 @@ export const PreferencesPage = () => {
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                   <div className="space-y-0.5 pr-4">
                     <Label className="font-bold text-slate-700 dark:text-slate-200">
-                      Show Regular Timetables in Calendar
+                      {t("preferences.cal_show_regular")}
                     </Label>
                     <p className="text-xs text-slate-400">
-                      Overlay regular class timetables inside the calendar by default when viewing requests.
+                      {t("preferences.cal_show_regular_desc")}
                     </p>
                   </div>
                   <Switch
@@ -265,10 +265,10 @@ export const PreferencesPage = () => {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <Bell className="w-4 h-4 text-indigo-500" />
-                Notification Channels
+                {t("preferences.notif_channels")}
               </CardTitle>
               <CardDescription>
-                Customize how and when you receive notifications from the platform.
+                {t("preferences.notif_channels_desc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -277,10 +277,10 @@ export const PreferencesPage = () => {
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                   <div className="space-y-0.5 pr-4">
                     <Label className="font-bold text-slate-700 dark:text-slate-200">
-                      Email Notifications
+                      {t("preferences.notif_email")}
                     </Label>
                     <p className="text-xs text-slate-400">
-                      Receive an email digest for any status updates of requests, direct coordinator messages, or announcements.
+                      {t("preferences.notif_email_desc")}
                     </p>
                   </div>
                   <Switch
@@ -292,10 +292,10 @@ export const PreferencesPage = () => {
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/30 rounded-xl transition-colors border border-slate-100 dark:border-slate-800/40">
                   <div className="space-y-0.5 pr-4">
                     <Label className="font-bold text-slate-700 dark:text-slate-200">
-                      In-App Dashboard Alerts
+                      {t("preferences.notif_inapp")}
                     </Label>
                     <p className="text-xs text-slate-400">
-                      Display unread alert indicators on the dashboard header and notification panel.
+                      {t("preferences.notif_inapp_desc")}
                     </p>
                   </div>
                   <Switch
@@ -310,21 +310,21 @@ export const PreferencesPage = () => {
               {/* Notification Frequency */}
               <div className="space-y-3 max-w-[400px]">
                 <Label className="font-semibold text-slate-700 dark:text-slate-300">
-                  Email Summary Frequency
+                  {t("preferences.notif_freq")}
                 </Label>
                 <Select value={notifFreq} onValueChange={setNotifFreq}>
                   <SelectTrigger className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="realtime">Real-time alerts</SelectItem>
-                    <SelectItem value="daily">Daily digest summary</SelectItem>
-                    <SelectItem value="weekly">Weekly digest summary</SelectItem>
-                    <SelectItem value="none">No email notifications</SelectItem>
+                    <SelectItem value="realtime">{t("preferences.freq_realtime")}</SelectItem>
+                    <SelectItem value="daily">{t("preferences.freq_daily")}</SelectItem>
+                    <SelectItem value="weekly">{t("preferences.freq_weekly")}</SelectItem>
+                    <SelectItem value="none">{t("preferences.freq_none")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-slate-400">
-                  Select how often you wish to receive summary updates. Highly recommended to keep real-time alerts active for prompt approvals.
+                  {t("preferences.notif_freq_desc")}
                 </p>
               </div>
             </CardContent>

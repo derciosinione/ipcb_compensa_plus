@@ -28,6 +28,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getStoredAuthSession, getStoredActiveRole } from "../services/auth/authSession";
 import { cn } from "../components/ui/utils";
+import { useLanguage } from "../providers/LanguageContext";
 
 interface ChatMessage {
   id: string;
@@ -66,9 +67,17 @@ export function AIChatInterface({
   maxHeight = "calc(100vh - 8rem)",
   userRole,
 }: AIChatInterfaceProps) {
+  const { t } = useLanguage();
+  const welcomeMessage = React.useMemo<ChatMessage>(() => ({
+    id: "1",
+    type: "assistant",
+    content: t("ai_chat.welcome"),
+    timestamp: new Date(),
+  }), [t]);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string>("");
-  const [messages, setMessages] = useState<ChatMessage[]>([DEFAULT_WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -107,7 +116,7 @@ export function AIChatInterface({
         } else {
           const defaultId = "local-" + Date.now();
           setActiveId(defaultId);
-          setMessages([DEFAULT_WELCOME_MESSAGE]);
+          setMessages([welcomeMessage]);
           setThreadId(undefined);
         }
       } catch (e) {
@@ -116,10 +125,10 @@ export function AIChatInterface({
     } else {
       const defaultId = "local-" + Date.now();
       setActiveId(defaultId);
-      setMessages([DEFAULT_WELCOME_MESSAGE]);
+      setMessages([welcomeMessage]);
       setThreadId(undefined);
     }
-  }, [storageKey]);
+  }, [storageKey, welcomeMessage]);
 
   const updateActiveConversationMessages = (
     updater: (prevMessages: ChatMessage[]) => ChatMessage[],
@@ -136,7 +145,7 @@ export function AIChatInterface({
         const existingIdx = updatedConvs.findIndex((c) => c.id === currentActiveId);
         
         const firstUserMsg = nextMsgs.find(m => m.type === "user");
-        let title = "Nova Conversa";
+        let title = t("ai_chat.new_chat");
         if (firstUserMsg) {
           title = firstUserMsg.content.trim();
           if (title.length > 28) title = title.slice(0, 25) + "...";
@@ -173,7 +182,7 @@ export function AIChatInterface({
     const newId = "local-" + Date.now();
     setActiveId(newId);
     setThreadId(undefined);
-    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    setMessages([welcomeMessage]);
   };
 
   const handleSelectConversation = (conv: Conversation) => {
@@ -212,32 +221,32 @@ export function AIChatInterface({
         } else {
           const defaultId = "local-" + Date.now();
           setActiveId(defaultId);
-          setMessages([DEFAULT_WELCOME_MESSAGE]);
+          setMessages([welcomeMessage]);
           setThreadId(undefined);
         }
       }
       
       return next;
     });
-    toast.success("Conversa eliminada.");
+    toast.success(t("ai_chat.delete_conv_toast"));
   };
 
   const createRequestMutation = useMutation({
     mutationFn: createCompensationRequest,
     onSuccess: () => {
-      toast.success("Pedido de compensação criado com sucesso!");
+      toast.success(t("ai_chat.toast_request_success"));
       updateActiveConversationMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
           type: "system",
-          content: "✅ Pedido de compensação inserido no sistema com sucesso.",
+          content: t("ai_chat.msg_request_success"),
           timestamp: new Date(),
         },
       ]);
     },
     onError: (error) => {
-      toast.error("Erro ao criar pedido de compensação.");
+      toast.error(t("ai_chat.toast_request_error"));
     },
   });
 
@@ -271,7 +280,7 @@ export function AIChatInterface({
     const processingMessage: ChatMessage = {
       id: (Date.now() + 1).toString(),
       type: "assistant",
-      content: "A processar a sua solicitação...",
+      content: t("ai_chat.processing"),
       timestamp: new Date(),
       isProcessing: true,
     };
@@ -289,7 +298,7 @@ export function AIChatInterface({
         thread_id: threadId,
         message:
           input ||
-          "Processa este documento anexo e extrai as informações relevantes.",
+          t("ai_chat.default_file_msg"),
         file_ids: fileIds.length > 0 ? fileIds : undefined,
       });
 
@@ -304,7 +313,7 @@ export function AIChatInterface({
         content:
           response.content ||
           (response.action
-            ? "Encontrei as seguintes informações. Deseja prosseguir com a ação sugerida?"
+            ? t("ai_chat.action_suggested")
             : ""),
         timestamp: new Date(),
         action: response.action,
@@ -321,8 +330,7 @@ export function AIChatInterface({
         prev.filter((m) => m.id !== processingMessage.id).concat({
           id: (Date.now() + 2).toString(),
           type: "assistant",
-          content:
-            "Desculpe, ocorreu um erro de comunicação. Por favor tente novamente.",
+          content: t("ai_chat.comms_error"),
           timestamp: new Date(),
         })
       );
@@ -338,7 +346,7 @@ export function AIChatInterface({
         courseId: data.courseId,
         originalDate: data.originalDate,
         proposedDate: data.proposedDate,
-        reason: data.reason || "Sugerido pela Compensa IA",
+        reason: data.reason || t("ai_chat.suggested_by_ai"),
         classroom: "Sala Gerada (AI)",
         status: "Pending",
         type: "Anticipation",
@@ -368,18 +376,18 @@ export function AIChatInterface({
             className="w-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-2 mb-4 shrink-0 shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            Nova Conversa
+            {t("ai_chat.new_chat")}
           </Button>
 
           <div className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2 px-1">
-            Conversas Recentes
+            {t("ai_chat.recent_convs")}
           </div>
 
           <ScrollArea className="flex-1 pr-1">
             <div className="space-y-1">
               {conversations.length === 0 ? (
                 <div className="text-xs text-slate-400 italic px-2 py-4 text-center">
-                  Nenhuma conversa recente
+                  {t("ai_chat.no_recent")}
                 </div>
               ) : (
                 conversations.map((conv) => {
@@ -402,7 +410,7 @@ export function AIChatInterface({
                       <button
                         onClick={(e) => handleDeleteConversation(conv.id, e)}
                         className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700"
-                        title="Eliminar conversa"
+                        title={t("ai_chat.delete_conv_title")}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -420,118 +428,120 @@ export function AIChatInterface({
         {/* Chat Messages */}
         <ScrollArea className="flex-1 min-h-0 w-full">
           <div className="space-y-6 px-4 py-6">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {message.type !== "user" && (
-                  <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
-                      IA
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-
+            {messages.map((message) => {
+              const displayContent = message.id === "1" ? t("ai_chat.welcome") : message.content;
+              return (
                 <div
-                  className={`flex flex-col gap-2 max-w-[80%] ${message.type === "user" ? "items-end" : "items-start"}`}
+                  key={message.id}
+                  className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div
-                    className={`rounded-2xl px-4 py-3 ${
-                      message.type === "user"
-                        ? "bg-blue-600 text-white"
-                        : message.type === "system"
-                          ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
-                    }`}
-                  >
-                    {message.isProcessing ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">{message.content}</span>
-                      </div>
-                    ) : (
-                      <div className="text-sm markdown-content prose dark:prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-900 prose-pre:p-0 prose-compact">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
-                    )}
+                  {message.type !== "user" && (
+                    <Avatar className="w-8 h-8 flex-shrink-0">
+                      <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
+                        {t("ai_chat.ai_fallback")}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
 
-                    {message.file && (
-                      <div className="mt-2 pt-2 border-t border-white/20">
-                        <div className="flex items-center gap-2 text-xs">
-                          <FileText className="w-4 h-4" />
-                          <span className="font-medium">{message.file.name}</span>
-                          <span className="text-white/70">
-                            ({(message.file.size / 1024).toFixed(1)} KB)
-                          </span>
+                  <div
+                    className={`flex flex-col gap-2 max-w-[80%] ${message.type === "user" ? "items-end" : "items-start"}`}
+                  >
+                    <div
+                      className={`rounded-2xl px-4 py-3 ${
+                        message.type === "user"
+                          ? "bg-blue-600 text-white"
+                          : message.type === "system"
+                            ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      }`}
+                    >
+                      {message.isProcessing ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">{displayContent}</span>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="text-sm markdown-content prose dark:prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-900 prose-pre:p-0 prose-compact">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {displayContent}
+                          </ReactMarkdown>
+                        </div>
+                      )}
+
+                      {message.file && (
+                        <div className="mt-2 pt-2 border-t border-white/20">
+                          <div className="flex items-center gap-2 text-xs">
+                            <FileText className="w-4 h-4" />
+                            <span className="font-medium">{message.file.name}</span>
+                            <span className="text-white/70">
+                              ({(message.file.size / 1024).toFixed(1)} KB)
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {message.action === "CreateCompensationRequest" &&
+                      message.actionData && (
+                        <Card className="w-full mt-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
+                          <CardHeader className="py-3 px-4 border-b border-blue-100 dark:border-blue-900">
+                            <CardTitle className="text-sm font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                              <CalendarCheck className="w-4 h-4" /> {t("ai_chat.draft_title")}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-2">
+                            <div className="text-sm grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300">
+                              <span className="font-medium">
+                                {t("ai_chat.draft_uc")}
+                              </span>
+                              <span>{message.actionData.unitId}</span>
+                              <span className="font-medium">{t("ai_chat.draft_orig_date")}</span>
+                              <span>{message.actionData.originalDate}</span>
+                              <span className="font-medium">{t("ai_chat.draft_prop_date")}</span>
+                              <span>{message.actionData.proposedDate}</span>
+                              <span className="font-medium">{t("ai_chat.draft_reason")}</span>
+                              <span>{message.actionData.reason}</span>
+                            </div>
+                            <div className="pt-3">
+                              <Button
+                                className="w-full"
+                                size="sm"
+                                disabled={createRequestMutation.isPending}
+                                onClick={() =>
+                                  handleAction(
+                                    message.action as string,
+                                    message.actionData,
+                                  )
+                                }
+                              >
+                                {createRequestMutation.isPending ? (
+                                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                ) : null}
+                                {t("ai_chat.draft_submit")}
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                    <span className="text-xs text-slate-400 px-2">
+                      {message.timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
                   </div>
 
-                  {message.action === "CreateCompensationRequest" &&
-                    message.actionData && (
-                      <Card className="w-full mt-2 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
-                        <CardHeader className="py-3 px-4 border-b border-blue-100 dark:border-blue-900">
-                          <CardTitle className="text-sm font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                            <CalendarCheck className="w-4 h-4" /> Rascunho de
-                            Pedido
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 space-y-2">
-                          <div className="text-sm grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-300">
-                            <span className="font-medium">
-                              Unidade Curricular:
-                            </span>
-                            <span>{message.actionData.unitId}</span>
-                            <span className="font-medium">Data Original:</span>
-                            <span>{message.actionData.originalDate}</span>
-                            <span className="font-medium">Data Proposta:</span>
-                            <span>{message.actionData.proposedDate}</span>
-                            <span className="font-medium">Motivo:</span>
-                            <span>{message.actionData.reason}</span>
-                          </div>
-                          <div className="pt-3">
-                            <Button
-                              className="w-full"
-                              size="sm"
-                              disabled={createRequestMutation.isPending}
-                              onClick={() =>
-                                handleAction(
-                                  message.action as string,
-                                  message.actionData,
-                                )
-                              }
-                            >
-                              {createRequestMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                              ) : null}
-                              Submeter Pedido
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                  <span className="text-xs text-slate-400 px-2">
-                    {message.timestamp.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                  {message.type === "user" && (
+                    <Avatar className="w-8 h-8 flex-shrink-0">
+                      <AvatarFallback className="bg-blue-600 text-white text-xs">
+                        {t("ai_chat.user_fallback")}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
                 </div>
-
-                {message.type === "user" && (
-                  <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarFallback className="bg-blue-600 text-white text-xs">
-                      EU
-                    </AvatarFallback>
-                  </Avatar>
-                )}
-              </div>
-            ))}
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
@@ -577,7 +587,7 @@ export function AIChatInterface({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Digite a sua mensagem ou faça o upload de um documento..."
+                placeholder={t("ai_chat.input_placeholder")}
                 className="min-h-[60px] max-h-[120px] resize-none pr-12"
                 disabled={isProcessing}
               />
@@ -601,19 +611,19 @@ export function AIChatInterface({
             <div className="mt-2 flex flex-wrap gap-2">
               <button
                 onClick={() =>
-                  setInput("Agendar compensação para a próxima terça")
+                  setInput(t("ai_chat.suggest_schedule_input"))
                 }
                 className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
-                Agendar compensação
+                {t("ai_chat.suggest_schedule")}
               </button>
               <button
                 onClick={() =>
-                  setInput("Quais são as regras para submeter pedidos?")
+                  setInput(t("ai_chat.suggest_rules_input"))
                 }
                 className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
-                Regras do sistema
+                {t("ai_chat.suggest_rules")}
               </button>
             </div>
           )}

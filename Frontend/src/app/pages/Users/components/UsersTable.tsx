@@ -31,6 +31,7 @@ import {
 import { cn } from "../../../components/ui/utils";
 import type { PlatformUser } from "../../../services/users/userTypes";
 import { getUserInitials, UserRoleBadges } from "../userPresentation";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface UsersTableLabels {
   actions: string;
@@ -62,42 +63,45 @@ export const UsersTable = ({
   onPageChange,
   totalPages,
   users,
-}: UsersTableProps) => (
-  <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900 dark:border dark:border-slate-800">
-    <Table>
-      <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
-        <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
-          <TableHead className="pl-6 text-slate-500 dark:text-slate-400">
-            {labels.name}
-          </TableHead>
-          <TableHead className="text-slate-500 dark:text-slate-400">
-            {labels.email}
-          </TableHead>
-          <TableHead className="text-slate-500 dark:text-slate-400">
-            {labels.role}
-          </TableHead>
-          <TableHead className="text-slate-500 dark:text-slate-400">
-            Units
-          </TableHead>
-          <TableHead className="text-right pr-6 text-slate-500 dark:text-slate-400">
-            {labels.actions}
-          </TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {isLoading ? (
-          <TableRow>
-            <TableCell colSpan={5} className="text-center py-10 text-slate-500">
-              Loading users...
-            </TableCell>
+}: UsersTableProps) => {
+  const { t } = useLanguage();
+
+  return (
+    <Card className="border-none shadow-sm rounded-2xl overflow-hidden bg-white dark:bg-slate-900 dark:border dark:border-slate-800">
+      <Table>
+        <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+          <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+            <TableHead className="pl-6 text-slate-500 dark:text-slate-400">
+              {labels.name}
+            </TableHead>
+            <TableHead className="text-slate-500 dark:text-slate-400">
+              {labels.email}
+            </TableHead>
+            <TableHead className="text-slate-500 dark:text-slate-400">
+              {labels.role}
+            </TableHead>
+            <TableHead className="text-slate-500 dark:text-slate-400">
+              {t("users.table_units")}
+            </TableHead>
+            <TableHead className="text-right pr-6 text-slate-500 dark:text-slate-400">
+              {labels.actions}
+            </TableHead>
           </TableRow>
-        ) : users.length === 0 ? (
-          <TableRow>
-            <TableCell colSpan={5} className="text-center py-10 text-slate-500">
-              No users found.
-            </TableCell>
-          </TableRow>
-        ) : (
+        </TableHeader>
+        <TableBody>
+          {isLoading ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center py-10 text-slate-500">
+                {t("users.table_loading")}
+              </TableCell>
+            </TableRow>
+          ) : users.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={5} className="text-center py-10 text-slate-500">
+                {t("users.table_empty")}
+              </TableCell>
+            </TableRow>
+          ) : (
           users.map((user) => {
             const canAssignUnits =
               user.roles.includes("Teacher") ||
@@ -214,5 +218,6 @@ export const UsersTable = ({
         </Pagination>
       </div>
     )}
-  </Card>
-);
+    </Card>
+  );
+};

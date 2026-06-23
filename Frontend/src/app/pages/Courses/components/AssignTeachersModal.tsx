@@ -24,6 +24,7 @@ import {
   AvatarImage,
 } from "../../../components/ui/avatar";
 import type { PlatformUser } from "../../../services/users/userTypes";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface AssignTeachersModalProps {
   isOpen: boolean;
@@ -54,6 +55,7 @@ export const AssignTeachersModal = ({
   teachers,
 }: AssignTeachersModalProps) => {
   const { control, handleSubmit, reset, watch } = useForm<FormData>();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (isOpen && unit) {
@@ -102,9 +104,9 @@ export const AssignTeachersModal = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <DialogHeader>
-          <DialogTitle>Assign Teachers</DialogTitle>
+          <DialogTitle>{t("assign_teachers.title")}</DialogTitle>
           <DialogDescription>
-            Assign faculty members to <strong>{unit.name}</strong> components.
+            {t("assign_teachers.description").replace("{name}", unit.name)}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,10 +114,10 @@ export const AssignTeachersModal = ({
           {/* Regent Selection */}
           <div className="space-y-3">
             <Label className="text-base font-semibold">
-              Regent (Principal Teacher)
+              {t("assign_teachers.regent")}
             </Label>
             <p className="text-xs text-slate-500">
-              Responsible for the curricular unit coordination.
+              {t("assign_teachers.regent_desc")}
             </p>
             <Controller
               name="regentId"
@@ -124,7 +126,7 @@ export const AssignTeachersModal = ({
               render={({ field }) => (
                 <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select Regent" />
+                    <SelectValue placeholder={t("assign_teachers.placeholder_regent")} />
                   </SelectTrigger>
                   <SelectContent>
                     {teachers.map((teacher) => (
@@ -144,7 +146,7 @@ export const AssignTeachersModal = ({
               <div className="space-y-3 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
                 <Label className="font-semibold flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  Theoretical Component
+                  {t("assign_teachers.theoretical")}
                 </Label>
                 <Controller
                   name="theoreticalTeacherId"
@@ -152,7 +154,7 @@ export const AssignTeachersModal = ({
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="w-full bg-white dark:bg-slate-950">
-                        <SelectValue placeholder="Select Teacher" />
+                        <SelectValue placeholder={t("assign_teachers.placeholder_teacher")} />
                       </SelectTrigger>
                       <SelectContent>
                         {teachers.map((teacher) => (
@@ -172,7 +174,7 @@ export const AssignTeachersModal = ({
               <div className="space-y-3 p-4 border border-slate-100 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-900/50">
                 <Label className="font-semibold flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Practical Component
+                  {t("assign_teachers.practical")}
                 </Label>
                 <Controller
                   name="practicalTeacherId"
@@ -180,7 +182,7 @@ export const AssignTeachersModal = ({
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value}>
                       <SelectTrigger className="w-full bg-white dark:bg-slate-950">
-                        <SelectValue placeholder="Select Teacher" />
+                        <SelectValue placeholder={t("assign_teachers.placeholder_teacher")} />
                       </SelectTrigger>
                       <SelectContent>
                         {teachers.map((teacher) => (
@@ -198,13 +200,13 @@ export const AssignTeachersModal = ({
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              Save Assignments
+              {t("assign_teachers.btn_save")}
             </Button>
           </DialogFooter>
         </form>

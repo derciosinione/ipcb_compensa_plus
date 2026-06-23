@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { ClassRequest, Comment } from "../../../types/requests";
 import { cn } from "../../ui/utils";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface RequestDetailsProps {
   request: ClassRequest | null;
@@ -40,6 +41,7 @@ export const RequestDetails = ({
   onOpenChange,
   onAddComment,
 }: RequestDetailsProps) => {
+  const { t } = useLanguage();
   const [newComment, setNewComment] = useState("");
 
   if (!request) return null;
@@ -69,7 +71,7 @@ export const RequestDetails = ({
             variant="secondary"
             className="bg-purple-100 text-purple-700 border-purple-200"
           >
-            Theoretical
+            {t("component.theoretical")}
           </Badge>
         );
       case "practical":
@@ -78,13 +80,13 @@ export const RequestDetails = ({
             variant="secondary"
             className="bg-blue-100 text-blue-700 border-blue-200"
           >
-            Practical
+            {t("component.practical")}
           </Badge>
         );
       default:
         return (
           <Badge variant="outline" className="text-slate-500">
-            Standard
+            {t("component.standard")}
           </Badge>
         );
     }
@@ -103,7 +105,7 @@ export const RequestDetails = ({
               )}
             />
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              {request.status}
+              {t(`requests.${request.status.toLowerCase()}`)}
             </span>
             <span className="text-slate-300">•</span>
             <span className="text-xs text-slate-400">
@@ -132,7 +134,7 @@ export const RequestDetails = ({
               {/* Groups */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-3 h-3" /> Targeted Groups
+                  <Users className="w-3 h-3" /> {t("details.targeted_groups")}
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
                   {request.yearGroups.map((group, idx) => (
@@ -156,7 +158,7 @@ export const RequestDetails = ({
                 {/* Original */}
                 <div className="space-y-3">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    Original
+                    {t("form.original")}
                   </span>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-slate-600">
@@ -177,7 +179,7 @@ export const RequestDetails = ({
                 {/* New */}
                 <div className="space-y-3">
                   <span className="text-xs font-bold text-blue-500 uppercase tracking-wider">
-                    Proposed
+                    {t("requests.proposed")}
                   </span>
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2 text-slate-900 font-medium">
@@ -201,7 +203,7 @@ export const RequestDetails = ({
               {/* Reason */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <BookOpen className="w-3 h-3" /> Justification
+                  <BookOpen className="w-3 h-3" /> {t("details.justification")}
                 </h4>
                 <p className="text-sm text-slate-700 leading-relaxed italic bg-slate-50 p-3 rounded-lg border border-slate-100">
                   "{request.reason}"
@@ -212,13 +214,13 @@ export const RequestDetails = ({
             {/* Comments Section */}
             <div className="space-y-4">
               <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" /> Activity & Comments
+                <MessageSquare className="w-4 h-4" /> {t("requests.activity_comments")}
               </h3>
 
               <div className="space-y-4">
                 {request.comments.length === 0 ? (
                   <div className="text-center py-8 text-slate-400 text-sm bg-slate-100/50 rounded-xl border border-dashed border-slate-200">
-                    No comments yet. Start a conversation.
+                    {t("requests.no_comments")}
                   </div>
                 ) : (
                   request.comments.map((comment) => (
@@ -272,7 +274,7 @@ export const RequestDetails = ({
         <div className="p-4 bg-white border-t border-slate-200 sticky bottom-0 z-10">
           <div className="flex gap-2">
             <Input
-              placeholder="Type a comment..."
+              placeholder={t("requests.type_comment")}
               className="flex-1 bg-slate-50 border-slate-200 focus:bg-white transition-colors"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}

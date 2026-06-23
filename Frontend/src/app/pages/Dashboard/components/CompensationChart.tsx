@@ -150,7 +150,7 @@ export const CompensationChart = ({
             <SelectValue placeholder={t("chart.select_year")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="rolling-6">Last 6 months</SelectItem>
+            <SelectItem value="rolling-6">{t("chart.last_6_months")}</SelectItem>
           </SelectContent>
         </Select>
       </CardHeader>
@@ -166,7 +166,7 @@ export const CompensationChart = ({
             </div>
           ) : chartData.length === 0 ? (
             <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
-              No request data yet.
+              {t("chart.no_data")}
             </div>
           ) : (
             <BarChart

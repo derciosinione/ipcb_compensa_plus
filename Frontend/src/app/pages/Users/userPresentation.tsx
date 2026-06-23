@@ -2,6 +2,7 @@ import { GraduationCap, ShieldCheck, UserRound } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
 import { cn } from "../../components/ui/utils";
 import type { PlatformUser, UserRole } from "../../services/users/userTypes";
+import { useLanguage } from "../../providers/LanguageContext";
 
 const roleStyles: Record<string, string> = {
   Teacher:
@@ -46,24 +47,28 @@ interface UserRoleBadgesProps {
   roles: UserRole[];
 }
 
-export const UserRoleBadges = ({ roles }: UserRoleBadgesProps) => (
-  <div className="flex flex-wrap gap-1.5">
-    {roles.map((role) => {
-      const RoleIcon = roleIcons[role] ?? UserRound;
+export const UserRoleBadges = ({ roles }: UserRoleBadgesProps) => {
+  const { t } = useLanguage();
 
-      return (
-        <Badge
-          key={role}
-          variant="secondary"
-          className={cn(
-            "flex w-fit items-center gap-1 border",
-            roleStyles[role] ?? roleStyles.Student,
-          )}
-        >
-          <RoleIcon className="w-3 h-3" />
-          {role}
-        </Badge>
-      );
-    })}
-  </div>
-);
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {roles.map((role) => {
+        const RoleIcon = roleIcons[role] ?? UserRound;
+
+        return (
+          <Badge
+            key={role}
+            variant="secondary"
+            className={cn(
+              "flex w-fit items-center gap-1 border",
+              roleStyles[role] ?? roleStyles.Student,
+            )}
+          >
+            <RoleIcon className="w-3 h-3" />
+            {t(`role.${role.toLowerCase()}`)}
+          </Badge>
+        );
+      })}
+    </div>
+  );
+};

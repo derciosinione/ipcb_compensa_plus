@@ -35,8 +35,10 @@ import {
   parseCSV,
   parseICS,
 } from "../../services/holidays/holidayService";
+import { useLanguage } from "../../providers/LanguageContext";
 
 export const SystemCalendarPage = () => {
+  const { t, language } = useLanguage();
   const [holidays, setHolidays] = useState<CalendarHoliday[]>([]);
   
   // Modal states
@@ -73,9 +75,10 @@ export const SystemCalendarPage = () => {
       if (isNaN(date.getTime())) {
         return { month: "???", day: "??" };
       }
+      const locale = language === "pt" ? "pt-PT" : "en-US";
       return {
-        month: date.toLocaleDateString("en-US", { month: "short" }),
-        day: date.toLocaleDateString("en-US", { day: "numeric" }),
+        month: date.toLocaleDateString(locale, { month: "short" }),
+        day: date.toLocaleDateString(locale, { day: "numeric" }),
         year: date.getFullYear()
       };
     } catch {
@@ -95,21 +98,28 @@ export const SystemCalendarPage = () => {
     }
   };
 
+  const getHolidayTypeLabel = (type: string) => {
+    if (type === "Public Holiday") return t("holidays.type_public") || "Public Holiday";
+    if (type === "Institutional") return t("holidays.type_institutional") || "Institutional";
+    if (type === "Break") return t("holidays.type_break") || "Academic Break";
+    return type;
+  };
+
   // Manual addition
   const handleAddHoliday = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newHolidayName.trim()) {
-      toast.error("Please enter a holiday name.");
+      toast.error(t("holidays.toast_name_required") || "Please enter a holiday name.");
       return;
     }
     if (!newHolidayDate) {
-      toast.error("Please select a holiday date.");
+      toast.error(t("holidays.toast_date_required") || "Please select a holiday date.");
       return;
     }
 
     // Check duplicate
     if (holidays.some((h) => h.date === newHolidayDate)) {
-      toast.error(`A holiday on ${newHolidayDate} already exists.`);
+      toast.error(t("holidays.toast_duplicate").replace("{date}", newHolidayDate));
       return;
     }
 
@@ -124,7 +134,7 @@ export const SystemCalendarPage = () => {
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     handleSaveHolidays(updated);
-    toast.success(`Holiday "${newHoliday.name}" added successfully.`);
+    toast.success(t("holidays.toast_add_success").replace("{name}", newHoliday.name));
     
     // Reset form & close
     setNewHolidayName("");
@@ -137,14 +147,14 @@ export const SystemCalendarPage = () => {
   const handleDeleteHoliday = (id: string, name: string) => {
     const updated = holidays.filter((h) => h.id !== id);
     handleSaveHolidays(updated);
-    toast.success(`Removed holiday "${name}".`);
+    toast.success(t("holidays.toast_delete_success").replace("{name}", name));
   };
 
   // File parsing logic
   const handleFile = (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext !== "csv" && ext !== "ics") {
-      setImportError("Invalid file type. Please upload a .CSV or .ICS calendar file.");
+      setImportError(t("holidays.toast_invalid_file") || "Invalid file type. Please upload a .CSV or .ICS calendar file.");
       setImportedFile(null);
       setParsedHolidays([]);
       return;
@@ -166,12 +176,12 @@ export const SystemCalendarPage = () => {
         }
 
         if (parsedList.length === 0) {
-          setImportError("No valid holiday dates could be parsed from this file. Check file formatting.");
+          setImportError(t("holidays.toast_no_valid_dates") || "No valid holiday dates could be parsed from this file. Check file formatting.");
         } else {
           setParsedHolidays(parsedList);
         }
       } catch (err) {
-        setImportError("An error occurred while parsing the file structure.");
+        setImportError(t("holidays.toast_parse_error") || "An error occurred while parsing the file structure.");
       }
     };
     reader.readAsText(file);
@@ -220,9 +230,9 @@ export const SystemCalendarPage = () => {
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
       handleSaveHolidays(sorted);
-      toast.success(`Successfully imported ${addedCount} new holiday(s).`);
+      toast.success(t("holidays.toast_import_success").replace("{count}", String(addedCount)));
     } else {
-      toast.info("No new holidays were imported (all parsed items already exist).");
+      toast.info(t("holidays.toast_no_new") || "No new holidays were imported (all parsed items already exist).");
     }
 
     // Reset and Close
@@ -237,10 +247,10 @@ export const SystemCalendarPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Academic Calendar
+            {t("holidays.title") || "Academic Calendar"}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Configure institutional holidays and breaks.
+            {t("holidays.subtitle") || "Configure institutional holidays and breaks."}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -248,7 +258,7 @@ export const SystemCalendarPage = () => {
             onClick={() => setIsAddOpen(true)}
             className="bg-slate-900 hover:bg-slate-800 text-white font-medium gap-1.5 shadow-sm dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 transition-all"
           >
-            <Plus className="w-4 h-4" /> Add Holiday
+            <Plus className="w-4 h-4" /> {t("holidays.add_holiday") || "Add Holiday"}
           </Button>
         </div>
       </div>
@@ -257,18 +267,17 @@ export const SystemCalendarPage = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-2xl shadow-lg text-white gap-6">
         <div>
           <h4 className="text-lg font-bold mb-1">
-            Import Institutional Calendar
+            {t("holidays.import_banner_title") || "Import Institutional Calendar"}
           </h4>
           <p className="text-blue-100 text-sm max-w-lg">
-            Bulk import holidays and blocked dates from your university's
-            academic calendar file (.ICS or .CSV).
+            {t("holidays.import_banner_desc") || "Bulk import holidays and blocked dates from your university's academic calendar file (.ICS or .CSV)."}
           </p>
         </div>
         <Button
           onClick={() => setIsImportOpen(true)}
           className="bg-white text-blue-700 hover:bg-blue-50 border-none shadow-md font-semibold shrink-0 transition-all hover:scale-[1.02]"
         >
-          <Upload className="w-4 h-4 mr-2" /> Import File
+          <Upload className="w-4 h-4 mr-2" /> {t("holidays.import_btn") || "Import File"}
         </Button>
       </div>
 
@@ -276,18 +285,18 @@ export const SystemCalendarPage = () => {
       <Card className="border-none shadow-sm rounded-2xl bg-white dark:bg-slate-900 dark:border dark:border-slate-800">
         <CardHeader className="border-b border-slate-100 dark:border-slate-800">
           <CardTitle className="text-lg text-slate-900 dark:text-slate-100">
-            Upcoming Holidays
+            {t("holidays.upcoming") || "Upcoming Holidays"}
           </CardTitle>
           <CardDescription className="text-slate-500 dark:text-slate-400">
-            Dates automatically blocked for compensation.
+            {t("holidays.upcoming_desc") || "Dates automatically blocked for compensation."}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6">
           {holidays.length === 0 ? (
             <div className="text-center py-12">
               <CalendarIcon className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-500 dark:text-slate-400 font-semibold">No holidays configured</p>
-              <p className="text-xs text-slate-400 mt-1">Add holidays manually or upload a university calendar file.</p>
+              <p className="text-slate-500 dark:text-slate-400 font-semibold">{t("holidays.no_holidays") || "No holidays configured"}</p>
+              <p className="text-xs text-slate-400 mt-1">{t("holidays.no_holidays_desc") || "Add holidays manually or upload a university calendar file."}</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -316,7 +325,7 @@ export const SystemCalendarPage = () => {
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className={cn("text-[9px] font-semibold px-2 py-0.5", getBadgeColor(h.type))}>
-                            {h.type}
+                            {getHolidayTypeLabel(h.type)}
                           </Badge>
                           <span className="text-[10px] text-slate-400 font-medium">
                             {h.date}
@@ -346,53 +355,53 @@ export const SystemCalendarPage = () => {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <CalendarIcon className="w-5 h-5 text-indigo-500" />
-              Add Custom Holiday
+              {t("holidays.dialog_add_title") || "Add Custom Holiday"}
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
-              Input institutional or public holidays to automatically block out calendar bookings.
+              {t("holidays.dialog_add_desc") || "Input institutional or public holidays to automatically block out calendar bookings."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddHoliday} className="space-y-4 py-2">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 text-left">
               <Label htmlFor="holiday-name" className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
-                Holiday Name
+                {t("holidays.form_name") || "Holiday Name"}
               </Label>
               <Input
                 id="holiday-name"
                 value={newHolidayName}
                 onChange={(e) => setNewHolidayName(e.target.value)}
-                placeholder="e.g. Christmas Day, National Day"
-                className="bg-slate-50 border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-lg text-sm"
+                placeholder={t("holidays.form_name_placeholder") || "e.g. Christmas Day, National Day"}
+                className="bg-slate-50 border-slate-200 dark:bg-slate-955 dark:border-slate-800 rounded-lg text-sm"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 text-left">
                 <Label htmlFor="holiday-date" className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
-                  Date
+                  {t("holidays.form_date") || "Date"}
                 </Label>
                 <Input
                   id="holiday-date"
                   type="date"
                   value={newHolidayDate}
                   onChange={(e) => setNewHolidayDate(e.target.value)}
-                  className="bg-slate-50 border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-lg text-sm"
+                  className="bg-slate-50 border-slate-200 dark:bg-slate-955 dark:border-slate-800 rounded-lg text-sm"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 text-left">
                 <Label htmlFor="holiday-type" className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
-                  Type
+                  {t("holidays.form_type") || "Type"}
                 </Label>
                 <Select
                   value={newHolidayType}
                   onValueChange={(val: any) => setNewHolidayType(val)}
                 >
-                  <SelectTrigger className="bg-slate-50 border-slate-200 dark:bg-slate-950 dark:border-slate-800 rounded-lg text-sm">
+                  <SelectTrigger className="bg-slate-50 border-slate-200 dark:bg-slate-955 dark:border-slate-800 rounded-lg text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                    <SelectItem value="Public Holiday">Public Holiday</SelectItem>
-                    <SelectItem value="Institutional">Institutional</SelectItem>
-                    <SelectItem value="Break">Academic Break</SelectItem>
+                    <SelectItem value="Public Holiday">{t("holidays.type_public") || "Public Holiday"}</SelectItem>
+                    <SelectItem value="Institutional">{t("holidays.type_institutional") || "Institutional"}</SelectItem>
+                    <SelectItem value="Break">{t("holidays.type_break") || "Academic Break"}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -404,13 +413,13 @@ export const SystemCalendarPage = () => {
                 onClick={() => setIsAddOpen(false)}
                 className="border-slate-200 dark:border-slate-800 font-medium rounded-lg text-sm"
               >
-                Cancel
+                {t("holidays.form_cancel") || "Cancel"}
               </Button>
               <Button
                 type="submit"
                 className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm"
               >
-                Add Holiday
+                {t("holidays.add_holiday") || "Add Holiday"}
               </Button>
             </DialogFooter>
           </form>
@@ -423,10 +432,10 @@ export const SystemCalendarPage = () => {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Upload className="w-5 h-5 text-blue-500" />
-              Import Academic Calendar
+              {t("holidays.dialog_import_title") || "Import Academic Calendar"}
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
-              Upload a `.ICS` (iCalendar) or `.CSV` file to bulk import institutional holidays.
+              {t("holidays.dialog_import_desc") || "Upload a `.ICS` (iCalendar) or `.CSV` file to bulk import institutional holidays."}
             </DialogDescription>
           </DialogHeader>
 
@@ -439,8 +448,8 @@ export const SystemCalendarPage = () => {
             className={cn(
               "border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3",
               isDragging
-                ? "border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/20"
-                : "border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-950/30"
+                ? "border-indigo-500 bg-indigo-50/10 dark:bg-indigo-955/20"
+                : "border-slate-200 hover:border-slate-300 dark:border-slate-800 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-955/30"
             )}
           >
             <input
@@ -457,19 +466,19 @@ export const SystemCalendarPage = () => {
             )}
             <div>
               <p className="font-semibold text-sm text-slate-700 dark:text-slate-300">
-                {importedFile ? importedFile.name : "Drag & Drop calendar file here"}
+                {importedFile ? importedFile.name : (t("holidays.drag_drop") || "Drag & Drop calendar file here")}
               </p>
               <p className="text-xs text-slate-400 mt-1">
                 {importedFile
                   ? `${(importedFile.size / 1024).toFixed(1)} KB`
-                  : "or click to browse from finder (.CSV or .ICS)"}
+                  : (t("holidays.browse") || "or click to browse from finder (.CSV or .ICS)")}
               </p>
             </div>
           </div>
 
           {/* Error Message */}
           {importError && (
-            <div className="flex items-center gap-2.5 p-3.5 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30 text-red-700 dark:text-red-400 rounded-xl text-xs">
+            <div className="flex items-center gap-2.5 p-3.5 bg-red-50 dark:bg-red-955/20 border border-red-100 dark:border-red-900/30 text-red-700 dark:text-red-400 rounded-xl text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{importError}</span>
             </div>
@@ -481,7 +490,7 @@ export const SystemCalendarPage = () => {
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                   <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
-                  Parsed {parsedHolidays.length} Holidays
+                  {t("holidays.parsed_count").replace("{count}", String(parsedHolidays.length))}
                 </span>
                 <Button
                   variant="ghost"
@@ -491,12 +500,12 @@ export const SystemCalendarPage = () => {
                     setParsedHolidays([]);
                     setImportError(null);
                   }}
-                  className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 h-7"
+                  className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-955/40 h-7"
                 >
-                  Clear File
+                  {t("holidays.clear_file") || "Clear File"}
                 </Button>
               </div>
-              <div className="max-h-[180px] overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl p-3 space-y-2 bg-slate-50/30 dark:bg-slate-950/20">
+              <div className="max-h-[180px] overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl p-3 space-y-2 bg-slate-50/30 dark:bg-slate-955/20">
                 {parsedHolidays.map((h, i) => (
                   <div
                     key={i}
@@ -507,7 +516,7 @@ export const SystemCalendarPage = () => {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Badge variant="outline" className={cn("text-[9px] scale-90", getBadgeColor(h.type))}>
-                        {h.type}
+                        {getHolidayTypeLabel(h.type)}
                       </Badge>
                       <span className="text-slate-400 font-medium">{h.date}</span>
                     </div>
@@ -528,14 +537,14 @@ export const SystemCalendarPage = () => {
               }}
               className="border-slate-200 dark:border-slate-800 font-medium rounded-lg text-sm"
             >
-              Cancel
+              {t("holidays.form_cancel") || "Cancel"}
             </Button>
             <Button
               disabled={parsedHolidays.length === 0}
               onClick={handleConfirmImport}
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm shadow-md shadow-blue-500/10"
             >
-              Import Calendars
+              {t("holidays.import_btn") || "Import File"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -93,12 +93,13 @@ const EventCard = ({
 };
 
 const SeeMoreCard = ({ count, onClick }: { count: number; onClick: () => void }) => {
+  const { t } = useLanguage();
   return (
     <button
       onClick={onClick}
       className="w-full p-2.5 rounded-xl border border-dashed border-blue-200 dark:border-blue-800/80 bg-blue-50/20 hover:bg-blue-50/50 dark:bg-blue-950/5 dark:hover:bg-blue-950/15 text-blue-600 dark:text-blue-400 text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01] hover:shadow-xs"
     >
-      <span>+ {count} more classes</span>
+      <span>{t("dashboard.more_classes").replace("{count}", String(count))}</span>
       <ArrowRight className="w-3.5 h-3.5 animate-pulse" />
     </button>
   );
@@ -176,10 +177,10 @@ const WeeklyCalendar = ({
           {uniqueCourses.length > 0 && (
             <Select value={filterCourse} onValueChange={setFilterCourse}>
               <SelectTrigger className="h-8.5 w-[140px] text-xs bg-slate-50 dark:bg-slate-800 border-none shadow-none font-medium">
-                <SelectValue placeholder="All Courses" />
+                <SelectValue placeholder={t("dashboard.all_courses")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Courses</SelectItem>
+                <SelectItem value="all">{t("dashboard.all_courses")}</SelectItem>
                 {uniqueCourses.map((course) => (
                   <SelectItem key={course} value={course}>
                     {course}
@@ -192,10 +193,10 @@ const WeeklyCalendar = ({
           {uniqueClassGroups.length > 0 && (
             <Select value={filterClassGroup} onValueChange={setFilterClassGroup}>
               <SelectTrigger className="h-8.5 w-[140px] text-xs bg-slate-50 dark:bg-slate-800 border-none shadow-none font-medium">
-                <SelectValue placeholder="All Classes" />
+                <SelectValue placeholder={t("dashboard.all_classes")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
+                <SelectItem value="all">{t("dashboard.all_classes")}</SelectItem>
                 {uniqueClassGroups.map((group) => (
                   <SelectItem key={group} value={group}>
                     {group}
@@ -208,10 +209,10 @@ const WeeklyCalendar = ({
           {uniqueRooms.length > 0 && (
             <Select value={filterRoom} onValueChange={setFilterRoom}>
               <SelectTrigger className="h-8.5 w-[110px] text-xs bg-slate-50 dark:bg-slate-800 border-none shadow-none font-medium">
-                <SelectValue placeholder="All Rooms" />
+                <SelectValue placeholder={t("dashboard.all_rooms")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Rooms</SelectItem>
+                <SelectItem value="all">{t("dashboard.all_rooms")}</SelectItem>
                 {uniqueRooms.map((room) => (
                   <SelectItem key={room} value={room}>
                     {room}
@@ -232,7 +233,7 @@ const WeeklyCalendar = ({
               }}
               className="h-8.5 text-xs text-blue-600 hover:text-blue-700 font-medium px-2"
             >
-              Reset
+              {t("dashboard.reset")}
             </Button>
           )}
 
@@ -242,7 +243,7 @@ const WeeklyCalendar = ({
             onClick={() => navigate("/calendar")}
             className="h-8.5 text-xs font-semibold gap-1.5 border-slate-200 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
           >
-            <span>Full Calendar</span>
+            <span>{t("dashboard.full_calendar")}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -261,7 +262,7 @@ const WeeklyCalendar = ({
           >
             <div className="flex items-center lg:block lg:text-center mb-2 gap-3 lg:gap-0">
               <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0 lg:mb-1 w-8 lg:w-auto">
-                {day.name}
+                {t(`day.${day.name}`)}
               </span>
               <span
                 className={cn(
@@ -331,11 +332,11 @@ const QuickActions = () => {
       <CardContent className="space-y-4 relative z-10">
         {isLoading ? (
           <div className="text-center text-sm text-slate-400 py-4">
-            Loading...
+            {t("dashboard.loading")}
           </div>
         ) : notifications.length === 0 ? (
           <div className="text-center text-sm text-slate-400 py-4">
-            No recent notifications.
+            {t("dashboard.no_notifications")}
           </div>
         ) : (
           notifications.map((notification) => (
@@ -346,7 +347,7 @@ const QuickActions = () => {
             >
               <div className="flex justify-between items-start mb-2">
                 <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  {notification.isRead ? "Read" : "New"}
+                  {notification.isRead ? t("dashboard.notif_read") : t("dashboard.notif_new")}
                 </span>
                 <span className="text-[10px] text-slate-400">
                   {new Date(notification.createdAt).toLocaleDateString()}

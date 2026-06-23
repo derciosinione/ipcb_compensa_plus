@@ -18,6 +18,7 @@ import {
 } from "../../services/auth/authSession";
 import { appPaths } from "../../routes/paths";
 import type { AuthenticatedUser } from "../../types/user";
+import { useLanguage } from "../../providers/LanguageContext";
 
 interface VerifyMagicLinkPageProps {
   onAuthenticated: (user: AuthenticatedUser) => void;
@@ -26,6 +27,7 @@ interface VerifyMagicLinkPageProps {
 export const VerifyMagicLinkPage = ({
   onAuthenticated,
 }: VerifyMagicLinkPageProps) => {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "error">("loading");
@@ -47,7 +49,7 @@ export const VerifyMagicLinkPage = ({
         const session = mapVerifyResponseToSession(response);
         saveAuthSession(session);
         onAuthenticated(mapSessionToUser(session));
-        toast.success("Login completed.");
+        toast.success(t("auth.verify_login_completed"));
         navigate(appPaths.dashboard, { replace: true });
       })
       .catch(() => {
@@ -58,7 +60,7 @@ export const VerifyMagicLinkPage = ({
     return () => {
       isMounted = false;
     };
-  }, [navigate, onAuthenticated, searchParams]);
+  }, [navigate, onAuthenticated, searchParams, t]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
@@ -70,26 +72,26 @@ export const VerifyMagicLinkPage = ({
             ) : (
               <TriangleAlert className="h-5 w-5 text-red-600" />
             )}
-            Verify magic link
+            {t("auth.verify_title")}
           </CardTitle>
           <CardDescription>
             {status === "loading"
-              ? "We are validating your access link."
-              : "This link is invalid, expired, or already used."}
+              ? t("auth.verify_desc_loading")
+              : t("auth.verify_desc_error")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {status === "loading" ? (
             <div className="flex items-center gap-3 text-sm text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Signing you in...
+              {t("auth.verify_status_loading")}
             </div>
           ) : (
             <Button
               asChild
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
             >
-              <Link to={appPaths.login}>Request a new magic link</Link>
+              <Link to={appPaths.login}>{t("auth.verify_request_new")}</Link>
             </Button>
           )}
         </CardContent>

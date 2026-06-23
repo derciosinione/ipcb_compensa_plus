@@ -405,7 +405,7 @@ export const Layout = ({
                     {user.name}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                    {user.role}
+                    {t(`role.${user.role}`)}
                   </p>
                 </div>
                 <DropdownUser
@@ -431,38 +431,38 @@ export const Layout = ({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <LifeBuoy className="w-5 h-5 text-blue-600" />
-              Help & Support
+              {t("layout_help.title")}
             </DialogTitle>
             <DialogDescription className="pt-2">
-              Need assistance with the Compensa+ platform?
+              {t("layout_help.desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg text-sm">
               <h4 className="font-medium mb-1 dark:text-slate-200">
-                Documentation
+                {t("layout_help.doc_title")}
               </h4>
               <p className="text-slate-500 dark:text-slate-400 mb-2">
-                Read our guides on how to manage class compensations.
+                {t("layout_help.doc_desc")}
               </p>
               <Button variant="outline" size="sm" className="w-full h-8">
-                View Documentation
+                {t("layout_help.doc_btn")}
               </Button>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg text-sm">
-              <h4 className="font-medium mb-1 dark:text-slate-200">
-                Contact Support
+              <h4 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+                {t("layout_help.contact_title")}
               </h4>
               <p className="text-slate-500 dark:text-slate-400 mb-2">
-                Report a technical issue or request assistance.
+                {t("layout_help.contact_desc")}
               </p>
               <Button variant="outline" size="sm" className="w-full h-8">
-                Contact IT Department
+                {t("layout_help.contact_btn")}
               </Button>
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => setShowHelp(false)}>Close</Button>
+            <Button onClick={() => setShowHelp(false)}>{t("layout_help.close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -494,7 +494,7 @@ export const Layout = ({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button onClick={() => setSelectedNotification(null)}>Close</Button>
+            <Button onClick={() => setSelectedNotification(null)}>{t("common.close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

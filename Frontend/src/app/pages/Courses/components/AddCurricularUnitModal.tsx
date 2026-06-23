@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import { CurricularUnit } from "../../../types/academic";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface AddCurricularUnitModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export const AddCurricularUnitModal = ({
   initialData,
 }: AddCurricularUnitModalProps) => {
   const { register, handleSubmit, reset, setValue } = useForm<FormData>();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (isOpen) {
@@ -87,12 +89,12 @@ export const AddCurricularUnitModal = ({
       <DialogContent className="sm:max-w-[440px] rounded-xl sm:rounded-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl">
         <DialogHeader className="pb-4 border-b border-slate-100 dark:border-slate-800">
           <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-            {initialData ? "Editar Unidade Curricular" : "Adicionar Unidade Curricular"}
+            {initialData ? t("uc_modal.title_edit") : t("uc_modal.title_add")}
           </DialogTitle>
           <DialogDescription className="text-slate-500 dark:text-slate-400">
             {initialData
-              ? "Edite os detalhes da unidade curricular."
-              : `Adicione uma nova unidade curricular ao Ano ${year}.`}
+              ? t("uc_modal.desc_edit")
+              : t("uc_modal.desc_add").replace("{year}", year.toString())}
           </DialogDescription>
         </DialogHeader>
 
@@ -103,16 +105,16 @@ export const AddCurricularUnitModal = ({
               htmlFor="abbreviation"
               className="text-slate-700 dark:text-slate-300 font-semibold"
             >
-              Sigla (Abreviação)
+              {t("uc_modal.abbr_label")}
             </Label>
             <Input
               id="abbreviation"
-              placeholder="ex: LEET-MI"
+              placeholder={t("uc_modal.abbr_placeholder")}
               {...register("abbreviation")}
               className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus:ring-blue-500 focus:border-blue-500 rounded-lg font-mono uppercase"
             />
             <p className="text-[11px] text-slate-400">
-              Sigla identificadora, ex: LEET-CD, IPCB-SE
+              {t("uc_modal.abbr_desc")}
             </p>
           </div>
 
@@ -122,11 +124,11 @@ export const AddCurricularUnitModal = ({
               htmlFor="name"
               className="text-slate-700 dark:text-slate-300 font-semibold"
             >
-              Nome Completo da UC
+              {t("uc_modal.name_label")}
             </Label>
             <Input
               id="name"
-              placeholder="ex: Microcontroladores e Instrumentação"
+              placeholder={t("uc_modal.name_placeholder")}
               {...register("name", { required: true })}
               className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus:ring-blue-500 focus:border-blue-500 rounded-lg"
             />
@@ -138,7 +140,7 @@ export const AddCurricularUnitModal = ({
                 htmlFor="semester"
                 className="text-slate-700 dark:text-slate-300 font-semibold"
               >
-                Semestre
+                {t("uc_modal.semester_label")}
               </Label>
               <Select
                 onValueChange={(val) => setValue("semester", val)}
@@ -147,11 +149,11 @@ export const AddCurricularUnitModal = ({
                 }
               >
                 <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
-                  <SelectValue placeholder="Selecione o semestre" />
+                  <SelectValue placeholder={t("uc_modal.semester_placeholder")} />
                 </SelectTrigger>
                 <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
-                  <SelectItem value="1">Semestre 1</SelectItem>
-                  <SelectItem value="2">Semestre 2</SelectItem>
+                  <SelectItem value="1">{t("courses.semester_label").replace("{semester}", "1")}</SelectItem>
+                  <SelectItem value="2">{t("courses.semester_label").replace("{semester}", "2")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -161,7 +163,7 @@ export const AddCurricularUnitModal = ({
                 htmlFor="ects"
                 className="text-slate-700 dark:text-slate-300 font-semibold"
               >
-                Créditos ECTS
+                {t("uc_modal.ects_label")}
               </Label>
               <Input
                 id="ects"
@@ -178,7 +180,7 @@ export const AddCurricularUnitModal = ({
               htmlFor="component"
               className="text-slate-700 dark:text-slate-300 font-semibold"
             >
-              Tipo de Componente
+              {t("uc_modal.component_label")}
             </Label>
             <Select
               onValueChange={(val) =>
@@ -190,12 +192,12 @@ export const AddCurricularUnitModal = ({
               defaultValue={initialData ? initialData.component : "All"}
             >
               <SelectTrigger className="bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-lg">
-                <SelectValue placeholder="Selecione o tipo" />
+                <SelectValue placeholder={t("uc_modal.component_placeholder")} />
               </SelectTrigger>
               <SelectContent className="dark:bg-slate-900 dark:border-slate-800 rounded-xl">
-                <SelectItem value="All">Todos (Teórica + Prática)</SelectItem>
-                <SelectItem value="Theoretical">Apenas Teórica</SelectItem>
-                <SelectItem value="Practical">Apenas Prática</SelectItem>
+                <SelectItem value="All">{t("uc_modal.component_all")}</SelectItem>
+                <SelectItem value="Theoretical">{t("uc_modal.component_theory")}</SelectItem>
+                <SelectItem value="Practical">{t("uc_modal.component_practice")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -207,13 +209,13 @@ export const AddCurricularUnitModal = ({
               onClick={onClose}
               className="rounded-lg border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
             >
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
               className="rounded-lg bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-600 dark:hover:bg-blue-500"
             >
-              {initialData ? "Guardar Alterações" : "Criar Unidade"}
+              {initialData ? t("uc_modal.btn_save") : t("uc_modal.btn_create")}
             </Button>
           </DialogFooter>
         </form>

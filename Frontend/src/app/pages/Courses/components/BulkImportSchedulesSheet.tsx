@@ -40,6 +40,7 @@ import {
   TableRow,
 } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface BulkImportSchedulesSheetProps {
   open: boolean;
@@ -54,6 +55,7 @@ export const BulkImportSchedulesSheet = ({
   onImport,
   courseName,
 }: BulkImportSchedulesSheetProps) => {
+  const { t } = useLanguage();
   const [previewData, setPreviewData] = useState<Omit<TimeSlot, "id">[] | null>(
     null,
   );
@@ -78,7 +80,7 @@ export const BulkImportSchedulesSheet = ({
       return mapToTimeSlots(jsonData);
     } catch (e) {
       console.error("Excel parse error:", e);
-      throw new Error("Failed to parse spreadsheet. Please check the format.");
+      throw new Error(t("bulk_import.parse_error_sheet"));
     }
   };
 
@@ -90,7 +92,7 @@ export const BulkImportSchedulesSheet = ({
       return mapToTimeSlots(jsonData);
     } catch (e) {
       console.error("JSON parse error:", e);
-      throw new Error("Invalid JSON format.");
+      throw new Error(t("bulk_import.parse_error_json"));
     }
   };
 
@@ -150,7 +152,9 @@ export const BulkImportSchedulesSheet = ({
           const slots = parseExcelOrCSV(buffer);
           setPreviewData(slots);
           toast.success(
-            `Successfully parsed ${slots.length} rows from ${file.name}`,
+            t("bulk_import.toast_parsed_rows")
+              .replace("{count}", slots.length.toString())
+              .replace("{name}", file.name)
           );
         } catch (err: any) {
           setError(err.message);
@@ -165,7 +169,7 @@ export const BulkImportSchedulesSheet = ({
           if (text.trim().startsWith("[")) {
             const slots = parseJSON(text);
             setPreviewData(slots);
-            toast.success(`Successfully parsed JSON file`);
+            toast.success(t("bulk_import.toast_parsed_json"));
           } else {
             // Assume CSV-like text if not JSON? Or just error.
             // Let's try to parse as CSV using XLSX for text files too if they look like CSV
@@ -178,9 +182,9 @@ export const BulkImportSchedulesSheet = ({
               const jsonData = XLSX.utils.sheet_to_json(sheet);
               const slots = mapToTimeSlots(jsonData);
               setPreviewData(slots);
-              toast.success(`Successfully parsed text file as CSV`);
+              toast.success(t("bulk_import.toast_parsed_text"));
             } catch {
-              throw new Error("Could not parse file as JSON or CSV.");
+              throw new Error(t("bulk_import.parse_error_fallback"));
             }
           }
         } catch (err: any) {
@@ -190,7 +194,7 @@ export const BulkImportSchedulesSheet = ({
       reader.readAsText(file);
     } else {
       setError(
-        "Unsupported file format. Please upload .csv, .xlsx, .xls, .json, or .txt",
+        t("bulk_import.parse_error_unsupported")
       );
     }
   };
@@ -244,12 +248,10 @@ export const BulkImportSchedulesSheet = ({
         <SheetHeader className="mb-4">
           <SheetTitle className="flex items-center gap-2">
             <Upload className="w-5 h-5 text-blue-600" />
-            Bulk Import Schedules
+            {t("bulk_import.title_schedules")}
           </SheetTitle>
           <SheetDescription>
-            Upload a file (CSV, Excel, PDF, JSON) to import class schedules for{" "}
-            <strong>{courseName}</strong>. Review the data in the table below
-            before confirming.
+            {t("bulk_import.desc_schedules").replace("{name}", courseName)}
           </SheetDescription>
         </SheetHeader>
 
@@ -263,11 +265,10 @@ export const BulkImportSchedulesSheet = ({
 
               <div className="text-center space-y-2">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {fileName ? fileName : "Drag & drop or click to upload"}
+                  {fileName ? fileName : t("bulk_import.drag_drop")}
                 </h3>
                 <p className="text-sm text-slate-500 max-w-sm mx-auto">
-                  Supports .xlsx, .csv, .json, and .pdf files. Ensure your file
-                  follows the required format.
+                  {t("bulk_import.supports_schedules")}
                 </p>
               </div>
 
@@ -280,21 +281,21 @@ export const BulkImportSchedulesSheet = ({
                     onChange={handleFileUpload}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   />
-                  <Button className="w-full relative z-0">Select File</Button>
+                  <Button className="w-full relative z-0">{t("bulk_import.select_file")}</Button>
                 </div>
                 <Button
                   variant="outline"
                   onClick={downloadTemplate}
                   className="w-full gap-2"
                 >
-                  <Download className="w-4 h-4" /> Download Template
+                  <Download className="w-4 h-4" /> {t("bulk_import.download_template")}
                 </Button>
               </div>
 
               {error && (
                 <Alert variant="destructive" className="max-w-md text-left">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Import Error</AlertTitle>
+                  <AlertTitle>{t("bulk_import.error_title")}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
@@ -311,7 +312,7 @@ export const BulkImportSchedulesSheet = ({
                       {fileName}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {previewData.length} records found
+                      {t("bulk_import.records_found").replace("{count}", previewData.length.toString())}
                     </p>
                   </div>
                 </div>
@@ -321,7 +322,7 @@ export const BulkImportSchedulesSheet = ({
                   onClick={resetState}
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" /> Discard
+                  <Trash2 className="w-4 h-4 mr-2" /> {t("bulk_import.discard")}
                 </Button>
               </div>
 
@@ -330,21 +331,27 @@ export const BulkImportSchedulesSheet = ({
                   <Table>
                     <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 shadow-sm">
                       <TableRow>
-                        <TableHead className="w-[100px]">Day</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Unit</TableHead>
-                        <TableHead>Room</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Class</TableHead>
+                        <TableHead className="w-[100px]">{t("calendar.day")}</TableHead>
+                        <TableHead>{t("common.time")}</TableHead>
+                        <TableHead>{t("form.select_unit")}</TableHead>
+                        <TableHead>{t("form.room")}</TableHead>
+                        <TableHead>{t("form.component")}</TableHead>
+                        <TableHead>{t("form.groups")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {previewData.map((item, i) => (
                         <TableRow key={i}>
                           <TableCell className="font-medium">
-                            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
-                              item.dayOfWeek
-                            ] || item.dayOfWeek}
+                            {[
+                              t("day.Sun"),
+                              t("day.Mon"),
+                              t("day.Tue"),
+                              t("day.Wed"),
+                              t("day.Thu"),
+                              t("day.Fri"),
+                              t("day.Sat")
+                            ][item.dayOfWeek] || item.dayOfWeek}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {item.startTime} - {item.endTime}
@@ -361,11 +368,13 @@ export const BulkImportSchedulesSheet = ({
                               variant="outline"
                               className={
                                 item.type === "theoretical"
-                                  ? "bg-purple-50 text-purple-700 border-purple-200"
-                                  : "bg-blue-50 text-blue-700 border-blue-200"
+                                  ? "border-blue-200 text-blue-800 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300"
+                                  : "border-green-200 text-green-800 bg-green-50 dark:bg-green-900/20 dark:text-green-300"
                               }
                             >
-                              {item.type}
+                              {item.type === "theoretical"
+                                ? t("component.theoretical")
+                                : t("component.practical")}
                             </Badge>
                           </TableCell>
                           <TableCell>{item.classGroup}</TableCell>
@@ -382,7 +391,7 @@ export const BulkImportSchedulesSheet = ({
         <SheetFooter className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 sm:flex-col sm:space-x-0">
           <SheetClose asChild>
             <Button variant="outline" className="w-full">
-              Cancel
+              {t("common.cancel")}
             </Button>
           </SheetClose>
           <Button
@@ -390,7 +399,7 @@ export const BulkImportSchedulesSheet = ({
             disabled={!previewData}
             className="bg-blue-600 hover:bg-blue-700 text-white w-full"
           >
-            <Check className="w-4 h-4 mr-2" /> Confirm Import
+            <Check className="w-4 h-4 mr-2" /> {t("bulk_import.confirm_import")}
           </Button>
         </SheetFooter>
       </SheetContent>

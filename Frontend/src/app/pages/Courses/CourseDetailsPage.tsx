@@ -195,6 +195,7 @@ export const CourseDetailsPage = ({
 }: CourseDetailsPageProps) => {
   const { id: courseId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   if (!courseId) {
     throw new Error("Course ID is required");
@@ -329,12 +330,12 @@ export const CourseDetailsPage = ({
   if (isLoadingDetails && !course) {
     return (
       <div className="flex min-h-[360px] items-center justify-center text-slate-500">
-        Loading course details...
+        {t("courses.load_details_loading")}
       </div>
     );
   }
 
-  if (!course) return <div>Course not found</div>;
+  if (!course) return <div>{t("courses.not_found")}</div>;
 
   // --- Filter Logic ---
 
@@ -782,10 +783,10 @@ export const CourseDetailsPage = ({
       return (
         <div className="text-center py-12 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
           <BookCopy className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p>No curricular units found for your profile in this course.</p>
+          <p>{t("courses.units_empty_profile")}</p>
           {(userRole === "coordinator" || userRole === "admin") && (
             <Button variant="link" onClick={() => handleAddUnitClick(1)}>
-              Add your first unit
+              {t("courses.add_first_unit")}
             </Button>
           )}
         </div>
@@ -815,15 +816,19 @@ export const CourseDetailsPage = ({
                   {year}º
                 </div>
                 <span className="font-semibold text-lg text-slate-900 dark:text-slate-100">
-                  Year {year}
+                  {t("courses.year_label").replace("{year}", year.toString())}
                 </span>
                 <Badge
                   variant="secondary"
                   className="ml-2 font-normal text-slate-500 bg-slate-100 dark:bg-slate-800"
                 >
-                  {unitsByYearAndSemester[year][1].length +
-                    unitsByYearAndSemester[year][2].length}{" "}
-                  Units
+                  {t("courses.units_count").replace(
+                    "{count}",
+                    (
+                      unitsByYearAndSemester[year][1].length +
+                      unitsByYearAndSemester[year][2].length
+                    ).toString()
+                  )}
                 </Badge>
               </div>
             </AccordionTrigger>
@@ -836,18 +841,18 @@ export const CourseDetailsPage = ({
                   >
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                        Semester {semester}
+                        {t("courses.semester_label").replace("{semester}", semester.toString())}
                       </h4>
                       <Badge
                         variant="outline"
                         className="text-[10px] font-normal"
                       >
-                        {unitsByYearAndSemester[year][semester].length} Units
+                        {t("courses.units_count").replace("{count}", unitsByYearAndSemester[year][semester].length.toString())}
                       </Badge>
                     </div>
                     {unitsByYearAndSemester[year][semester].length === 0 ? (
                       <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 py-8 text-center text-sm text-slate-400">
-                        No units in this semester.
+                        {t("courses.semester_empty")}
                       </div>
                     ) : (
                       unitsByYearAndSemester[year][semester].map((unit) => {
@@ -878,7 +883,7 @@ export const CourseDetailsPage = ({
                                   variant="outline"
                                   className="text-[10px] h-5 px-1.5 font-normal border-slate-200 dark:border-slate-700"
                                 >
-                                  {unit.ects} ECTS
+                                  {t("courses.ects_label").replace("{count}", unit.ects.toString())}
                                 </Badge>
                                 <span className="flex items-center gap-1">
                                   <span className="w-1 h-1 rounded-full bg-slate-300"></span>
@@ -917,11 +922,11 @@ export const CourseDetailsPage = ({
                                 align="end"
                                 className="w-48 rounded-xl shadow-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900"
                               >
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                <DropdownMenuLabel>{t("actions.actions")}</DropdownMenuLabel>
                                 <DropdownMenuItem
                                   onClick={() => handleViewUnit(unit)}
                                 >
-                                  <Eye className="w-4 h-4 mr-2" /> View Details
+                                  <Eye className="w-4 h-4 mr-2" /> {t("actions.view_details")}
                                 </DropdownMenuItem>
                                 {(userRole === "coordinator" ||
                                   userRole === "admin") && (
@@ -932,20 +937,19 @@ export const CourseDetailsPage = ({
                                       }
                                     >
                                       <UserPlus className="w-4 h-4 mr-2" />{" "}
-                                      Assign Teachers
+                                      {t("assign_teachers.title")}
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                       onClick={() => handleEditUnitClick(unit)}
                                     >
-                                      <Edit className="w-4 h-4 mr-2" /> Edit
-                                      Unit
+                                      <Edit className="w-4 h-4 mr-2" /> {t("actions.edit_details")}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
                                       className="text-red-600 focus:text-red-600"
                                       onClick={() => handleDeleteUnit(unit)}
                                     >
-                                      <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                      <Trash2 className="w-4 h-4 mr-2" /> {t("classrooms.delete")}
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -965,8 +969,7 @@ export const CourseDetailsPage = ({
                   className="w-full mt-3 border-dashed text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50"
                   onClick={() => handleAddUnitClick(year)}
                 >
-                  <Plus className="w-4 h-4 mr-2" /> Add Curricular Unit to Year{" "}
-                  {year}
+                  <Plus className="w-4 h-4 mr-2" /> {t("courses.add_unit_to_year").replace("{year}", year.toString())}
                 </Button>
               )}
             </AccordionContent>
@@ -1024,7 +1027,7 @@ export const CourseDetailsPage = ({
         onClick={() => navigate(-1)}
         className="mb-4 pl-0 hover:pl-2 transition-all gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
       >
-        <ArrowLeft className="w-4 h-4" /> Back to Courses
+        <ArrowLeft className="w-4 h-4" /> {t("courses.back_to_courses")}
       </Button>
 
       {/* Hero Section */}
@@ -1067,30 +1070,33 @@ export const CourseDetailsPage = ({
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
                   <CalendarRange className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
-                    {course.durationYears} Years
+                    {t("courses.years_stat").replace("{count}", course.durationYears.toString())}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
                   <BookOpen className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
-                    {course.totalCredits} ECTS Credits
+                    {t("courses.ects_stat").replace("{count}", course.totalCredits.toString())}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
                   <GraduationCap className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
-                    {course.type} Degree
+                    {t("courses.degree_stat").replace("{type}", course.type)}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
                   <Users className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
-                    Coordinator: {coordinators.length > 0
-                      ? coordinators.map(c => c.fullName || c.email).join(", ")
-                      : "Not Assigned"}
+                    {t("courses.coordinator_stat").replace(
+                      "{name}",
+                      coordinators.length > 0
+                        ? coordinators.map((c) => c.fullName || c.email).join(", ")
+                        : t("courses.not_assigned")
+                    )}
                   </span>
                 </div>
               </div>
@@ -1107,26 +1113,26 @@ export const CourseDetailsPage = ({
               value="curriculum"
               className="h-10 px-4 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 font-medium"
             >
-              <Layers className="w-4 h-4 mr-2" /> Curriculum Plan
+              <Layers className="w-4 h-4 mr-2" /> {t("courses.tab_curriculum")}
             </TabsTrigger>
             <TabsTrigger
               value="teachers"
               className="h-10 px-4 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 font-medium"
             >
-              <Briefcase className="w-4 h-4 mr-2" /> Faculty
+              <Briefcase className="w-4 h-4 mr-2" /> {t("courses.tab_faculty")}
             </TabsTrigger>
             <TabsTrigger
               value="classes"
               className="h-10 px-4 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 font-medium"
             >
-              <Users className="w-4 h-4 mr-2" /> Classes & Groups
+              <Users className="w-4 h-4 mr-2" /> {t("courses.tab_classes")}
             </TabsTrigger>
           </TabsList>
 
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
-              placeholder="Search units or classes..."
+              placeholder={t("courses.search_details_placeholder")}
               className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus:ring-blue-500"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1146,7 +1152,7 @@ export const CourseDetailsPage = ({
                 onClick={() => setIsAddTeacherToCourseModalOpen(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-                <UserPlus className="w-4 h-4 mr-2" /> Assign Teacher to Course
+                <UserPlus className="w-4 h-4 mr-2" /> {t("courses.assign_teacher_btn")}
               </Button>
             </div>
           )}
@@ -1156,17 +1162,16 @@ export const CourseDetailsPage = ({
               <div className="col-span-full text-center py-16 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                 <Users className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-400" />
                 <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">
-                  No faculty assigned
+                  {t("courses.faculty_empty")}
                 </h3>
                 <p className="max-w-xs mx-auto mt-1 mb-4">
-                  There are no teachers assigned to any curricular units in this
-                  course yet.
+                  {t("courses.faculty_empty_desc")}
                 </p>
                 {(userRole === "coordinator" || userRole === "admin") && (
                   <Button
                     onClick={() => setIsAddTeacherToCourseModalOpen(true)}
                   >
-                    Assign First Teacher
+                    {t("courses.assign_first_teacher")}
                   </Button>
                 )}
               </div>
@@ -1197,7 +1202,7 @@ export const CourseDetailsPage = ({
                     <CardContent>
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-500">
-                          Teaching Units:
+                          {t("courses.teaching_units")}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {unitsTaught.map((u) => (
@@ -1233,13 +1238,13 @@ export const CourseDetailsPage = ({
                 variant="outline"
                 className="bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-dashed"
               >
-                <Upload className="w-4 h-4 mr-2" /> Import Schedule
+                <Upload className="w-4 h-4 mr-2" /> {t("courses.import_schedule_btn")}
               </Button>
               <Button
                 onClick={handleAddClass}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-                <Plus className="w-4 h-4 mr-2" /> Add Class
+                <Plus className="w-4 h-4 mr-2" /> {t("courses.add_class_btn")}
               </Button>
             </div>
           )}
@@ -1275,19 +1280,19 @@ export const CourseDetailsPage = ({
                   <div className="col-span-full text-center py-16 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                     <Users className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-400" />
                     <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">
-                      No classes found
+                      {t("courses.classes_empty")}
                     </h3>
                     <p className="max-w-xs mx-auto mt-1 mb-4">
                       {userRole !== "teacher"
-                        ? "There are no classes created for this course yet."
-                        : "You haven't been assigned to any classes in this course."}
+                        ? t("courses.classes_empty_desc_coordinator")
+                        : t("courses.classes_empty_desc_teacher")}
                     </p>
                     {userRole !== "teacher" && (
                       <Button
                         onClick={handleAddClass}
                         className="bg-blue-600 hover:bg-blue-700 text-white"
                       >
-                        <Plus className="w-4 h-4 mr-2" /> Create First Class
+                        <Plus className="w-4 h-4 mr-2" /> {t("courses.create_first_class")}
                       </Button>
                     )}
                   </div>
@@ -1312,13 +1317,13 @@ export const CourseDetailsPage = ({
                             {year === 0 ? "?" : year}º
                           </div>
                           <span className="font-semibold text-lg text-slate-900 dark:text-slate-100">
-                            {year === 0 ? "Unknown Year" : `Year ${year}`}
+                            {year === 0 ? t("class_details.unknown") : t("courses.year_label").replace("{year}", year.toString())}
                           </span>
                           <Badge
                             variant="secondary"
                             className="ml-2 font-normal text-slate-500 bg-slate-100 dark:bg-slate-800"
                           >
-                            {classesByYear[year].length} Classes
+                            {t("courses.classes_count").replace("{count}", classesByYear[year].length.toString())}
                           </Badge>
                         </div>
                       </AccordionTrigger>
@@ -1349,7 +1354,7 @@ export const CourseDetailsPage = ({
                                                     "capitalize bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300",
                                                   )}
                                                 >
-                                                  Class Group
+                                                  {t("courses.class_group_badge")}
                                                 </Badge>
                                               </div>
 
@@ -1371,7 +1376,7 @@ export const CourseDetailsPage = ({
                                                   className="w-48"
                                                 >
                                                   <DropdownMenuLabel>
-                                                    Actions
+                                                    {t("actions.actions")}
                                                   </DropdownMenuLabel>
                                                   <DropdownMenuItem
                                                     onClick={(e) => {
@@ -1380,14 +1385,14 @@ export const CourseDetailsPage = ({
                                                     }}
                                                   >
                                                     <Calendar className="w-4 h-4 mr-2" />{" "}
-                                                    Schedule
+                                                    {t("class_details.weekly_schedule")}
                                                   </DropdownMenuItem>
                                                   <DropdownMenuItem
                                                     onClick={(e) =>
                                                       e.stopPropagation()
                                                     }
                                                   >
-                                                    View Students
+                                                    {t("courses.view_students")}
                                                   </DropdownMenuItem>
                                                   {(userRole ===
                                                     "coordinator" ||
@@ -1404,7 +1409,7 @@ export const CourseDetailsPage = ({
                                                         }}
                                                       >
                                                         <Trash2 className="w-4 h-4 mr-2" />{" "}
-                                                        Delete
+                                                        {t("classrooms.delete")}
                                                       </DropdownMenuItem>
                                                     </>
                                                   )}
@@ -1436,10 +1441,10 @@ export const CourseDetailsPage = ({
                                             <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
                                               <span className="flex items-center gap-1">
                                                 <CalendarRange className="w-3 h-3" />
-                                                {scheduleCount} Weekly Slots
+                                                {t("courses.weekly_slots_count").replace("{count}", scheduleCount.toString())}
                                               </span>
                                               <span className="text-blue-600 font-medium">
-                                                Manage
+                                                {t("courses.manage_btn")}
                                               </span>
                                             </div>
                                           </CardContent>
@@ -1469,12 +1474,12 @@ export const CourseDetailsPage = ({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={executeDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Delete
+              {t("classrooms.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -23,6 +23,7 @@ import type { PlatformUser } from "../../services/users/userTypes";
 import type { Classroom } from "../../services/classrooms/classroomTypes";
 import type { AuthenticatedUser } from "../../types/user";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
+import { useLanguage } from "../../providers/LanguageContext";
 
 interface ClassDetailsPageProps {
   user: AuthenticatedUser | null;
@@ -33,6 +34,7 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
   const navigate = useNavigate();
   const userRole = user?.role || "teacher";
   const { selectedYear: currentAcademicYear } = useAcademicYear();
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [course, setCourse] = useState<ViewCourse | null>(null);
@@ -96,7 +98,7 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
 
       const currentClass = mappedClasses.find(c => c.id === classId);
       if (!currentClass) {
-        toast.error("Class not found");
+        toast.error(t("class_details.toast_not_found"));
         navigate(`/courses/${courseId}`);
         return;
       }
@@ -119,11 +121,11 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
       setClassrooms(classroomsRes);
       setTeachers(usersRes);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to load class details"));
+      toast.error(getErrorMessage(error, t("class_details.toast_load_error")));
     } finally {
       setLoading(false);
     }
-  }, [courseId, classId, navigate]);
+  }, [courseId, classId, navigate, t]);
 
   useEffect(() => {
     fetchData();
@@ -131,7 +133,7 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
 
   const handleAddSchedule = async (data: Omit<TimeSlot, "id">) => {
     if (!currentAcademicYear) {
-      toast.error("Active academic year was not found.");
+      toast.error(t("courses.toast_active_year_missing"));
       return;
     }
 
@@ -150,16 +152,16 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
         componentType: data.type === "practical" ? "Practical" : "Theoretical",
         isActive: true
       });
-      toast.success("Schedule added successfully");
+      toast.success(t("class_details.toast_add_success"));
       fetchData();
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to add schedule"));
+      toast.error(getErrorMessage(error, t("class_details.toast_add_error")));
     }
   };
 
   const handleUpdateSchedule = async (id: string, data: Omit<TimeSlot, "id">) => {
     if (!currentAcademicYear) {
-      toast.error("Active academic year was not found.");
+      toast.error(t("courses.toast_active_year_missing"));
       return;
     }
 
@@ -178,20 +180,20 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
         componentType: data.type === "practical" ? "Practical" : "Theoretical",
         isActive: true
       });
-      toast.success("Schedule updated successfully");
+      toast.success(t("class_details.toast_update_success"));
       fetchData();
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to update schedule"));
+      toast.error(getErrorMessage(error, t("class_details.toast_update_error")));
     }
   };
 
   const handleDeleteSchedule = async (id: string) => {
     try {
       await deleteClassSchedule(courseId!, classId!, id);
-      toast.success("Schedule deleted successfully");
+      toast.success(t("class_details.toast_delete_success"));
       fetchData();
     } catch (error) {
-      toast.error(getErrorMessage(error, "Failed to delete schedule"));
+      toast.error(getErrorMessage(error, t("class_details.toast_delete_error")));
     }
   };
 
@@ -199,7 +201,7 @@ export const ClassDetailsPage = ({ user }: ClassDetailsPageProps) => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <p className="text-slate-500 font-medium">Loading class details...</p>
+        <p className="text-slate-500 font-medium">{t("class_details.loading")}</p>
       </div>
     );
   }

@@ -3,6 +3,7 @@ import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { useLanguage } from "../../providers/LanguageContext";
 import type { ClassRequest } from "../../types/requests";
 import { RequestDetailsPage } from "../../components/domain/requests/RequestDetailsPage";
 import { RejectionDialog } from "../../components/domain/requests/RejectionDialog";
@@ -82,6 +83,7 @@ export const CoordinatorRequestsPage = ({
   requestId,
 }: CoordinatorRequestsPageProps) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   // Filter States
   const [viewMode, setViewMode] = useState<ViewMode>("board");
@@ -114,7 +116,7 @@ export const CoordinatorRequestsPage = ({
       setRequestsLoaded(true);
     } catch (error) {
       toast.error(
-        getErrorMessage(error, "Unable to load compensation requests."),
+        getErrorMessage(error, t("coordinator.toast_load_error")),
       );
     }
   }, [selectedYear]);
@@ -155,11 +157,11 @@ export const CoordinatorRequestsPage = ({
             setSelectedRequest(mapped);
             setViewState("details");
           } else {
-            toast.error("Compensation request not found.");
+            toast.error(t("coordinator.toast_not_found"));
             navigate("/requests");
           }
         } catch (err) {
-          toast.error("Unable to load request details.");
+          toast.error(t("coordinator.toast_load_details_error"));
           navigate("/requests");
         }
       };
@@ -176,7 +178,7 @@ export const CoordinatorRequestsPage = ({
     reason?: string,
   ) => {
     if (isAdmin) {
-      toast.error("Administrators cannot change request status.");
+      toast.error(t("coordinator.admin_error"));
       return;
     }
 
@@ -206,9 +208,22 @@ export const CoordinatorRequestsPage = ({
         setSelectedRequest(mapped);
       }
 
-      toast.success(`Request ${newStatus} successfully.`);
+      toast.success(
+        t("coordinator.status_success").replace(
+          "{status}",
+          t(`coordinator.${newStatus}`),
+        ),
+      );
     } catch (error) {
-      toast.error(getErrorMessage(error, `Unable to ${newStatus} request.`));
+      toast.error(
+        getErrorMessage(
+          error,
+          t("coordinator.toast_update_error").replace(
+            "{status}",
+            t(`coordinator.${newStatus}`),
+          ),
+        ),
+      );
     }
   };
 
@@ -376,10 +391,13 @@ export const CoordinatorRequestsPage = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Requests Management
+              {t("coordinator.title")}
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              {isAdmin ? "Monitor" : "Manage"} and track compensation requests.
+              {t("coordinator.subtitle").replace(
+                "{role}",
+                isAdmin ? t("coordinator.monitor") : t("coordinator.manage"),
+              )}
             </p>
           </div>
           <div className="flex gap-2">
@@ -388,7 +406,7 @@ export const CoordinatorRequestsPage = ({
               onClick={() => setIsExportOpen(true)}
               className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 px-5 h-9"
             >
-              <Download className="mr-2 h-4 w-4" /> Export Report
+              <Download className="mr-2 h-4 w-4" /> {t("coordinator.export_btn")}
             </Button>
           </div>
         </div>

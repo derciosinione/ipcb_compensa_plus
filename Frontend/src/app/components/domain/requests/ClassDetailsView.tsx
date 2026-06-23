@@ -37,6 +37,7 @@ import { BulkImportSchedulesSheet } from "../../../pages/Courses/components/Bulk
 import { toast } from "sonner";
 import type { PlatformUser } from "../../../services/users/userTypes";
 import type { Classroom } from "../../../services/classrooms/classroomTypes";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface ClassDetailsViewProps {
   course?: ViewCourse | null;
@@ -72,6 +73,7 @@ export const ClassDetailsView = ({
   onDeleteSchedule,
   userRole,
 }: ClassDetailsViewProps) => {
+  const { t } = useLanguage();
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<TimeSlot | undefined>(undefined);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -103,7 +105,9 @@ export const ClassDetailsView = ({
     });
 
     toast.success(
-      `Successfully imported ${newSchedules.length} schedule slots for ${classGroup.name}`,
+      t("class_details.toast_import_success")
+        .replace("{count}", String(newSchedules.length))
+        .replace("{name}", classGroup.name),
     );
   };
 
@@ -126,7 +130,8 @@ export const ClassDetailsView = ({
       "Friday",
       "Saturday",
     ];
-    return days[day] || "Unknown";
+    const key = days[day];
+    return key ? t(`day.${key}`) : t("class_details.unknown");
   };
 
   // Only consider schedules actually mapped to this classGroup
@@ -161,11 +166,11 @@ export const ClassDetailsView = ({
           onClick={onBack}
           className="pl-0 gap-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100/50 dark:text-slate-400 dark:hover:text-slate-100 rounded-full px-4 h-9 transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Course
+          <ArrowLeft className="w-4 h-4" /> {t("class_details.back_to_course")}
         </Button>
         <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
         <span className="text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">
-          Class Details
+          {t("class_details.title")}
         </span>
       </div>
 
@@ -178,14 +183,14 @@ export const ClassDetailsView = ({
                 {courseName}
               </Badge>
               <Badge variant="outline" className="text-slate-600 border-slate-200 dark:text-slate-400 dark:border-slate-700 font-medium">
-                <Layers className="w-3 h-3 mr-1" /> Year {classGroup.year}
+                <Layers className="w-3 h-3 mr-1" /> {t("courses.year_label").replace("{year}", String(classGroup.year))}
               </Badge>
             </div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 mb-2">
               {classGroup.name}
             </h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm">
-              Manage schedules and view teacher assignments for this class group.
+              {t("class_details.description")}
             </p>
           </div>
 
@@ -199,7 +204,7 @@ export const ClassDetailsView = ({
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5 flex items-center gap-1.5">
-                    <User className="w-3 h-3" /> Assigned Teacher
+                    <User className="w-3 h-3" /> {t("class_details.assigned_teacher")}
                   </p>
                   <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm truncate" title={teacherName}>
                     {teacherName}
@@ -213,8 +218,8 @@ export const ClassDetailsView = ({
                   <User className="w-5 h-5 text-slate-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No teacher assigned</p>
-                  <p className="text-xs mt-0.5 text-slate-500">Requires assignment</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t("class_details.no_teacher")}</p>
+                  <p className="text-xs mt-0.5 text-slate-500">{t("class_details.requires_assignment")}</p>
                 </div>
               </div>
             )}
@@ -231,9 +236,9 @@ export const ClassDetailsView = ({
             </div>
             <div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                Weekly Schedule
+                {t("class_details.weekly_schedule")}
               </h2>
-              <p className="text-slate-500 text-sm mt-1">Organize your classes across the week</p>
+              <p className="text-slate-500 text-sm mt-1">{t("class_details.schedule_description")}</p>
             </div>
           </div>
           
@@ -244,13 +249,13 @@ export const ClassDetailsView = ({
                 onClick={() => setIsBulkImportOpen(true)}
                 className="gap-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex-1 sm:flex-auto"
               >
-                <Upload className="w-4 h-4" /> Bulk Import
+                <Upload className="w-4 h-4" /> {t("class_details.bulk_import")}
               </Button>
               <Button
                 onClick={handleAddClick}
                 className="bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20 flex-1 sm:flex-auto"
               >
-                <Plus className="w-4 h-4 mr-2" /> Add Slot
+                <Plus className="w-4 h-4 mr-2" /> {t("class_details.add_slot")}
               </Button>
             </div>
           )}
@@ -262,10 +267,10 @@ export const ClassDetailsView = ({
               <Inbox className="w-10 h-10 text-slate-300 dark:text-slate-600" />
             </div>
             <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">
-              No schedules found
+              {t("class_details.no_schedules")}
             </h3>
             <p className="text-slate-500 text-center max-w-md mb-8">
-              This class group does not have any weekly slots assigned yet. Start by adding a single slot or bulk importing a timetable.
+              {t("class_details.no_schedules_desc")}
             </p>
             {canManage && (
               <div className="flex flex-col sm:flex-row gap-3">
@@ -275,14 +280,14 @@ export const ClassDetailsView = ({
                   className="gap-2 border-slate-300 dark:border-slate-700 shadow-sm"
                   size="lg"
                 >
-                  <Upload className="w-4 h-4" /> Bulk Import Timetable
+                  <Upload className="w-4 h-4" /> {t("class_details.bulk_import_timetable")}
                 </Button>
                 <Button
                   onClick={handleAddClick}
                   className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                   size="lg"
                 >
-                  <Plus className="w-4 h-4 mr-2" /> Add First Slot
+                  <Plus className="w-4 h-4 mr-2" /> {t("class_details.add_first_slot")}
                 </Button>
               </div>
             )}
@@ -306,14 +311,14 @@ export const ClassDetailsView = ({
                     <CardHeader className="pl-6 pb-2 pt-5">
                       <div className="flex justify-between items-start mb-3">
                         <Badge 
-                          variant="outline" 
-                          className={`uppercase tracking-widest text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                            isPractical 
-                              ? "text-blue-600 border-blue-200 bg-blue-50/50 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800" 
-                              : "text-purple-600 border-purple-200 bg-purple-50/50 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800"
-                          }`}
+                           variant="outline" 
+                           className={`uppercase tracking-widest text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                             isPractical 
+                               ? "text-blue-600 border-blue-200 bg-blue-50/50 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800" 
+                               : "text-purple-600 border-purple-200 bg-purple-50/50 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800"
+                           }`}
                         >
-                          {slot.type}
+                          {t(`component.${slot.type}`)}
                         </Badge>
                         {canManage && (
                           <DropdownMenu>
@@ -327,19 +332,19 @@ export const ClassDetailsView = ({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl">
-                              <DropdownMenuLabel className="text-xs uppercase text-slate-400">Actions</DropdownMenuLabel>
+                              <DropdownMenuLabel className="text-xs uppercase text-slate-400">{t("coordinator.actions")}</DropdownMenuLabel>
                               <DropdownMenuItem
                                 onClick={() => handleEditClick(slot)}
                                 className="cursor-pointer font-medium text-slate-700 dark:text-slate-300 my-0.5"
                               >
-                                <Edit className="w-4 h-4 mr-2 text-slate-400" /> Edit Schedule
+                                <Edit className="w-4 h-4 mr-2 text-slate-400" /> {t("class_details.edit_schedule")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-950/50 cursor-pointer font-medium my-0.5"
                                 onClick={() => onDeleteSchedule(slot.id)}
                               >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete Schedule
+                                <Trash2 className="w-4 h-4 mr-2" /> {t("class_details.delete_schedule")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -359,14 +364,14 @@ export const ClassDetailsView = ({
                             <Clock className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                           </div>
                           <span className="font-semibold text-sm">
-                            {slot.startTime || "TBD"} <span className="text-slate-400 font-normal mx-1">to</span> {slot.endTime || "TBD"}
+                            {slot.startTime || "TBD"} <span className="text-slate-400 font-normal mx-1">{t("class_details.time_to")}</span> {slot.endTime || "TBD"}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
                           <div className="bg-white dark:bg-slate-700 p-1.5 rounded-lg shadow-sm border border-slate-100 dark:border-slate-600">
                             <MapPin className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                           </div>
-                          <span className="font-medium text-sm line-clamp-1">{slot.room || "No Room"}</span>
+                          <span className="font-medium text-sm line-clamp-1">{slot.room || t("class_details.no_room")}</span>
                         </div>
                       </div>
                     </CardContent>

@@ -38,6 +38,7 @@ import {
 } from "../../../components/ui/table";
 import { Badge } from "../../../components/ui/badge";
 import { cn } from "../../../components/ui/utils";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface BulkImportUsersSheetProps {
   open: boolean;
@@ -50,6 +51,7 @@ export const BulkImportUsersSheet = ({
   onOpenChange,
   onImport,
 }: BulkImportUsersSheetProps) => {
+  const { t } = useLanguage();
   const [previewData, setPreviewData] = useState<ImportedUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export const BulkImportUsersSheet = ({
       return mapToUsers(jsonData);
     } catch (e) {
       console.error("Excel parse error:", e);
-      throw new Error("Failed to parse spreadsheet. Please check the format.");
+      throw new Error(t("bulk_import.parse_error_sheet"));
     }
   };
 
@@ -80,11 +82,11 @@ export const BulkImportUsersSheet = ({
     try {
       const jsonData = JSON.parse(text);
       if (!Array.isArray(jsonData))
-        throw new Error("JSON must be an array of objects");
+        throw new Error(t("bulk_import.parse_error_json"));
       return mapToUsers(jsonData);
     } catch (e) {
       console.error("JSON parse error:", e);
-      throw new Error("Invalid JSON format.");
+      throw new Error(t("bulk_import.parse_error_json"));
     }
   };
 
@@ -133,7 +135,9 @@ export const BulkImportUsersSheet = ({
           const users = parseExcelOrCSV(buffer);
           setPreviewData(users);
           toast.success(
-            `Successfully parsed ${users.length} rows from ${file.name}`,
+            t("bulk_import.toast_parsed_rows")
+              .replace("{count}", String(users.length))
+              .replace("{name}", file.name),
           );
         } catch (err: any) {
           setError(err.message);
@@ -147,7 +151,7 @@ export const BulkImportUsersSheet = ({
           if (text.trim().startsWith("[")) {
             const users = parseJSON(text);
             setPreviewData(users);
-            toast.success(`Successfully parsed JSON file`);
+            toast.success(t("bulk_import.toast_parsed_json"));
           } else {
             try {
               const workbook = XLSX.read(text, { type: "string" });
@@ -155,9 +159,9 @@ export const BulkImportUsersSheet = ({
               const jsonData = XLSX.utils.sheet_to_json(sheet);
               const users = mapToUsers(jsonData);
               setPreviewData(users);
-              toast.success(`Successfully parsed text file as CSV`);
+              toast.success(t("bulk_import.toast_parsed_text"));
             } catch {
-              throw new Error("Could not parse file as JSON or CSV.");
+              throw new Error(t("bulk_import.parse_error_fallback"));
             }
           }
         } catch (err: any) {
@@ -166,9 +170,7 @@ export const BulkImportUsersSheet = ({
       };
       reader.readAsText(file);
     } else {
-      setError(
-        "Unsupported file format. Please upload .csv, .xlsx, .xls, .json, or .txt",
-      );
+      setError(t("bulk_import.parse_error_unsupported"));
     }
   };
 
@@ -203,11 +205,10 @@ export const BulkImportUsersSheet = ({
         <SheetHeader className="mb-4">
           <SheetTitle className="flex items-center gap-2">
             <Upload className="w-5 h-5 text-blue-600" />
-            Bulk Import Users
+            {t("bulk_import.title_users")}
           </SheetTitle>
           <SheetDescription>
-            Upload a file (CSV, Excel, PDF, JSON) to import users. Review the
-            data in the table below before confirming.
+            {t("bulk_import.desc_users")}
           </SheetDescription>
         </SheetHeader>
 
@@ -221,11 +222,10 @@ export const BulkImportUsersSheet = ({
 
               <div className="text-center space-y-2">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  {fileName ? fileName : "Drag & drop or click to upload"}
+                  {fileName ? fileName : t("bulk_import.drag_drop")}
                 </h3>
                 <p className="text-sm text-slate-500 max-w-sm mx-auto">
-                  Supports .xlsx, .csv, .json, and .pdf files. Ensure your file
-                  follows the required format.
+                  {t("bulk_import.supports_schedules")}
                 </p>
               </div>
 
@@ -238,21 +238,21 @@ export const BulkImportUsersSheet = ({
                     onChange={handleFileUpload}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   />
-                  <Button className="w-full relative z-0">Select File</Button>
+                  <Button className="w-full relative z-0">{t("bulk_import.select_file")}</Button>
                 </div>
                 <Button
                   variant="outline"
                   onClick={downloadTemplate}
                   className="w-full gap-2"
                 >
-                  <Download className="w-4 h-4" /> Download Template
+                  <Download className="w-4 h-4" /> {t("bulk_import.download_template")}
                 </Button>
               </div>
 
               {error && (
                 <Alert variant="destructive" className="max-w-md text-left">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Import Error</AlertTitle>
+                  <AlertTitle>{t("bulk_import.error_title")}</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
@@ -269,7 +269,7 @@ export const BulkImportUsersSheet = ({
                       {fileName}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {previewData.length} records found
+                      {t("bulk_import.records_found").replace("{count}", String(previewData.length))}
                     </p>
                   </div>
                 </div>
@@ -279,7 +279,7 @@ export const BulkImportUsersSheet = ({
                   onClick={resetState}
                   className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" /> Discard
+                  <Trash2 className="w-4 h-4 mr-2" /> {t("bulk_import.discard")}
                 </Button>
               </div>
 
@@ -288,9 +288,9 @@ export const BulkImportUsersSheet = ({
                   <Table>
                     <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 shadow-sm">
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
+                        <TableHead>{t("users.name")}</TableHead>
+                        <TableHead>{t("users.email")}</TableHead>
+                        <TableHead>{t("users.role")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -321,7 +321,7 @@ export const BulkImportUsersSheet = ({
                               {user.role === "admin" && (
                                 <ShieldCheck className="w-3 h-3" />
                               )}
-                              {user.role}
+                              {t(`role.${user.role.toLowerCase()}`)}
                             </Badge>
                           </TableCell>
                         </TableRow>
@@ -337,7 +337,7 @@ export const BulkImportUsersSheet = ({
         <SheetFooter className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-3 sm:flex-col sm:space-x-0">
           <SheetClose asChild>
             <Button variant="outline" className="w-full">
-              Cancel
+              {t("common.cancel")}
             </Button>
           </SheetClose>
           <Button
@@ -345,7 +345,7 @@ export const BulkImportUsersSheet = ({
             disabled={!previewData}
             className="bg-blue-600 hover:bg-blue-700 text-white w-full"
           >
-            <Check className="w-4 h-4 mr-2" /> Confirm Import
+            <Check className="w-4 h-4 mr-2" /> {t("bulk_import.confirm_import")}
           </Button>
         </SheetFooter>
       </SheetContent>

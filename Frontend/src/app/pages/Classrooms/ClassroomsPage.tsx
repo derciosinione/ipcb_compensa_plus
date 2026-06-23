@@ -81,6 +81,7 @@ import type {
   UpsertClassroomRequest,
 } from "../../services/classrooms/classroomTypes";
 import { getErrorMessage } from "../../utils/errors";
+import { useLanguage } from "../../providers/LanguageContext";
 
 interface ClassroomsPageProps {
   user: User;
@@ -94,13 +95,6 @@ interface ClassroomFormState {
   isActive: boolean;
 }
 
-const classroomTypeOptions: Array<{ value: ClassroomType; label: string }> = [
-  { value: "Amphitheater", label: "Amphitheater" },
-  { value: "Standard", label: "Standard" },
-  { value: "PcLab", label: "PC Lab" },
-  { value: "MacLab", label: "Mac Lab" },
-];
-
 const initialFormState: ClassroomFormState = {
   name: "",
   type: "Standard",
@@ -109,10 +103,12 @@ const initialFormState: ClassroomFormState = {
   isActive: true,
 };
 
-const getClassroomTypeLabel = (type: ClassroomType) => {
-  return (
-    classroomTypeOptions.find((option) => option.value === type)?.label ?? type
-  );
+const getClassroomTypeLabel = (type: ClassroomType, t: (key: string) => string) => {
+  if (type === "Amphitheater") return t("classroom.type.amphitheater") || "Amphitheater";
+  if (type === "Standard") return t("classroom.type.standard") || "Standard";
+  if (type === "PcLab") return t("classroom.type.pclab") || "PC Lab";
+  if (type === "MacLab") return t("classroom.type.maclab") || "Mac Lab";
+  return type;
 };
 
 const getClassroomAccent = (type: ClassroomType) => {
@@ -123,6 +119,7 @@ const getClassroomAccent = (type: ClassroomType) => {
 };
 
 export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
+  const { t } = useLanguage();
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roomPage, setRoomPage] = useState(1);
@@ -147,13 +144,20 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
   const roomPageSize = 6;
   const isAdmin = user.role === "admin";
 
+  const localTypeOptions = [
+    { value: "Amphitheater" as ClassroomType, label: t("classroom.type.amphitheater") || "Amphitheater" },
+    { value: "Standard" as ClassroomType, label: t("classroom.type.standard") || "Standard" },
+    { value: "PcLab" as ClassroomType, label: t("classroom.type.pclab") || "PC Lab" },
+    { value: "MacLab" as ClassroomType, label: t("classroom.type.maclab") || "Mac Lab" },
+  ];
+
   const loadClassrooms = async () => {
     try {
       setIsLoading(true);
       const result = await listClassrooms();
       setClassrooms(result);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to load classrooms."));
+      toast.error(getErrorMessage(error, t("classrooms.toast_load_error") || "Unable to load classrooms."));
     } finally {
       setIsLoading(false);
     }
@@ -182,14 +186,14 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
     return classrooms.filter(
       (classroom) =>
         classroom.name.toLowerCase().includes(normalizedSearch) ||
-        getClassroomTypeLabel(classroom.type)
+        getClassroomTypeLabel(classroom.type, t)
           .toLowerCase()
           .includes(normalizedSearch) ||
         classroom.features.some((feature) =>
           feature.toLowerCase().includes(normalizedSearch),
         ),
     );
-  }, [classrooms, searchTerm]);
+  }, [classrooms, searchTerm, t]);
 
   const totalRoomPages = Math.max(
     1,
@@ -222,12 +226,12 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
     const capacity = Number(formState.capacity);
 
     if (!formState.name.trim()) {
-      toast.error("Classroom name is required.");
+      toast.error(t("classrooms.toast_name_required") || "Classroom name is required.");
       return null;
     }
 
     if (!Number.isInteger(capacity) || capacity <= 0) {
-      toast.error("Capacity must be a positive whole number.");
+      toast.error(t("classrooms.toast_capacity_required") || "Capacity must be a positive whole number.");
       return null;
     }
 
@@ -274,10 +278,12 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
 
       setIsFormOpen(false);
       toast.success(
-        editingClassroom ? "Classroom updated." : "Classroom created.",
+        editingClassroom 
+          ? (t("classrooms.toast_save_success_edit") || "Classroom updated.") 
+          : (t("classrooms.toast_save_success_create") || "Classroom created."),
       );
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to save classroom."));
+      toast.error(getErrorMessage(error, t("classrooms.toast_save_error") || "Unable to save classroom."));
     } finally {
       setIsSaving(false);
     }
@@ -290,7 +296,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       setSchedulesCountToDelete(usage.associatedSchedulesCount);
       setRoomToDelete(classroom);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Erro ao obter dados de uso da sala."));
+      toast.error(getErrorMessage(error, t("classrooms.toast_load_error") || "Erro ao obter dados de uso da sala."));
     } finally {
       setLoadingRoomId(null);
     }
@@ -305,9 +311,9 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       await deleteClassroom(roomId);
       setClassrooms((current) => current.filter((item) => item.id !== roomId));
       setSelectedRoomIds((prev) => prev.filter((id) => id !== roomId));
-      toast.success("Sala eliminada com sucesso.");
+      toast.success(t("classrooms.toast_delete_success") || "Sala eliminada com sucesso.");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Não foi possível eliminar a sala."));
+      toast.error(getErrorMessage(error, t("classrooms.toast_delete_error") || "Não foi possível eliminar a sala."));
     }
   };
 
@@ -320,7 +326,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       setBulkSchedulesCount(totalSchedules);
       setIsBulkDeleteOpen(true);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Erro ao obter dados de uso das salas selecionadas."));
+      toast.error(getErrorMessage(error, t("classrooms.toast_load_error") || "Erro ao obter dados de uso das salas selecionadas."));
     } finally {
       setLoadingBulk(false);
     }
@@ -335,9 +341,9 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       await deleteClassroomsBulk(idsToDelete);
       setClassrooms((current) => current.filter((item) => !idsToDelete.includes(item.id)));
       setSelectedRoomIds([]);
-      toast.success("Salas eliminadas com sucesso.");
+      toast.success(t("classrooms.toast_bulk_delete_success") || "Salas eliminadas com sucesso.");
     } catch (error) {
-      toast.error(getErrorMessage(error, "Não foi possível eliminar as salas."));
+      toast.error(getErrorMessage(error, t("classrooms.toast_bulk_delete_error") || "Não foi possível eliminar as salas."));
     }
   };
 
@@ -367,10 +373,10 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Classrooms Management
+            {t("classrooms.title") || "Classrooms Management"}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Manage physical spaces and their resources.
+            {t("classrooms.subtitle") || "Manage physical spaces and their resources."}
           </p>
         </div>
         {isAdmin && (
@@ -378,7 +384,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
             onClick={openCreate}
             className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"
           >
-            <Plus className="w-4 h-4 mr-2" /> Add Classroom
+            <Plus className="w-4 h-4 mr-2" /> {t("classrooms.add_classroom") || "Add Classroom"}
           </Button>
         )}
       </div>
@@ -387,7 +393,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
         <div className="relative w-full max-w-[380px]">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Search classrooms..."
+            placeholder={t("classrooms.search_placeholder") || "Search classrooms..."}
             className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl dark:text-slate-200 dark:placeholder:text-slate-500"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
@@ -406,7 +412,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
               ) : (
                 <Trash2 className="w-4 h-4 mr-2" />
               )}
-              Eliminar ({selectedRoomIds.length})
+              {t("classrooms.bulk_delete") || "Eliminar"} ({selectedRoomIds.length})
             </Button>
           )}
           <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-1 bg-white dark:bg-slate-900">
@@ -443,7 +449,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       {isLoading ? (
         <div className="flex min-h-[320px] items-center justify-center text-slate-500">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Loading classrooms...
+          {t("classrooms.loading") || "Loading classrooms..."}
         </div>
       ) : viewType === "table" ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -459,13 +465,13 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                     />
                   </TableHead>
                 )}
-                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Name</TableHead>
-                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Type</TableHead>
-                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Capacity</TableHead>
-                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Features</TableHead>
-                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">Status</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">{t("classrooms.table_name") || "Name"}</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">{t("classrooms.table_type") || "Type"}</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">{t("classrooms.table_capacity") || "Capacity"}</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">{t("classrooms.table_features") || "Features"}</TableHead>
+                <TableHead className="font-semibold text-slate-700 dark:text-slate-300">{t("classrooms.table_status") || "Status"}</TableHead>
                 {isAdmin && (
-                  <TableHead className="text-right font-semibold text-slate-700 dark:text-slate-300">Actions</TableHead>
+                  <TableHead className="text-right font-semibold text-slate-700 dark:text-slate-300">{t("classrooms.table_actions") || "Actions"}</TableHead>
                 )}
               </TableRow>
             </TableHeader>
@@ -495,16 +501,18 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                       variant="secondary"
                       className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                     >
-                      {getClassroomTypeLabel(room.type)}
+                      {getClassroomTypeLabel(room.type, t)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-slate-650 dark:text-slate-350">{room.capacity} Seats</TableCell>
+                  <TableCell className="text-slate-650 dark:text-slate-350">
+                    {t("classrooms.seats").replace("{count}", String(room.capacity))}
+                  </TableCell>
                   <TableCell className="text-slate-650 dark:text-slate-350 max-w-[250px] truncate">
                     <div className="flex flex-wrap gap-1">
                       {room.features.slice(0, 3).map((feature) => (
                         <span
                           key={feature}
-                          className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 rounded text-[10px] text-slate-605 dark:text-slate-355 font-medium"
+                          className="px-1.5 py-0.5 bg-slate-50 dark:bg-slate-855 border border-slate-100 dark:border-slate-800 rounded text-[10px] text-slate-605 dark:text-slate-355 font-medium"
                         >
                           {feature}
                         </span>
@@ -524,7 +532,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                           : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400"
                       )}
                     >
-                      {room.isActive ? "Active" : "Inactive"}
+                      {room.isActive ? (t("classrooms.active") || "Active") : (t("classrooms.inactive") || "Inactive")}
                     </Badge>
                   </TableCell>
                   {isAdmin && (
@@ -536,7 +544,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                           onClick={() => openEdit(room)}
                           className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                         >
-                          Edit
+                          {t("classrooms.edit") || "Edit"}
                         </Button>
                         <Button
                           variant="ghost"
@@ -579,11 +587,11 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                     variant="secondary"
                     className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
-                    {room.isActive ? "Active" : "Inactive"}
+                    {room.isActive ? (t("classrooms.active") || "Active") : (t("classrooms.inactive") || "Inactive")}
                   </Badge>
                 </div>
                 <CardDescription className="text-slate-500 dark:text-slate-400">
-                  {getClassroomTypeLabel(room.type)} - {room.capacity} Seats
+                  {getClassroomTypeLabel(room.type, t)} - {t("classrooms.seats").replace("{count}", String(room.capacity))}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -605,7 +613,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                       onClick={() => openEdit(room)}
                       className="w-full text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                     >
-                      Edit
+                      {t("classrooms.edit") || "Edit"}
                     </Button>
                     <Button
                       variant="ghost"
@@ -619,7 +627,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                       ) : (
                         <Trash2 className="mr-2 h-4 w-4" />
                       )}
-                      Delete
+                      {t("classrooms.delete") || "Delete"}
                     </Button>
                   </div>
                 )}
@@ -631,7 +639,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
 
       {!isLoading && filteredClassrooms.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-          No classrooms found.
+          {t("classrooms.no_classrooms") || "No classrooms found."}
         </div>
       )}
 
@@ -684,17 +692,16 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <DialogHeader>
               <DialogTitle>
-                {editingClassroom ? "Edit Classroom" : "Add Classroom"}
+                {editingClassroom ? (t("classrooms.edit_classroom") || "Edit Classroom") : (t("classrooms.create_classroom") || "Add Classroom")}
               </DialogTitle>
               <DialogDescription>
-                Configure rooms before building courses, units, classes, and
-                schedules.
+                {t("classrooms.configure_desc") || "Configure rooms before building courses, units, classes, and schedules."}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="classroom-name">Name</Label>
+                <Label htmlFor="classroom-name">{t("classrooms.form_name") || "Name"}</Label>
                 <Input
                   id="classroom-name"
                   placeholder="C1.01"
@@ -708,7 +715,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>{t("classrooms.form_type") || "Type"}</Label>
                 <Select
                   value={formState.type}
                   onValueChange={(value: ClassroomType) =>
@@ -716,10 +723,10 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder={t("classrooms.form_type") || "Select type"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {classroomTypeOptions.map((option) => (
+                    {localTypeOptions.map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -728,7 +735,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="classroom-capacity">Capacity</Label>
+                <Label htmlFor="classroom-capacity">{t("classrooms.form_capacity") || "Capacity"}</Label>
                 <Input
                   id="classroom-capacity"
                   type="number"
@@ -745,9 +752,9 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
               </div>
               <div className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800">
                 <div>
-                  <Label htmlFor="classroom-active">Active</Label>
+                  <Label htmlFor="classroom-active">{t("classrooms.form_active") || "Active"}</Label>
                   <p className="text-xs text-slate-500">
-                    Available for scheduling
+                    {t("classrooms.form_active_desc") || "Available for scheduling"}
                   </p>
                 </div>
                 <Switch
@@ -762,7 +769,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="classroom-features">Features</Label>
+                <Label htmlFor="classroom-features">{t("classrooms.form_features") || "Features"}</Label>
                 <Input
                   id="classroom-features"
                   placeholder="Projector, Whiteboard, 30 PCs"
@@ -775,7 +782,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                   }
                 />
                 <p className="text-xs text-slate-500">
-                  Separate features with commas.
+                  {t("classrooms.form_features_desc") || "Separate features with commas."}
                 </p>
               </div>
             </div>
@@ -787,7 +794,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                 onClick={() => setIsFormOpen(false)}
                 disabled={isSaving}
               >
-                Cancel
+                {t("classrooms.form_cancel") || "Cancel"}
               </Button>
               <Button
                 type="submit"
@@ -795,7 +802,7 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingClassroom ? "Save Classroom" : "Create Classroom"}
+                {editingClassroom ? (t("classrooms.form_save") || "Save Classroom") : (t("classrooms.form_create") || "Create Classroom")}
               </Button>
             </DialogFooter>
           </form>
@@ -808,18 +815,22 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">Eliminar Sala</AlertDialogTitle>
+            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">
+              {t("classrooms.dialog_delete_title") || "Eliminar Sala"}
+            </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                Tem a certeza de que deseja eliminar a sala "<strong>{roomToDelete?.name}</strong>"? Esta ação é permanente.
+                {t("classrooms.dialog_delete_confirm").replace("{name}", roomToDelete?.name || "")}
               </p>
               {schedulesCountToDelete !== null && schedulesCountToDelete > 0 && (
                 <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
                   <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">Aviso Importante</h4>
+                    <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                      {t("classrooms.dialog_delete_warning_title") || "Aviso Importante"}
+                    </h4>
                     <p className="text-xs mt-1 leading-relaxed text-amber-800 dark:text-amber-305">
-                      Esta sala tem <strong>{schedulesCountToDelete}</strong> turma(s)/aula(s) associada(s). Se a eliminar, estas turmas poderão ficar sem salas atribuídas.
+                      {t("classrooms.dialog_delete_warning_desc").replace("{count}", String(schedulesCountToDelete))}
                     </p>
                   </div>
                 </div>
@@ -827,12 +838,14 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t("classrooms.dialog_delete_cancel") || "Cancelar"}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={executeDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Eliminar
+              {t("classrooms.dialog_delete_btn") || "Eliminar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -841,18 +854,22 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
       <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">Eliminar Salas em Lote</AlertDialogTitle>
+            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">
+              {t("classrooms.dialog_bulk_title") || "Eliminar Salas em Lote"}
+            </AlertDialogTitle>
             <AlertDialogDescription className="space-y-3">
               <p>
-                Tem a certeza de que deseja eliminar as <strong>{selectedRoomIds.length}</strong> salas selecionadas? Esta ação é permanente.
+                {t("classrooms.dialog_bulk_confirm").replace("{count}", String(selectedRoomIds.length))}
               </p>
               {bulkSchedulesCount !== null && bulkSchedulesCount > 0 && (
                 <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
                   <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">Aviso Importante</h4>
+                    <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                      {t("classrooms.dialog_delete_warning_title") || "Aviso Importante"}
+                    </h4>
                     <p className="text-xs mt-1 leading-relaxed text-amber-800 dark:text-amber-305">
-                      As salas selecionadas têm um total de <strong>{bulkSchedulesCount}</strong> turma(s)/aula(s) associada(s). Ao eliminá-las, estas turmas poderão ficar sem salas atribuídas.
+                      {t("classrooms.dialog_bulk_warning_desc").replace("{count}", String(bulkSchedulesCount))}
                     </p>
                   </div>
                 </div>
@@ -860,12 +877,14 @@ export const ClassroomsPage = ({ user }: ClassroomsPageProps) => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t("classrooms.dialog_delete_cancel") || "Cancelar"}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={executeBulkDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
-              Eliminar
+              {t("classrooms.dialog_delete_btn") || "Eliminar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

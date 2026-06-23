@@ -22,6 +22,7 @@ import {
 } from "../ui/tooltip";
 import type { ClassRequest, RequestStatus } from "../../types/requests";
 import { cn } from "../ui/utils";
+import { useLanguage } from "../../providers/LanguageContext";
 
 export interface RequestCardProps {
   request: ClassRequest;
@@ -47,6 +48,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
   onCancel,
   onChangeStatus,
 }) => {
+  const { t } = useLanguage();
   const isAdmin = userRole === "admin";
   const isTeacher = userRole === "teacher";
   const isCoordinator = userRole === "coordinator";
@@ -143,7 +145,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                         </div>
                       </TooltipTrigger>
                       <TooltipContent className="bg-red-600 text-white border-red-700">
-                        <p>Room {request.newRoom} is occupied.</p>
+                        <p>{t("requests.conflict_alert").replace("{room}", request.newRoom || "")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -155,11 +157,11 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300 rounded text-[10px] font-bold cursor-help">
                           <AlertTriangle className="h-3 w-3" />
-                          <span className="hidden sm:inline">Soon</span>
+                          <span className="hidden sm:inline">{t("requests.soon")}</span>
                         </div>
                       </TooltipTrigger>
                       <TooltipContent className="bg-amber-500 text-white border-amber-600">
-                        <p>Scheduled date is approaching.</p>
+                        <p>{t("requests.approaching")}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -215,7 +217,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                 className="w-48 rounded-xl shadow-xl border-slate-100 dark:border-slate-800 dark:bg-slate-900"
               >
                 <DropdownMenuLabel className="text-xs text-slate-500 dark:text-slate-400 font-normal">
-                  Actions
+                  {t("actions.actions")}
                 </DropdownMenuLabel>
                 <DropdownMenuItem
                   onClick={(e) => {
@@ -224,7 +226,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                   }}
                   className="cursor-pointer"
                 >
-                  View Details
+                  {t("actions.view_details")}
                 </DropdownMenuItem>
 
                 {/* Teacher Actions */}
@@ -239,7 +241,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                       }}
                       className="cursor-pointer"
                     >
-                      Edit Request
+                      {t("requests.edit_request")}
                     </DropdownMenuItem>
                   )}
                 {isTeacher &&
@@ -255,7 +257,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                           onCancel(request);
                         }}
                       >
-                        Cancel Request
+                        {t("requests.cancel_request")}
                       </DropdownMenuItem>
                     </>
                   )}
@@ -274,7 +276,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                         }}
                       >
                         <RotateCcw className="w-3.5 h-3.5 mr-2" />
-                        Restore to Pending
+                        {t("requests.restore_pending")}
                       </DropdownMenuItem>
                     </>
                   )}
@@ -292,7 +294,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                           onChangeStatus(request.id, "approved");
                         }}
                       >
-                        Approve Request
+                        {t("coordinator.approve_request")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300 cursor-pointer"
@@ -301,7 +303,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                           onChangeStatus(request.id, "rejected");
                         }}
                       >
-                        Reject Request
+                        {t("coordinator.reject_request")}
                       </DropdownMenuItem>
                     </>
                   )}
@@ -335,7 +337,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
 
           <div className="bg-slate-50 dark:bg-slate-800/50 rounded p-2 text-xs border border-slate-100 dark:border-slate-800 mb-3">
             <span className="text-slate-400 font-bold uppercase mr-1.5 text-[10px]">
-              Reason:
+              {t("requests.reason")}:
             </span>
             <span className="text-slate-700 dark:text-slate-300 italic line-clamp-1">
               "{request.reason}"
@@ -357,7 +359,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                   onChangeStatus(request.id, "rejected");
                 }}
               >
-                Reject
+                {t("details.reject")}
               </Button>
               <Button
                 size="sm"
@@ -367,7 +369,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                   onChangeStatus(request.id, "approved");
                 }}
               >
-                Approve
+                {t("details.approve")}
               </Button>
             </div>
           )}
@@ -375,7 +377,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
           {request.status === "rejected" && request.rejectionReason && (
             <div className="mt-3 p-2 bg-red-50/50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-lg">
               <div className="flex items-center gap-1.5 text-[10px] font-bold text-red-600 dark:text-red-400 uppercase mb-1">
-                <X className="w-3 h-3" /> Rejection Reason
+                <X className="w-3 h-3" /> {t("details.rejection_reason")}
               </div>
               <p className="text-[11px] text-red-700 dark:text-red-300 italic line-clamp-2">
                 "{request.rejectionReason}"

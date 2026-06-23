@@ -20,6 +20,7 @@ import {
 } from "../ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { cn } from "../ui/utils";
+import { useLanguage } from "../../providers/LanguageContext";
 
 export type ViewMode = "board" | "table";
 export type SortOrder = "asc" | "desc";
@@ -61,12 +62,48 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onShowHistoryChange,
   searchPlaceholder = "Search requests...",
 }) => {
+  const { t } = useLanguage();
+
+  const getCourseDisplayName = (cf: CourseFilter) => {
+    switch (cf) {
+      case "all":
+        return t("requests.all_courses");
+      case "Computer Science":
+        return t("course.computer_science");
+      case "Information Systems":
+        return t("course.information_systems");
+      case "Design":
+        return t("course.design");
+      default:
+        return cf;
+    }
+  };
+
+  const getStatusDisplayName = (sf: StatusFilter) => {
+    switch (sf) {
+      case "all":
+        return t("requests.all_requests");
+      case "pending":
+        return t("requests.pending");
+      case "approved":
+        return t("requests.approved");
+      case "rejected":
+        return t("requests.rejected");
+      default:
+        return sf;
+    }
+  };
+
+  const placeholderText = searchPlaceholder === "Search requests..." 
+    ? t("requests.search_placeholder") 
+    : searchPlaceholder;
+
   return (
     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
       <div className="relative flex-1 w-full max-w-sm">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
         <Input
-          placeholder={searchPlaceholder}
+          placeholder={placeholderText}
           className="pl-9 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:bg-slate-50 dark:focus:bg-slate-800 transition-all rounded-xl dark:text-slate-200 dark:placeholder:text-slate-500"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
@@ -87,7 +124,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             onClick={() => onViewModeChange("board")}
           >
             <LayoutGrid className="w-3.5 h-3.5 mr-2" />
-            Board
+            {t("requests.board_view")}
           </Button>
           <Button
             variant={viewMode === "table" ? "outline" : "ghost"}
@@ -100,7 +137,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             onClick={() => onViewModeChange("table")}
           >
             <TableIcon className="w-3.5 h-3.5 mr-2" />
-            List
+            {t("requests.list_view")}
           </Button>
         </div>
 
@@ -126,7 +163,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               className="w-48 dark:bg-slate-900 dark:border-slate-800"
             >
               <DropdownMenuLabel className="text-xs text-slate-500 dark:text-slate-400">
-                Filter Course
+                {t("requests.filter_course")}
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
               {(
@@ -144,7 +181,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 >
                   <div className="flex items-center w-full">
                     <span className="flex-1">
-                      {cf === "all" ? "All Courses" : cf}
+                      {getCourseDisplayName(cf)}
                     </span>
                     {courseFilter === cf && (
                       <Check className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
@@ -175,7 +212,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               className="w-48 dark:bg-slate-900 dark:border-slate-800"
             >
               <DropdownMenuLabel className="text-xs text-slate-500 dark:text-slate-400">
-                Filter Status
+                {t("requests.filter_status")}
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
               {(
@@ -183,12 +220,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               ).map((sf) => (
                 <DropdownMenuItem
                   key={sf}
-                  className="cursor-pointer capitalize"
+                  className="cursor-pointer"
                   onClick={() => onStatusFilterChange(sf)}
                 >
                   <div className="flex items-center w-full">
-                    <span className="flex-1">
-                      {sf === "all" ? "All Requests" : sf}
+                    <span className="flex-1 capitalize">
+                      {getStatusDisplayName(sf)}
                     </span>
                     {statusFilter === sf && (
                       <Check className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
@@ -215,7 +252,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               className="w-48 dark:bg-slate-900 dark:border-slate-800"
             >
               <DropdownMenuLabel className="text-xs text-slate-500 dark:text-slate-400">
-                Sort by Date
+                {t("requests.sort_date")}
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-slate-100 dark:bg-slate-800" />
               <DropdownMenuItem
@@ -223,7 +260,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 onClick={() => onSortOrderChange("asc")}
               >
                 <div className="flex items-center w-full">
-                  <span className="flex-1">Oldest First</span>
+                  <span className="flex-1">{t("requests.oldest_first")}</span>
                   {sortOrder === "asc" && (
                     <Check className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                   )}
@@ -234,7 +271,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 onClick={() => onSortOrderChange("desc")}
               >
                 <div className="flex items-center w-full">
-                  <span className="flex-1">Newest First</span>
+                  <span className="flex-1">{t("requests.newest_first")}</span>
                   {sortOrder === "desc" && (
                     <Check className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                   )}
@@ -256,13 +293,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 value="current"
                 className="text-xs px-3 h-7 rounded-md"
               >
-                Current
+                {t("requests.current_tab")}
               </TabsTrigger>
               <TabsTrigger
                 value="history"
                 className="text-xs px-3 h-7 rounded-md"
               >
-                History
+                {t("requests.history")}
               </TabsTrigger>
             </TabsList>
           </Tabs>

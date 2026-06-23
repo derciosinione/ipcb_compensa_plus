@@ -18,8 +18,10 @@ import {
   useMarkNotificationReadMutation,
   useNotificationsQuery,
 } from "../../services/notifications/notificationQueries";
+import { useLanguage } from "../../providers/LanguageContext";
 
 export const NotificationsPage = () => {
+  const { t } = useLanguage();
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all");
   const {
     data: notifications = [],
@@ -32,9 +34,9 @@ export const NotificationsPage = () => {
 
   useEffect(() => {
     if (isError) {
-      toast.error(getErrorMessage(error, "Failed to load notifications."));
+      toast.error(getErrorMessage(error, t("notifications.toast_load_error") || "Failed to load notifications."));
     }
-  }, [error, isError]);
+  }, [error, isError, t]);
 
   const filteredNotifications = notifications.filter((n) => {
     if (filter === "unread") return !n.isRead;
@@ -46,7 +48,7 @@ export const NotificationsPage = () => {
     markNotificationRead.mutate(id, {
       onError: (error) => {
         toast.error(
-          getErrorMessage(error, "Failed to mark notification as read."),
+          getErrorMessage(error, t("notifications.toast_mark_read_error") || "Failed to mark notification as read."),
         );
       },
     });
@@ -63,7 +65,7 @@ export const NotificationsPage = () => {
       {
         onError: (error) => {
           toast.error(
-            getErrorMessage(error, "Failed to mark notifications as read."),
+            getErrorMessage(error, t("notifications.toast_mark_all_read_error") || "Failed to mark notifications as read."),
           );
         },
       },
@@ -88,10 +90,10 @@ export const NotificationsPage = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-            Notifications
+            {t("notifications.title") || "Notifications"}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Stay updated with system alerts and request statuses.
+            {t("notifications.subtitle") || "Stay updated with system alerts and request statuses."}
           </p>
         </div>
         <div className="flex gap-2">
@@ -100,7 +102,7 @@ export const NotificationsPage = () => {
             onClick={markAllAsRead}
             className="dark:border-slate-800 dark:text-slate-300"
           >
-            <Check className="w-4 h-4 mr-2" /> Mark all as read
+            <Check className="w-4 h-4 mr-2" /> {t("notifications.mark_all_read") || "Mark all as read"}
           </Button>
         </div>
       </div>
@@ -113,16 +115,16 @@ export const NotificationsPage = () => {
         >
           <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
             <TabsTrigger value="all" className="rounded-lg">
-              All
+              {t("notifications.tab_all") || "All"}
             </TabsTrigger>
             <TabsTrigger value="unread" className="rounded-lg gap-2">
-              Unread
+              {t("notifications.tab_unread") || "Unread"}
               {notifications.some((n) => !n.isRead) && (
                 <span className="w-2 h-2 rounded-full bg-blue-500" />
               )}
             </TabsTrigger>
             <TabsTrigger value="read" className="rounded-lg">
-              Read
+              {t("notifications.tab_read") || "Read"}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -130,15 +132,15 @@ export const NotificationsPage = () => {
 
       <div className="grid gap-4">
         {isLoading ? (
-          <div className="text-center py-10">Loading notifications...</div>
+          <div className="text-center py-10">{t("notifications.loading") || "Loading notifications..."}</div>
         ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-20 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-100 dark:border-slate-800">
             <Bell className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-slate-900 dark:text-slate-200">
-              No notifications
+              {t("notifications.no_notifications") || "No notifications"}
             </h3>
             <p className="text-slate-500 dark:text-slate-400">
-              You're all caught up!
+              {t("notifications.caught_up") || "You're all caught up!"}
             </p>
           </div>
         ) : (
@@ -194,10 +196,9 @@ export const NotificationsPage = () => {
                         onClick={() => markAsRead(notification.id)}
                         className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
                       >
-                        Mark as read
+                        {t("notifications.mark_read") || "Mark as read"}
                       </button>
                     )}
-                    {/* Remove functionality requires an endpoint which we didn't add yet, so we just omit or disable it */}
                   </div>
                 </div>
               </CardContent>

@@ -41,12 +41,14 @@ import { listCompensationRequests } from "../../../services/compensationRequests
 import type { CompensationRequest } from "../../../services/compensationRequests/compensationRequestTypes";
 import { getErrorMessage } from "../../../utils/errors";
 import { toast } from "sonner";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface UserProfileProps {
   user: User;
 }
 
 export const UserProfile = ({ user }: UserProfileProps) => {
+  const { t, language } = useLanguage();
   const [requests, setRequests] = useState<CompensationRequest[]>([]);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
         const teacherUserId = user.role === "teacher" ? user.id : undefined;
         setRequests(await listCompensationRequests(undefined, teacherUserId));
       } catch (error) {
-        toast.error(getErrorMessage(error, "Failed to load profile activity."));
+        toast.error(getErrorMessage(error, t("profile.toast_load_error")));
       }
     };
 
@@ -88,7 +90,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
 
   const activityData = useMemo(() => {
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const counts = days.map((name) => ({ name, requests: 0 }));
+    const counts = days.map((name) => ({ name: t(`day.${name}`), requests: 0 }));
 
     requests.forEach((request) => {
       const date = new Date(request.submittedAt);
@@ -98,7 +100,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
     });
 
     return counts.slice(1).concat(counts[0]);
-  }, [requests]);
+  }, [requests, t]);
 
   const recentActivity = useMemo(
     () =>
@@ -117,11 +119,16 @@ export const UserProfile = ({ user }: UserProfileProps) => {
               : request.status === "Rejected"
                 ? "rejection"
                 : "request",
-          title: `${request.status} request`,
-          date: new Date(request.updatedAt).toLocaleDateString(),
+          title: t("profile.status_request").replace(
+            "{status}",
+            t(`requests.${request.status.toLowerCase()}`),
+          ),
+          date: new Date(request.updatedAt).toLocaleDateString(
+            language === "pt" ? "pt-PT" : "en-US",
+          ),
           desc: `${request.curricularUnit} - ${request.course}`,
         })),
-    [requests],
+    [requests, language, t],
   );
 
   return (
@@ -129,15 +136,15 @@ export const UserProfile = ({ user }: UserProfileProps) => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            My Profile
+            {t("profile.title")}
           </h2>
           <p className="text-slate-500 dark:text-slate-400">
-            Manage your account settings and view your activity.
+            {t("profile.subtitle")}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2">
-            <Edit className="w-4 h-4" /> Edit Profile
+            <Edit className="w-4 h-4" /> {t("profile.edit_profile")}
           </Button>
         </div>
       </div>
@@ -166,10 +173,10 @@ export const UserProfile = ({ user }: UserProfileProps) => {
                   {user.name}
                 </h3>
                 <p className="text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1 capitalize">
-                  <Briefcase className="w-3 h-3" /> {user.role}
+                  <Briefcase className="w-3 h-3" /> {t(`role.${user.role}`)}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                  <GraduationCap className="w-3 h-3" /> Information Systems
+                  <GraduationCap className="w-3 h-3" /> {t("profile.department")}
                 </p>
               </div>
 
@@ -184,11 +191,11 @@ export const UserProfile = ({ user }: UserProfileProps) => {
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <MapPin className="w-4 h-4 text-slate-400" />
-                  Main Campus
+                  {t("profile.campus")}
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                   <Calendar className="w-4 h-4 text-slate-400" />
-                  Joined Jan 2024
+                  {t("profile.joined").replace("{date}", "Jan 2024")}
                 </div>
               </div>
             </CardContent>
@@ -197,14 +204,14 @@ export const UserProfile = ({ user }: UserProfileProps) => {
           <Card className="border-none shadow-md ring-1 ring-slate-100 dark:ring-slate-800 bg-white dark:bg-slate-900">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">
-                My Performance
+                {t("profile.performance")}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-300">
-                    Total Requests
+                    {t("profile.total_requests")}
                   </span>
                   <span className="font-bold text-slate-900 dark:text-slate-100">
                     {stats.totalRequests}
@@ -219,7 +226,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-600 dark:text-slate-300">
-                    Approved
+                    {t("profile.approved")}
                   </span>
                   <span className="font-bold text-green-600">
                     {stats.approvedRequests}
@@ -244,7 +251,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Activity className="w-4 h-4 text-indigo-500" />
-                  This Week's Activity
+                  {t("profile.weekly_activity")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -284,7 +291,7 @@ export const UserProfile = ({ user }: UserProfileProps) => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Award className="w-4 h-4 text-amber-500" />
-                  Badges & Awards
+                  {t("profile.badges")}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -295,10 +302,10 @@ export const UserProfile = ({ user }: UserProfileProps) => {
                     </div>
                     <div>
                       <h4 className="font-semibold text-sm text-slate-900 dark:text-slate-100">
-                        Early Adopter
+                        {t("profile.early_adopter")}
                       </h4>
                       <p className="text-xs text-slate-500">
-                        Joined during beta phase
+                        {t("profile.early_adopter_desc")}
                       </p>
                     </div>
                   </div>
@@ -312,10 +319,10 @@ export const UserProfile = ({ user }: UserProfileProps) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-emerald-500" />
-                Recent Activity
+                {t("profile.recent_activity")}
               </CardTitle>
               <CardDescription>
-                Your recent interactions with the platform.
+                {t("profile.recent_activity_desc")}
               </CardDescription>
             </CardHeader>
             <CardContent>

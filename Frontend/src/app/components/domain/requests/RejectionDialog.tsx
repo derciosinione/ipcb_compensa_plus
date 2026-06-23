@@ -11,6 +11,7 @@ import {
 } from "../../ui/alert-dialog";
 import { Label } from "../../ui/label";
 import { Textarea } from "../../ui/textarea";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface RejectionDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ export const RejectionDialog = ({
   onOpenChange,
   onConfirm,
 }: RejectionDialogProps) => {
+  const { t } = useLanguage();
   const [reason, setReason] = useState("");
 
   const handleConfirm = () => {
@@ -38,20 +40,19 @@ export const RejectionDialog = ({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="text-red-600">
-            Reject Request
+            {t("reject.title")}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Please provide a reason for rejecting this request. This will be
-            visible to the teacher.
+            {t("reject.desc")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="py-2">
           <Label htmlFor="reason" className="mb-2 block text-sm font-medium">
-            Rejection Reason
+            {t("reject.reason_label")}
           </Label>
           <Textarea
             id="reason"
-            placeholder="E.g., Room conflict, Policy violation..."
+            placeholder={t("reject.placeholder")}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="resize-none"
@@ -59,14 +60,14 @@ export const RejectionDialog = ({
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setReason("")}>
-            Cancel
+            {t("common.cancel")}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={!reason.trim()}
             className="bg-red-600 hover:bg-red-700 text-white"
           >
-            Confirm Rejection
+            {t("reject.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
