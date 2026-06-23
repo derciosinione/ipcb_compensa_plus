@@ -10,7 +10,25 @@ import {
   MessageSquare,
   Trash2,
   Sparkles,
+  Mic,
+  MicOff,
+  BarChart2,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend as RechartsLegend,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
 import {
@@ -101,6 +119,66 @@ export function AIChatInterface({
     setSelectedModel(val);
     localStorage.setItem("compensa.ai.selected_model", val);
   };
+
+  const [isRecording, setIsRecording] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error(t("ai_chat.voice_not_supported"));
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = localStorage.getItem("compensa.language") === "en" ? "en-US" : "pt-PT";
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event);
+        toast.error(t("ai_chat.voice_error"));
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setIsRecording(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   const session = getStoredAuthSession();
   const userId = session?.user?.id ?? "global";
@@ -568,6 +646,85 @@ export function AIChatInterface({
                         </Card>
                       )}
 
+                    {message.action === "RenderChart" &&
+                      message.actionData && (
+                        <Card className="w-full mt-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md max-w-lg overflow-hidden">
+                          <CardHeader className="py-3.5 px-5 border-b border-slate-100 dark:border-slate-800">
+                            <CardTitle className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                              <BarChart2 className="w-4 h-4 text-blue-500" /> {message.actionData.title || "Estatísticas"}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-5">
+                            <div className="h-60 w-full flex items-center justify-center text-xs">
+                              {message.actionData.chartType === "bar" && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={message.actionData.data} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-100 dark:stroke-slate-800" />
+                                    <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                    <RechartsTooltip contentStyle={{ background: "#0f172a", border: "none", borderRadius: "8px", color: "#fff" }} />
+                                    <RechartsLegend iconType="circle" />
+                                    {Object.keys(message.actionData.data[0] || {})
+                                      .filter((k) => k !== "name" && k !== "value")
+                                      .map((key, idx) => {
+                                        const colors = ["#3b82f6", "#22c55e", "#ef4444", "#eab308"];
+                                        return <Bar key={key} dataKey={key} fill={colors[idx % colors.length]} radius={[4, 4, 0, 0]} />;
+                                      })}
+                                    {(!Object.keys(message.actionData.data[0] || {}).some((k) => k !== "name" && k !== "value")) && (
+                                      <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                    )}
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              )}
+
+                              {message.actionData.chartType === "line" && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={message.actionData.data} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-100 dark:stroke-slate-800" />
+                                    <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                    <RechartsTooltip contentStyle={{ background: "#0f172a", border: "none", borderRadius: "8px", color: "#fff" }} />
+                                    <RechartsLegend iconType="circle" />
+                                    {Object.keys(message.actionData.data[0] || {})
+                                      .filter((k) => k !== "name" && k !== "value")
+                                      .map((key, idx) => {
+                                        const colors = ["#3b82f6", "#22c55e", "#ef4444", "#eab308"];
+                                        return <Line key={key} type="monotone" dataKey={key} stroke={colors[idx % colors.length]} strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />;
+                                      })}
+                                    {(!Object.keys(message.actionData.data[0] || {}).some((k) => k !== "name" && k !== "value")) && (
+                                      <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                                    )}
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              )}
+
+                              {message.actionData.chartType === "pie" && (
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <PieChart>
+                                    <Pie
+                                      data={message.actionData.data}
+                                      cx="50%"
+                                      cy="50%"
+                                      innerRadius={50}
+                                      outerRadius={85}
+                                      paddingAngle={3}
+                                      dataKey={message.actionData.data[0]?.value !== undefined ? "value" : Object.keys(message.actionData.data[0] || {}).find(k => k !== "name") || "value"}
+                                    >
+                                      {message.actionData.data.map((entry: any, index: number) => {
+                                        const colors = ["#3b82f6", "#22c55e", "#ef4444", "#eab308", "#8b5cf6", "#ec4899"];
+                                        return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                                      })}
+                                    </Pie>
+                                    <RechartsTooltip contentStyle={{ background: "#0f172a", border: "none", borderRadius: "8px", color: "#fff" }} />
+                                    <RechartsLegend layout="horizontal" align="center" verticalAlign="bottom" iconType="circle" />
+                                  </PieChart>
+                                </ResponsiveContainer>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
                     <span className="text-xs text-slate-400 px-2">
                       {message.timestamp.toLocaleTimeString([], {
                         hour: "2-digit",
@@ -624,6 +781,19 @@ export function AIChatInterface({
               className="flex-shrink-0"
             >
               <Paperclip className="w-4 h-4" />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleRecording}
+              disabled={isProcessing}
+              className={cn(
+                "flex-shrink-0 transition-all duration-300",
+                isRecording && "bg-red-500 hover:bg-red-600 text-white animate-pulse border-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+              )}
+            >
+              {isRecording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
             </Button>
 
             <div className="flex-1 relative">

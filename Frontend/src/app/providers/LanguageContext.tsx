@@ -606,6 +606,8 @@ const translations: Record<Language, Record<string, string>> = {
     "ai_chat.model_auto": "Auto (Smart)",
     "ai_chat.model_gemini": "Gemini",
     "ai_chat.model_openai": "OpenAI (GPT)",
+    "ai_chat.voice_not_supported": "Voice recognition is not supported in this browser.",
+    "ai_chat.voice_error": "Error recognizing voice. Please try again.",
 
     // Layout Help
     "layout_help.title": "Help & Support",
@@ -1502,6 +1504,8 @@ const translations: Record<Language, Record<string, string>> = {
     "ai_chat.model_auto": "Auto (Inteligente)",
     "ai_chat.model_gemini": "Gemini",
     "ai_chat.model_openai": "OpenAI (GPT)",
+    "ai_chat.voice_not_supported": "O reconhecimento de voz não é suportado neste navegador.",
+    "ai_chat.voice_error": "Erro ao reconhecer a voz. Tente novamente.",
 
     // Layout Help
     "layout_help.title": "Ajuda e Suporte",

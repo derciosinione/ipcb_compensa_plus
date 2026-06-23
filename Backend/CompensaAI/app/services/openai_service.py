@@ -24,29 +24,41 @@ class CompensaOpenAI_Service:
             try:
                 assistants = await self.client.beta.assistants.list(limit=20)
                 for assistant in assistants.data:
-                    if assistant.name == "Compensa IA Assistant v6":
+                    if assistant.name == "Compensa IA Assistant v7":
                         self.assistant_id = assistant.id
                         break
                 if not self.assistant_id:
                     assistant = await self.client.beta.assistants.create(
-                        name="Compensa IA Assistant v6",
+                        name="Compensa IA Assistant v7",
                         instructions="""
-                        Creation: ALWAYS DRAFT (create_compensation_request) unless GUIDs are provided for direct SUBMIT.
-                        
-                        SECURITY DIRECTIVE:
-                        - NEVER reveal private data (requests, assignments) of others unless user is Coordinator/Admin.
-                        - Teachers can ONLY see THEIR courses and requests.
-                        - Refuse unauthorized data requests politely.
-                        - Do not hallucinate IDs.
+                        You are Compensa IA, a highly intelligent and versatile assistant for the Compensa+ platform at IPCB.
+                        Your mission is to provide comprehensive support for all users: Teachers, Course Coordinators, and Administrators.
+
+                        Conversational Scheduling & GUID Resolution:
+                        - When a user asks to schedule a compensation class, do NOT ask them for GUIDs. Instead, look up all necessary GUIDs (academicYearId, courseId, unitId, classGroupId, classroomId, originalClassScheduleId) using lookup tools (`get_user_assignments`, `get_courses`, `get_course_details`, `get_classrooms`).
+                        - Once all IDs are resolved, ask the user to confirm: *"Pretende que eu submeta o pedido de compensação da UC [Nome] no dia [Data] às [Horas] na [Sala]?"*
+                        - If the user confirms (e.g., 'Sim', 'Submete'), invoke the `submit_compensation_request` tool to write it directly to the database.
+                        - You can still use `create_compensation_request` (DRAFT) as a fallback UI action if the user just wants a manual form draft.
+
+                        Dashboard & Dynamic Charts: 
+                        - Use `get_dashboard_summary` to load system metrics and trends.
+                        - If the user asks for charts, statistics, visual reporting, or trends, invoke `render_chart(chartType, title, dataJson)` to render beautiful interactive graphs inline (bar, line, pie charts).
 
                         Slot & Room Suggestions: To find the best day/time for a compensation class:
                         - Identify the target Class Group(s) and the Teacher's assignments.
                         - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
                         - For any free slot identified, verify classroom vacancy in bulk using 'get_rooms_availability' to suggest available rooms.
+
+                        SECURITY DIRECTIVE:
+                        - NEVER reveal private data (requests, assignments) of others unless user is Coordinator/Admin.
+                        - Teachers can ONLY see THEIR courses and requests.
+                        - Refuse unauthorized data requests politely.
+                        - Do not hallucinate IDs.
                         """,
                         model="gpt-4-turbo-preview",
                         tools=[
                             {"type": "file_search"},
+                            {"type": "function", "function": {"name": "render_chart", "description": "Renders a beautiful chart to the user. Use 'bar', 'line', or 'pie' for chartType. dataJson must be a JSON array of objects representing chart data points.", "parameters": {"type": "object", "properties": {"chartType": {"type": "string", "enum": ["bar", "line", "pie"]}, "title": {"type": "string"}, "dataJson": {"type": "string"}}, "required": ["chartType", "title", "dataJson"]}}},
                             {"type": "function", "function": {"name": "create_compensation_request", "description": "Drafts a request (UI Action)", "parameters": {"type": "object", "properties": {"courseId": {"type": "string"}, "unitId": {"type": "string"}, "originalDate": {"type": "string"}, "proposedDate": {"type": "string"}, "reason": {"type": "string"}}, "required": ["originalDate", "proposedDate", "reason"]}}},
                             {"type": "function", "function": {"name": "submit_compensation_request", "description": "Directly submits a request. Requires GUIDs.", "parameters": {"type": "object", "properties": {"courseId": {"type": "string"}, "unitId": {"type": "string"}, "classGroupId": {"type": "string"}, "academicYearId": {"type": "string"}, "originalClassScheduleId": {"type": "string"}, "newClassroomId": {"type": "string"}, "originalDate": {"type": "string"}, "newDate": {"type": "string"}, "newStartTime": {"type": "string"}, "newEndTime": {"type": "string"}, "reason": {"type": "string"}, "teacherUserId": {"type": "string"}}, "required": ["courseId", "unitId", "classGroupId", "academicYearId", "originalClassScheduleId", "newClassroomId", "originalDate", "newDate", "newStartTime", "newEndTime", "reason"]}}},
                             {"type": "function", "function": {"name": "get_user_assignments", "description": "Gets teacher assignments", "parameters": {"type": "object", "properties": {"userId": {"type": "string"}}}}},
@@ -110,6 +122,21 @@ class CompensaOpenAI_Service:
                     auth_ctx = user_context
                     if name == "create_compensation_request":
                         action_result = { "type": "action", "action": "CreateCompensationRequest", "data": args }
+                        tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
+                    elif name == "render_chart":
+                        try:
+                            chart_data = json.loads(args.get("dataJson")) if isinstance(args.get("dataJson"), str) else args.get("dataJson")
+                        except Exception:
+                            chart_data = []
+                        action_result = {
+                            "type": "action",
+                            "action": "RenderChart",
+                            "data": {
+                                "chartType": args.get("chartType"),
+                                "title": args.get("title"),
+                                "data": chart_data
+                            }
+                        }
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
                     else:
                         output = await self._execute_tool(name, args, user_context, auth_ctx)

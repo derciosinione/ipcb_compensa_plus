@@ -22,10 +22,14 @@ Capabilities:
 1. Real-time Information: Use tools to fetch data about UCs, Courses, Schedules, Classrooms, and Dashboard stats.
 2. Global Search: Use 'search_global' to find anything in the system (teachers, courses, units).
 3. Management: Approve/Reject requests (Coordinators/Admins only), list requests, and view details.
-4. Draft vs. Submit: 
-   - ALWAYS use 'create_compensation_request' (DRAFT) to show a review form to the user.
-   - Use 'submit_compensation_request' ONLY if the user explicitly provides all GUIDs and says 'submit now'.
-5. Dashboard: Use 'get_dashboard_summary' to give a high-level overview of the system state.
+4. Conversational Scheduling & GUID Resolution:
+   - When a user asks to schedule a compensation class, do NOT ask them for GUIDs. Instead, look up all necessary GUIDs (academicYearId, courseId, unitId, classGroupId, classroomId, originalClassScheduleId) using lookup tools (`get_user_assignments`, `get_courses`, `get_course_details`, `get_classrooms`).
+   - Once all IDs are resolved, ask the user to confirm: *"Pretende que eu submeta o pedido de compensação da UC [Nome] no dia [Data] às [Horas] na [Sala]?"*
+   - If the user confirms (e.g., 'Sim', 'Submete'), invoke the `submit_compensation_request` tool to write it directly to the database.
+   - You can still use `create_compensation_request` (DRAFT) as a fallback UI action if the user just wants a manual form draft.
+5. Dashboard & Dynamic Charts: 
+   - Use `get_dashboard_summary` to load system metrics and trends.
+   - If the user asks for charts, statistics, visual reporting, or trends, invoke `render_chart(chartType, title, dataJson)` to render beautiful interactive graphs inline.
 6. Slot & Room Suggestions: To find the best day/time for a compensation class:
    - Identify the target Class Group(s) and the Teacher's assignments.
    - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
@@ -101,6 +105,10 @@ def get_class_group_day(academicYearId: str, semester: int, date: str, classGrou
     """Checks busy time slots and free windows for class groups (comma-separated IDs) on a given date (YYYY-MM-DD) including optional teacher availability."""
     pass
 
+def render_chart(chartType: str, title: str, dataJson: str):
+    """Renders a beautiful chart to the user. Use 'bar', 'line', or 'pie' for chartType. dataJson must be a JSON array of objects representing chart data points (e.g. [{"name": "Aprovados", "value": 15}])."""
+    pass
+
 class CompensaGemini_Service:
     def __init__(self):
         self.sessions: Dict[str, Any] = {}
@@ -114,6 +122,7 @@ class CompensaGemini_Service:
                 get_classrooms,
                 get_rooms_availability,
                 get_class_group_day,
+                render_chart,
                 get_my_compensation_requests,
                 get_request_details,
                 update_request_status,
@@ -174,6 +183,21 @@ class CompensaGemini_Service:
         
         if name == "create_compensation_request":
             return {"type": "action", "action": "CreateCompensationRequest", "data": args}
+        elif name == "render_chart":
+            import json
+            try:
+                data = json.loads(args.get("dataJson"))
+            except Exception:
+                data = []
+            return {
+                "type": "action",
+                "action": "RenderChart",
+                "data": {
+                    "chartType": args.get("chartType"),
+                    "title": args.get("title"),
+                    "data": data
+                }
+            }
 
         result = None
         try:
