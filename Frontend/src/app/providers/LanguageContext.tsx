@@ -602,6 +602,10 @@ const translations: Record<Language, Record<string, string>> = {
     "ai_chat.ai_fallback": "AI",
     "ai_chat.user_fallback": "ME",
     "ai_chat.suggested_by_ai": "Suggested by Compensa AI",
+    "ai_chat.model_selector_label": "Model:",
+    "ai_chat.model_auto": "Auto (Smart)",
+    "ai_chat.model_gemini": "Gemini",
+    "ai_chat.model_openai": "OpenAI (GPT)",
 
     // Layout Help
     "layout_help.title": "Help & Support",
@@ -1494,6 +1498,10 @@ const translations: Record<Language, Record<string, string>> = {
     "ai_chat.ai_fallback": "IA",
     "ai_chat.user_fallback": "EU",
     "ai_chat.suggested_by_ai": "Sugerido pela Compensa IA",
+    "ai_chat.model_selector_label": "Modelo:",
+    "ai_chat.model_auto": "Auto (Inteligente)",
+    "ai_chat.model_gemini": "Gemini",
+    "ai_chat.model_openai": "OpenAI (GPT)",
 
     // Layout Help
     "layout_help.title": "Ajuda e Suporte",

@@ -2,6 +2,7 @@ export interface ChatMessageRequest {
   thread_id?: string;
   message: string;
   file_ids?: string[];
+  model?: string;
 }
 
 export interface ChatMessageResponse {

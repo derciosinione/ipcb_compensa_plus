@@ -14,6 +14,7 @@ class ChatRequest(BaseModel):
     message: str
     file_ids: Optional[List[str]] = None
     user_context: Optional[Dict[str, Any]] = None
+    model: Optional[str] = "auto"
 
 class ChatResponse(BaseModel):
     thread_id: str
@@ -30,13 +31,14 @@ async def send_message(
     try:
         thread_id = request.thread_id
         if not thread_id:
-            thread_id = await ai_coordinator.create_thread()
+            thread_id = await ai_coordinator.create_thread(provider=request.model or "auto")
 
         result = await ai_coordinator.send_message(
             thread_id=thread_id,
             content=request.message,
             file_ids=request.file_ids,
-            user_context=user_context
+            user_context=user_context,
+            provider=request.model or "auto"
         )
 
         response = ChatResponse(

@@ -9,6 +9,7 @@ import {
   Plus,
   MessageSquare,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Textarea } from "../components/ui/textarea";
@@ -29,6 +30,13 @@ import remarkGfm from "remark-gfm";
 import { getStoredAuthSession, getStoredActiveRole } from "../services/auth/authSession";
 import { cn } from "../components/ui/utils";
 import { useLanguage } from "../providers/LanguageContext";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 
 interface ChatMessage {
   id: string;
@@ -84,6 +92,15 @@ export function AIChatInterface({
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    return localStorage.getItem("compensa.ai.selected_model") || "auto";
+  });
+
+  const handleModelChange = (val: string) => {
+    setSelectedModel(val);
+    localStorage.setItem("compensa.ai.selected_model", val);
+  };
 
   const session = getStoredAuthSession();
   const userId = session?.user?.id ?? "global";
@@ -300,6 +317,7 @@ export function AIChatInterface({
           input ||
           t("ai_chat.default_file_msg"),
         file_ids: fileIds.length > 0 ? fileIds : undefined,
+        model: selectedModel,
       });
 
       const nextThreadId = response.thread_id;
@@ -425,6 +443,32 @@ export function AIChatInterface({
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col h-full min-w-0">
+        {/* Chat Header with Model Selector */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-blue-500 animate-pulse" />
+              Compensa+ AI Assistant
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-850 p-0.5 rounded-lg border border-slate-200/50 dark:border-slate-800/40">
+            <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 px-1.5">
+              {t("ai_chat.model_selector_label")}
+            </span>
+            <Select value={selectedModel} onValueChange={handleModelChange}>
+              <SelectTrigger className="h-7 w-[140px] text-xs border-none bg-transparent hover:bg-slate-200 dark:hover:bg-slate-850 shadow-none font-medium px-2 focus:ring-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="dark:bg-slate-900 dark:border-slate-800 text-xs">
+                <SelectItem value="auto" className="text-xs">{t("ai_chat.model_auto")}</SelectItem>
+                <SelectItem value="gemini" className="text-xs">Gemini</SelectItem>
+                <SelectItem value="openai" className="text-xs">OpenAI (GPT)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Chat Messages */}
         <ScrollArea className="flex-1 min-h-0 w-full">
           <div className="space-y-6 px-4 py-6">
