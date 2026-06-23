@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
     CORE_API_URL: str = "http://core-api:8080"
+    NOTIFICATIONS_API_URL: str = "http://notifications-api:8000"
     DATABASE_URL: str = ""
     JWT_SIGNING_KEY: str = "jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js="
     JWT_ISSUER: str = "Compensa.Identity"

@@ -34,6 +34,8 @@ Capabilities:
    - Identify the target Class Group(s) and the Teacher's assignments.
    - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
    - For any free slot identified, verify classroom vacancy in bulk using 'get_rooms_availability' to suggest available rooms.
+7. Notifications Integration: Use 'get_user_notifications' to fetch and list the active notifications or alert logs for the user.
+8. Interactive Request Approval: When displaying a list of pending compensation requests for a Coordinator or Admin, call 'manage_compensation_request' for each pending request so that the UI can render interactive Approve and Reject action buttons directly in the chat feed.
 
 SECURITY DIRECTIVE:
 - You must NEVER reveal private data (requests, specific assignments) of other users unless the current user is a Coordinator or Admin.
@@ -109,6 +111,14 @@ def render_chart(chartType: str, title: str, dataJson: str):
     """Renders a beautiful chart to the user. Use 'bar', 'line', or 'pie' for chartType. dataJson must be a JSON array of objects representing chart data points (e.g. [{"name": "Aprovados", "value": 15}])."""
     pass
 
+def get_user_notifications():
+    """Fetches the active notifications/alerts for the current user."""
+    pass
+
+def manage_compensation_request(requestId: str, teacherName: str, unitName: str, proposedDate: str, timeSlot: str, room: str, reason: str):
+    """Shows an interactive approval card for a pending request so coordinators can approve/reject it directly in the chat."""
+    pass
+
 class CompensaGemini_Service:
     def __init__(self):
         self.sessions: Dict[str, Any] = {}
@@ -123,6 +133,8 @@ class CompensaGemini_Service:
                 get_rooms_availability,
                 get_class_group_day,
                 render_chart,
+                get_user_notifications,
+                manage_compensation_request,
                 get_my_compensation_requests,
                 get_request_details,
                 update_request_status,
@@ -183,6 +195,8 @@ class CompensaGemini_Service:
         
         if name == "create_compensation_request":
             return {"type": "action", "action": "CreateCompensationRequest", "data": args}
+        elif name == "manage_compensation_request":
+            return {"type": "action", "action": "ManageCompensationRequest", "data": args}
         elif name == "render_chart":
             import json
             try:
@@ -227,6 +241,8 @@ class CompensaGemini_Service:
                 result = await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
                 result = await core_api_service.get_academic_years(auth_ctx)
+            elif name == "get_user_notifications":
+                result = await core_api_service.get_user_notifications(auth_ctx)
             elif name == "get_rooms_availability":
                 result = await core_api_service.get_rooms_availability(
                     args.get("academicYearId"),

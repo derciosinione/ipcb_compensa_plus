@@ -42,7 +42,7 @@ import { toast } from "sonner";
 import { ScrollArea } from "../components/ui/scroll-area";
 import { IAService } from "../services/api/ia.service";
 import { useMutation } from "@tanstack/react-query";
-import { createCompensationRequest } from "../services/compensationRequests/compensationRequestsApi";
+import { createCompensationRequest, updateCompensationRequestStatus } from "../services/compensationRequests/compensationRequestsApi";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getStoredAuthSession, getStoredActiveRole } from "../services/auth/authSession";
@@ -345,6 +345,44 @@ export function AIChatInterface({
     },
   });
 
+  const [decisionPendingId, setDecisionPendingId] = useState<string | null>(null);
+
+  const handleRequestDecision = async (messageId: string, requestId: string, decision: "Approved" | "Rejected") => {
+    let comment = "Aprovado via AI Chat";
+    if (decision === "Rejected") {
+      const reasonInput = prompt(t("reject.placeholder") || "Por favor, indique o motivo da rejeição:");
+      if (reasonInput === null) return; // User cancelled
+      comment = reasonInput.trim() || "Rejeitado via AI Chat";
+    }
+
+    setDecisionPendingId(requestId);
+    try {
+      await updateCompensationRequestStatus(requestId, decision, comment);
+      toast.success(decision === "Approved" ? "Pedido aprovado!" : "Pedido rejeitado.");
+      
+      // Update message state inline
+      updateActiveConversationMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? {
+                ...msg,
+                actionData: {
+                  ...msg.actionData,
+                  status: decision,
+                  decisionComment: comment,
+                },
+              }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error("Error updating request status:", error);
+      toast.error("Erro ao processar alteração de estado.");
+    } finally {
+      setDecisionPendingId(null);
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -642,6 +680,66 @@ export function AIChatInterface({
                                 {t("ai_chat.draft_submit")}
                               </Button>
                             </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                    {message.action === "ManageCompensationRequest" &&
+                      message.actionData && (
+                        <Card className="w-full mt-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md max-w-sm overflow-hidden">
+                          <CardHeader className="py-3 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
+                            <CardTitle className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                              <CalendarCheck className="w-3.5 h-3.5 text-blue-500" /> Decisão de Compensação
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="p-4 space-y-3">
+                            <div className="text-xs space-y-1.5 text-slate-600 dark:text-slate-300">
+                              <div><span className="font-semibold text-slate-800 dark:text-slate-200">Docente:</span> {message.actionData.teacherName}</div>
+                              <div><span className="font-semibold text-slate-800 dark:text-slate-200">UC:</span> {message.actionData.unitName}</div>
+                              <div><span className="font-semibold text-slate-800 dark:text-slate-200">Data Proposta:</span> {message.actionData.proposedDate}</div>
+                              <div><span className="font-semibold text-slate-800 dark:text-slate-200">Horário:</span> {message.actionData.timeSlot}</div>
+                              <div><span className="font-semibold text-slate-800 dark:text-slate-200">Sala:</span> {message.actionData.room}</div>
+                              {message.actionData.reason && (
+                                <div><span className="font-semibold text-slate-800 dark:text-slate-200">Justificação:</span> <span className="italic">"{message.actionData.reason}"</span></div>
+                              )}
+                            </div>
+
+                            {message.actionData.status ? (
+                              <div className="pt-2">
+                                {message.actionData.status === "Approved" ? (
+                                  <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 font-semibold bg-green-50 dark:bg-green-950/30 px-2.5 py-1.5 rounded-lg border border-green-200 dark:border-green-900">
+                                    <span>✅ Aprovado via Chat</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col gap-1 text-xs text-red-600 dark:text-red-400 font-semibold bg-red-50 dark:bg-red-950/30 px-2.5 py-1.5 rounded-lg border border-red-200 dark:border-red-900">
+                                    <span>❌ Rejeitado via Chat</span>
+                                    {message.actionData.decisionComment && (
+                                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-normal">Motivo: {message.actionData.decisionComment}</span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex gap-2 pt-2">
+                                <Button
+                                  variant="outline"
+                                  className="flex-1 bg-green-50 hover:bg-green-100 dark:bg-green-950/20 dark:hover:bg-green-950/40 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900 text-xs py-1 h-8"
+                                  disabled={decisionPendingId !== null}
+                                  onClick={() => handleRequestDecision(message.id, message.actionData.requestId, "Approved")}
+                                >
+                                  {decisionPendingId === message.actionData.requestId ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                                  Aprovar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="flex-1 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 dark:hover:bg-red-950/40 text-red-700 dark:text-red-400 border-red-200 dark:border-red-900 text-xs py-1 h-8"
+                                  disabled={decisionPendingId !== null}
+                                  onClick={() => handleRequestDecision(message.id, message.actionData.requestId, "Rejected")}
+                                >
+                                  Rejeitar
+                                </Button>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       )}

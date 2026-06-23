@@ -24,12 +24,12 @@ class CompensaOpenAI_Service:
             try:
                 assistants = await self.client.beta.assistants.list(limit=20)
                 for assistant in assistants.data:
-                    if assistant.name == "Compensa IA Assistant v7":
+                    if assistant.name == "Compensa IA Assistant v8":
                         self.assistant_id = assistant.id
                         break
                 if not self.assistant_id:
                     assistant = await self.client.beta.assistants.create(
-                        name="Compensa IA Assistant v7",
+                        name="Compensa IA Assistant v8",
                         instructions="""
                         You are Compensa IA, a highly intelligent and versatile assistant for the Compensa+ platform at IPCB.
                         Your mission is to provide comprehensive support for all users: Teachers, Course Coordinators, and Administrators.
@@ -49,6 +49,12 @@ class CompensaOpenAI_Service:
                         - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
                         - For any free slot identified, verify classroom vacancy in bulk using 'get_rooms_availability' to suggest available rooms.
 
+                        Notifications Integration:
+                        - Use 'get_user_notifications' to fetch active user notifications and alert logs.
+
+                        Interactive Request Approval:
+                        - When listing pending requests for a Coordinator or Admin, call 'manage_compensation_request' for each pending request so that the UI can render Approve and Reject action buttons inline.
+
                         SECURITY DIRECTIVE:
                         - NEVER reveal private data (requests, assignments) of others unless user is Coordinator/Admin.
                         - Teachers can ONLY see THEIR courses and requests.
@@ -58,6 +64,8 @@ class CompensaOpenAI_Service:
                         model="gpt-4-turbo-preview",
                         tools=[
                             {"type": "file_search"},
+                            {"type": "function", "function": {"name": "get_user_notifications", "description": "Fetches the active notifications/alerts for the current user.", "parameters": {"type": "object", "properties": {}}}},
+                            {"type": "function", "function": {"name": "manage_compensation_request", "description": "Shows an interactive approval card for a pending request so coordinators can approve/reject it directly in the chat.", "parameters": {"type": "object", "properties": {"requestId": {"type": "string"}, "teacherName": {"type": "string"}, "unitName": {"type": "string"}, "proposedDate": {"type": "string"}, "timeSlot": {"type": "string"}, "room": {"type": "string"}, "reason": {"type": "string"}}, "required": ["requestId", "teacherName", "unitName", "proposedDate", "timeSlot", "room", "reason"]}}},
                             {"type": "function", "function": {"name": "render_chart", "description": "Renders a beautiful chart to the user. Use 'bar', 'line', or 'pie' for chartType. dataJson must be a JSON array of objects representing chart data points.", "parameters": {"type": "object", "properties": {"chartType": {"type": "string", "enum": ["bar", "line", "pie"]}, "title": {"type": "string"}, "dataJson": {"type": "string"}}, "required": ["chartType", "title", "dataJson"]}}},
                             {"type": "function", "function": {"name": "create_compensation_request", "description": "Drafts a request (UI Action)", "parameters": {"type": "object", "properties": {"courseId": {"type": "string"}, "unitId": {"type": "string"}, "originalDate": {"type": "string"}, "proposedDate": {"type": "string"}, "reason": {"type": "string"}}, "required": ["originalDate", "proposedDate", "reason"]}}},
                             {"type": "function", "function": {"name": "submit_compensation_request", "description": "Directly submits a request. Requires GUIDs.", "parameters": {"type": "object", "properties": {"courseId": {"type": "string"}, "unitId": {"type": "string"}, "classGroupId": {"type": "string"}, "academicYearId": {"type": "string"}, "originalClassScheduleId": {"type": "string"}, "newClassroomId": {"type": "string"}, "originalDate": {"type": "string"}, "newDate": {"type": "string"}, "newStartTime": {"type": "string"}, "newEndTime": {"type": "string"}, "reason": {"type": "string"}, "teacherUserId": {"type": "string"}}, "required": ["courseId", "unitId", "classGroupId", "academicYearId", "originalClassScheduleId", "newClassroomId", "originalDate", "newDate", "newStartTime", "newEndTime", "reason"]}}},
@@ -123,6 +131,9 @@ class CompensaOpenAI_Service:
                     if name == "create_compensation_request":
                         action_result = { "type": "action", "action": "CreateCompensationRequest", "data": args }
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
+                    elif name == "manage_compensation_request":
+                        action_result = { "type": "action", "action": "ManageCompensationRequest", "data": args }
+                        tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
                     elif name == "render_chart":
                         try:
                             chart_data = json.loads(args.get("dataJson")) if isinstance(args.get("dataJson"), str) else args.get("dataJson")
@@ -176,6 +187,8 @@ class CompensaOpenAI_Service:
                 return await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
                 return await core_api_service.get_academic_years(auth_ctx)
+            elif name == "get_user_notifications":
+                return await core_api_service.get_user_notifications(auth_ctx)
             elif name == "get_rooms_availability":
                 return await core_api_service.get_rooms_availability(
                     args.get("academicYearId"),

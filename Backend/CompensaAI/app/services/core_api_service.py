@@ -157,7 +157,7 @@ class CoreApiService:
         """Updates the status of a compensation request."""
         try:
             async with httpx.AsyncClient() as client:
-                data = {"Status": status, "Reason": reason}
+                data = {"Status": status, "DecisionComment": reason}
                 response = await client.patch(f"{self.base_url}/api/compensation-requests/{request_id}/status", json=data, headers=self._get_headers(token))
                 if response.status_code == 200:
                     return response.json().get("data", {})
@@ -253,6 +253,22 @@ class CoreApiService:
                 return {"error": f"Erro técnico ({response.status_code})"}
         except Exception as e:
             logger.error(f"Error calling Core API get_academic_years: {e}")
+            return {"error": str(e)}
+
+    async def get_user_notifications(self, token: Optional[str] = None):
+        """Fetches the user's notifications from the notifications microservice."""
+        try:
+            url = getattr(settings, "NOTIFICATIONS_API_URL", "http://notifications-api:8000")
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{url}/api/notifications",
+                    headers=self._get_headers(token)
+                )
+                if response.status_code == 200:
+                    return response.json()
+                return {"error": f"Erro técnico ({response.status_code})"}
+        except Exception as e:
+            logger.error(f"Error calling Notifications API get_user_notifications: {e}")
             return {"error": str(e)}
 
 core_api_service = CoreApiService()
