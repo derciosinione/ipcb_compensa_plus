@@ -26,6 +26,10 @@ Capabilities:
    - ALWAYS use 'create_compensation_request' (DRAFT) to show a review form to the user.
    - Use 'submit_compensation_request' ONLY if the user explicitly provides all GUIDs and says 'submit now'.
 5. Dashboard: Use 'get_dashboard_summary' to give a high-level overview of the system state.
+6. Slot & Room Suggestions: To find the best day/time for a compensation class:
+   - Identify the target Class Group(s) and the Teacher's assignments.
+   - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
+   - For any free slot identified, verify classroom vacancy in bulk using 'get_rooms_availability' to suggest available rooms.
 
 SECURITY DIRECTIVE:
 - You must NEVER reveal private data (requests, specific assignments) of other users unless the current user is a Coordinator or Admin.
@@ -89,6 +93,14 @@ def search_global(query: str):
     """Performs a global search across the entire system."""
     pass
 
+def get_rooms_availability(academicYearId: str, semester: int, date: str, startTime: str, endTime: str, excludedScheduleId: Optional[str] = None):
+    """Checks availability of all rooms in a given period (YYYY-MM-DD, HH:MM)."""
+    pass
+
+def get_class_group_day(academicYearId: str, semester: int, date: str, classGroupIds: str, excludedScheduleId: Optional[str] = None, teacherUserId: Optional[str] = None):
+    """Checks busy time slots and free windows for class groups (comma-separated IDs) on a given date (YYYY-MM-DD) including optional teacher availability."""
+    pass
+
 class CompensaGemini_Service:
     def __init__(self):
         self.sessions: Dict[str, Any] = {}
@@ -100,6 +112,8 @@ class CompensaGemini_Service:
                 get_user_assignments,
                 get_available_rooms,
                 get_classrooms,
+                get_rooms_availability,
+                get_class_group_day,
                 get_my_compensation_requests,
                 get_request_details,
                 update_request_status,
@@ -189,6 +203,26 @@ class CompensaGemini_Service:
                 result = await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
                 result = await core_api_service.get_academic_years(auth_ctx)
+            elif name == "get_rooms_availability":
+                result = await core_api_service.get_rooms_availability(
+                    args.get("academicYearId"),
+                    int(args.get("semester")),
+                    args.get("date"),
+                    args.get("startTime"),
+                    args.get("endTime"),
+                    args.get("excludedScheduleId"),
+                    auth_ctx
+                )
+            elif name == "get_class_group_day":
+                result = await core_api_service.get_class_group_day(
+                    args.get("academicYearId"),
+                    int(args.get("semester")),
+                    args.get("date"),
+                    args.get("classGroupIds"),
+                    args.get("excludedScheduleId"),
+                    args.get("teacherUserId"),
+                    auth_ctx
+                )
             
             if result is not None:
                 response = await chat_session.send_message_async({"parts": [{"function_response": {"name": name, "response": {"result": result}}}]})

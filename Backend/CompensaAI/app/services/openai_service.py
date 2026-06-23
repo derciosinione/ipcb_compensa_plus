@@ -24,12 +24,12 @@ class CompensaOpenAI_Service:
             try:
                 assistants = await self.client.beta.assistants.list(limit=20)
                 for assistant in assistants.data:
-                    if assistant.name == "Compensa IA Assistant v5":
+                    if assistant.name == "Compensa IA Assistant v6":
                         self.assistant_id = assistant.id
                         break
                 if not self.assistant_id:
                     assistant = await self.client.beta.assistants.create(
-                        name="Compensa IA Assistant v5",
+                        name="Compensa IA Assistant v6",
                         instructions="""
                         Creation: ALWAYS DRAFT (create_compensation_request) unless GUIDs are provided for direct SUBMIT.
                         
@@ -38,6 +38,11 @@ class CompensaOpenAI_Service:
                         - Teachers can ONLY see THEIR courses and requests.
                         - Refuse unauthorized data requests politely.
                         - Do not hallucinate IDs.
+
+                        Slot & Room Suggestions: To find the best day/time for a compensation class:
+                        - Identify the target Class Group(s) and the Teacher's assignments.
+                        - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
+                        - For any free slot identified, verify classroom vacancy in bulk using 'get_rooms_availability' to suggest available rooms.
                         """,
                         model="gpt-4-turbo-preview",
                         tools=[
@@ -46,6 +51,8 @@ class CompensaOpenAI_Service:
                             {"type": "function", "function": {"name": "submit_compensation_request", "description": "Directly submits a request. Requires GUIDs.", "parameters": {"type": "object", "properties": {"courseId": {"type": "string"}, "unitId": {"type": "string"}, "classGroupId": {"type": "string"}, "academicYearId": {"type": "string"}, "originalClassScheduleId": {"type": "string"}, "newClassroomId": {"type": "string"}, "originalDate": {"type": "string"}, "newDate": {"type": "string"}, "newStartTime": {"type": "string"}, "newEndTime": {"type": "string"}, "reason": {"type": "string"}, "teacherUserId": {"type": "string"}}, "required": ["courseId", "unitId", "classGroupId", "academicYearId", "originalClassScheduleId", "newClassroomId", "originalDate", "newDate", "newStartTime", "newEndTime", "reason"]}}},
                             {"type": "function", "function": {"name": "get_user_assignments", "description": "Gets teacher assignments", "parameters": {"type": "object", "properties": {"userId": {"type": "string"}}}}},
                             {"type": "function", "function": {"name": "get_available_rooms", "description": "Checks for free rooms", "parameters": {"type": "object", "properties": {"date": {"type": "string"}, "startTime": {"type": "string"}, "endTime": {"type": "string"}}}}},
+                            {"type": "function", "function": {"name": "get_rooms_availability", "description": "Checks availability of all classrooms in a given period (YYYY-MM-DD, HH:MM).", "parameters": {"type": "object", "properties": {"academicYearId": {"type": "string"}, "semester": {"type": "integer"}, "date": {"type": "string"}, "startTime": {"type": "string"}, "endTime": {"type": "string"}, "excludedScheduleId": {"type": "string"}}, "required": ["academicYearId", "semester", "date", "startTime", "endTime"]}}},
+                            {"type": "function", "function": {"name": "get_class_group_day", "description": "Checks busy slots and free windows for class groups (comma-separated IDs) on a given date (YYYY-MM-DD) including optional teacher availability.", "parameters": {"type": "object", "properties": {"academicYearId": {"type": "string"}, "semester": {"type": "integer"}, "date": {"type": "string"}, "classGroupIds": {"type": "string"}, "excludedScheduleId": {"type": "string"}, "teacherUserId": {"type": "string"}}, "required": ["academicYearId", "semester", "date", "classGroupIds"]}}},
                             {"type": "function", "function": {"name": "get_classrooms", "description": "Lists classrooms", "parameters": {"type": "object", "properties": {"search": {"type": "string"}}}}},
                             {"type": "function", "function": {"name": "get_dashboard_summary", "description": "Gets system stats", "parameters": {"type": "object"}}},
                             {"type": "function", "function": {"name": "search_global", "description": "Global search", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
@@ -142,6 +149,26 @@ class CompensaOpenAI_Service:
                 return await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
                 return await core_api_service.get_academic_years(auth_ctx)
+            elif name == "get_rooms_availability":
+                return await core_api_service.get_rooms_availability(
+                    args.get("academicYearId"),
+                    int(args.get("semester")),
+                    args.get("date"),
+                    args.get("startTime"),
+                    args.get("endTime"),
+                    args.get("excludedScheduleId"),
+                    auth_ctx
+                )
+            elif name == "get_class_group_day":
+                return await core_api_service.get_class_group_day(
+                    args.get("academicYearId"),
+                    int(args.get("semester")),
+                    args.get("date"),
+                    args.get("classGroupIds"),
+                    args.get("excludedScheduleId"),
+                    args.get("teacherUserId"),
+                    auth_ctx
+                )
         except Exception as e: return {"error": str(e)}
         return {"error": "Tool not found"}
 

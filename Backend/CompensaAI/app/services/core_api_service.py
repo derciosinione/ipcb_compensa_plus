@@ -192,6 +192,57 @@ class CoreApiService:
             logger.error(f"Error calling Core API get_course_details: {e}")
             return {"error": str(e)}
 
+    async def get_rooms_availability(self, academic_year_id: str, semester: int, date: str, start_time: str, end_time: str, excluded_schedule_id: Optional[str] = None, token: Optional[str] = None):
+        """Checks availability of all rooms in a given period."""
+        try:
+            async with httpx.AsyncClient() as client:
+                params = {
+                    "AcademicYearId": academic_year_id,
+                    "Semester": semester,
+                    "Date": date,
+                    "StartTime": start_time,
+                    "EndTime": end_time
+                }
+                if excluded_schedule_id:
+                    params["ExcludedScheduleId"] = excluded_schedule_id
+                response = await client.get(
+                    f"{self.base_url}/api/schedules/rooms-availability", 
+                    params=params,
+                    headers=self._get_headers(token)
+                )
+                if response.status_code == 200:
+                    return response.json().get("data", [])
+                return {"error": f"Erro técnico ({response.status_code})"}
+        except Exception as e:
+            logger.error(f"Error calling Core API get_rooms_availability: {e}")
+            return {"error": str(e)}
+
+    async def get_class_group_day(self, academic_year_id: str, semester: int, date: str, class_group_ids: str, excluded_schedule_id: Optional[str] = None, teacher_user_id: Optional[str] = None, token: Optional[str] = None):
+        """Checks busy time slots and free windows for class groups on a given date."""
+        try:
+            async with httpx.AsyncClient() as client:
+                params = {
+                    "AcademicYearId": academic_year_id,
+                    "Semester": semester,
+                    "Date": date,
+                    "ClassGroupIds": class_group_ids
+                }
+                if excluded_schedule_id:
+                    params["ExcludedScheduleId"] = excluded_schedule_id
+                if teacher_user_id:
+                    params["TeacherUserId"] = teacher_user_id
+                response = await client.get(
+                    f"{self.base_url}/api/schedules/class-group-day", 
+                    params=params,
+                    headers=self._get_headers(token)
+                )
+                if response.status_code == 200:
+                    return response.json().get("data", {})
+                return {"error": f"Erro técnico ({response.status_code})"}
+        except Exception as e:
+            logger.error(f"Error calling Core API get_class_group_day: {e}")
+            return {"error": str(e)}
+
     async def get_academic_years(self, token: Optional[str] = None):
         """Lists academic years."""
         try:
@@ -205,3 +256,5 @@ class CoreApiService:
             return {"error": str(e)}
 
 core_api_service = CoreApiService()
+
+
