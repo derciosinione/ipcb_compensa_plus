@@ -161,6 +161,11 @@ builder.Services.AddHttpClient("CompensaAI")
 
 builder.Services.AddHostedService<DatabaseStartupService>();
 
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 builder.Services
     .AddControllers()
     .AddJsonOptions(options =>

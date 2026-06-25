@@ -151,7 +151,7 @@ export const RequestForm = ({
         );
         setActiveAcademicYear(loadedAcademicYear ?? null);
       } catch {
-        toast.error("Unable to load academic data for the request form.");
+        toast.error("Unable to load academic data for the request form.", { duration: 20000 });
       }
     };
 
@@ -169,7 +169,7 @@ export const RequestForm = ({
         const details = await getCourseDetails(currentData.course);
         setCourseDetails(details ?? null);
       } catch {
-        toast.error("Unable to load course details.");
+        toast.error("Unable to load course details.", { duration: 20000 });
       }
     };
 
@@ -181,16 +181,16 @@ export const RequestForm = ({
     if (initialData) {
       // Populate form if in edit mode
       setCurrentData({
-        course: initialData.course || "",
-        unit: initialData.unit || "",
-        yearGroups: initialData.yearGroups || [],
+        course: initialData.courseId || initialData.course || "",
+        unit: initialData.curricularUnitId || initialData.unit || "",
+        yearGroups: initialData.classGroupId ? [initialData.classGroupId] : (initialData.yearGroups || []),
         componentType: initialData.componentType || "all",
         originalDate: initialData.originalDate || "",
         originalTime: initialData.originalTime || "",
-        originalRoom: initialData.originalRoom || "",
+        originalRoom: initialData.originalClassScheduleId || initialData.originalRoom || "",
         newDate: initialData.newDate || "",
         newTime: initialData.newTime || "",
-        newRoom: initialData.newRoom || "",
+        newRoom: initialData.newClassroomId || initialData.newRoom || "",
         reason: initialData.reason || "",
       });
       setQueue([]); // Clear queue in edit mode

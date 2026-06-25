@@ -86,6 +86,11 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
     contentType: doc.contentType,
     createdAt: doc.createdAt,
   })),
+  courseId: request.courseId,
+  curricularUnitId: request.curricularUnitId,
+  classGroupId: request.classGroupId,
+  originalClassScheduleId: request.originalClassScheduleId,
+  newClassroomId: request.newClassroomId,
 });
 
 const addDuration = (startTime: string, durationSource: string) => {
@@ -254,7 +259,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
         setRequests((prev) =>
           prev.map((req) => (req.id === editingRequest.id ? mapped : req)),
         );
-        toast.success(t("requests.update_success"));
+        toast.success(t("form.updated_success"));
       }
       setEditingRequest(null);
     } catch (error) {
@@ -548,6 +553,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
               onPageChange={setCurrentPage}
               onViewDetails={openDetails}
               onEdit={openEdit}
+              onCancel={(req) => setRequestToCancel(req)}
             />
           )}
         </div>

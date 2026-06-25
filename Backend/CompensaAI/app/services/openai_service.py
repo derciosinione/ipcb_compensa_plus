@@ -24,15 +24,22 @@ class CompensaOpenAI_Service:
             try:
                 assistants = await self.client.beta.assistants.list(limit=20)
                 for assistant in assistants.data:
-                    if assistant.name == "Compensa IA Assistant v8":
+                    if assistant.name == "Compensa IA Assistant v10":
                         self.assistant_id = assistant.id
                         break
                 if not self.assistant_id:
                     assistant = await self.client.beta.assistants.create(
-                        name="Compensa IA Assistant v8",
-                        instructions="""
+                        name="Compensa IA Assistant v10",
+                         instructions="""
                         You are Compensa IA, a highly intelligent and versatile assistant for the Compensa+ platform at IPCB.
                         Your mission is to provide comprehensive support for all users: Teachers, Course Coordinators, and Administrators.
+
+                        CONVERSATIONAL & TOOL-USE GUIDELINES:
+                        - For general greetings (e.g. "Olá", "Oi"), introductions (e.g. "Meu nome é Dércio"), or general platform/system information questions (e.g. "fala-me sobre a plataforma", "o que é o Compensa+?"), do NOT call any database, search, or action tools (such as `get_dashboard_summary`, `render_chart`, or `search_global`). Simply respond conversationally using your internal knowledge.
+                        - Explain that Compensa+ is a modern platform at IPCB designed to help teachers schedule compensation/substitution classes for missed sessions, check classroom vacancies, and allow coordinators to manage and approve those requests.
+                        - Tell the user who you are (Compensa IA, their assistant) and briefly explain what you can do (help schedule classes, find free classrooms, check schedules, analyze documents, and show request statistics).
+                        - Do NOT call `render_chart` unless the user explicitly requests a chart, graphical view, or statistics breakdown.
+                        - Do NOT call `get_dashboard_summary` unless the user asks for system stats, summaries of requests, or platform usage metrics.
 
                         Conversational Scheduling & GUID Resolution:
                         - When a user asks to schedule a compensation class, do NOT ask them for GUIDs. Instead, look up all necessary GUIDs (academicYearId, courseId, unitId, classGroupId, classroomId, originalClassScheduleId) using lookup tools (`get_user_assignments`, `get_courses`, `get_course_details`, `get_classrooms`).
@@ -118,28 +125,28 @@ class CompensaOpenAI_Service:
 
         run = await self.client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
 
+        action_results = []
         while run.status in ["queued", "in_progress", "requires_action"]:
             await asyncio.sleep(1)
             run = await self.client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
             if run.status == "requires_action":
                 tool_outputs = []
-                action_result = None
                 for tool_call in run.required_action.submit_tool_outputs.tool_calls:
                     name = tool_call.function.name
                     args = json.loads(tool_call.function.arguments)
                     auth_ctx = user_context
                     if name == "create_compensation_request":
-                        action_result = { "type": "action", "action": "CreateCompensationRequest", "data": args }
+                        action_results.append({ "type": "action", "action": "CreateCompensationRequest", "data": args })
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
                     elif name == "manage_compensation_request":
-                        action_result = { "type": "action", "action": "ManageCompensationRequest", "data": args }
+                        action_results.append({ "type": "action", "action": "ManageCompensationRequest", "data": args })
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
                     elif name == "render_chart":
                         try:
                             chart_data = json.loads(args.get("dataJson")) if isinstance(args.get("dataJson"), str) else args.get("dataJson")
                         except Exception:
                             chart_data = []
-                        action_result = {
+                        action_results.append({
                             "type": "action",
                             "action": "RenderChart",
                             "data": {
@@ -147,17 +154,23 @@ class CompensaOpenAI_Service:
                                 "title": args.get("title"),
                                 "data": chart_data
                             }
-                        }
+                        })
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps({"status": "UI_ACTION"})})
                     else:
                         output = await self._execute_tool(name, args, user_context, auth_ctx)
                         tool_outputs.append({"tool_call_id": tool_call.id, "output": json.dumps(output)})
                 await self.client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=tool_outputs)
-                if action_result: return action_result
  
         if run.status == "failed": return {"type": "error", "content": str(run.last_error)}
         messages = await self.client.beta.threads.messages.list(thread_id=thread_id)
-        return {"type": "text", "content": messages.data[0].content[0].text.value}
+        text_content = messages.data[0].content[0].text.value if messages.data else ""
+
+        if action_results:
+            response = action_results[0]
+            response["content"] = text_content
+            return response
+
+        return {"type": "text", "content": text_content}
  
     async def _execute_tool(self, name: str, args: dict, user_context: Optional[dict], auth_ctx: Optional[Any]):
         try:

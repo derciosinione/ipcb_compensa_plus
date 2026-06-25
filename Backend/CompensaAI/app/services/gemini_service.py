@@ -18,6 +18,13 @@ COMPENSA_INSTRUCTIONS = """
 You are Compensa IA, a highly intelligent and versatile assistant for the Compensa+ platform at IPCB.
 Your mission is to provide comprehensive support for all users: Teachers, Course Coordinators, and Administrators.
 
+CONVERSATIONAL & TOOL-USE GUIDELINES:
+- For general greetings (e.g. "Olá", "Oi"), introductions (e.g. "Meu nome é Dércio"), or general platform/system information questions (e.g. "fala-me sobre a plataforma", "o que é o Compensa+?"), do NOT call any database, search, or action tools (such as `get_dashboard_summary`, `render_chart`, or `search_global`). Simply respond conversationally using your internal knowledge.
+- Explain that Compensa+ is a modern platform at IPCB designed to help teachers schedule compensation/substitution classes for missed sessions, check classroom vacancies, and allow coordinators to manage and approve those requests.
+- Tell the user who you are (Compensa IA, their assistant) and briefly explain what you can do (help schedule classes, find free classrooms, check schedules, analyze documents, and show request statistics).
+- Do NOT call `render_chart` unless the user explicitly requests a chart, graphical view, or statistics breakdown.
+- Do NOT call `get_dashboard_summary` unless the user asks for system stats, summaries of requests, or platform usage metrics.
+
 Capabilities:
 1. Real-time Information: Use tools to fetch data about UCs, Courses, Schedules, Classrooms, and Dashboard stats.
 2. Global Search: Use 'search_global' to find anything in the system (teachers, courses, units).
@@ -193,17 +200,22 @@ class CompensaGemini_Service:
         args = {k: v for k, v in fc.args.items()}
         auth_ctx = user_context
         
+        action_payload = None
+        result = None
+
         if name == "create_compensation_request":
-            return {"type": "action", "action": "CreateCompensationRequest", "data": args}
+            action_payload = {"type": "action", "action": "CreateCompensationRequest", "data": args}
+            result = {"status": "UI_ACTION"}
         elif name == "manage_compensation_request":
-            return {"type": "action", "action": "ManageCompensationRequest", "data": args}
+            action_payload = {"type": "action", "action": "ManageCompensationRequest", "data": args}
+            result = {"status": "UI_ACTION"}
         elif name == "render_chart":
             import json
             try:
                 data = json.loads(args.get("dataJson"))
             except Exception:
                 data = []
-            return {
+            action_payload = {
                 "type": "action",
                 "action": "RenderChart",
                 "data": {
@@ -212,6 +224,13 @@ class CompensaGemini_Service:
                     "data": data
                 }
             }
+            result = {"status": "UI_ACTION"}
+
+        if action_payload:
+            response = await chat_session.send_message_async({"parts": [{"function_response": {"name": name, "response": {"result": result}}}]})
+            text_response = await self._handle_response(response, chat_session, user_context)
+            action_payload["content"] = text_response.get("content", "")
+            return action_payload
 
         result = None
         try:

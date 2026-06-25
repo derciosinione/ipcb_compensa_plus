@@ -40,4 +40,12 @@ export interface ClassRequest {
   rejectionReason?: string;
   comments: Comment[];
   documents: RequestDocument[];
+
+  // Internal ID fields for API mapping and updates
+  courseId?: string | null;
+  curricularUnitId?: string | null;
+  classGroupId?: string | null;
+  originalClassScheduleId?: string | null;
+  originalClassroomId?: string | null;
+  newClassroomId?: string | null;
 }

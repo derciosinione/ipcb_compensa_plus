@@ -914,7 +914,7 @@ const translations: Record<Language, Record<string, string>> = {
     "menu.requests": "Solicitações",
     "menu.my_requests": "Minhas Solicitações",
     "menu.calendar": "Calendário",
-    "menu.courses": "Disciplinas",
+    "menu.courses": "Cursos",
     "menu.classrooms": "Salas",
     "menu.system": "Sistema",
     "menu.import_schedules": "Importar Horários",
@@ -1008,22 +1008,22 @@ const translations: Record<Language, Record<string, string>> = {
     "auth.success_magic_link": "Link mágico enviado para seu email!",
 
     // Courses
-    "courses.title": "Minhas Disciplinas",
+    "courses.title": "Meus Cursos",
     "courses.subtitle_admin":
-      "Gerencie todas as disciplinas e currículos do sistema.",
+      "Gerencie todos os cursos e currículos do sistema.",
     "courses.subtitle_coordinator":
-      "Gerencie as disciplinas e currículos sob sua responsabilidade.",
+      "Gerencie os cursos e currículos sob sua responsabilidade.",
     "courses.subtitle_teacher":
       "Acesse as unidades curriculares e turmas que você está lecionando.",
-    "courses.new_course": "Nova Disciplina",
+    "courses.new_course": "Novo Curso",
     "courses.search_placeholder": "Buscar por nome ou sigla...",
     "courses.years": "Anos",
-    "courses.open": "Abrir Disciplina",
-    "courses.add_new": "Adicionar Nova Disciplina",
+    "courses.open": "Abrir Curso",
+    "courses.add_new": "Adicionar Novo Curso",
     "courses.create_program": "Criar um novo programa de graduação",
-    "courses.no_assigned": "Nenhuma disciplina atribuída",
+    "courses.no_assigned": "Nenhum curso atribuído",
     "courses.no_assigned_desc":
-      "Você não tem disciplinas atribuídas ao seu perfil. Entre em contato com o administrador.",
+      "Você não tem cursos atribuídos ao seu perfil. Entre em contato com o administrador.",
 
     // Actions
     "actions.view_details": "Ver Detalhes",
@@ -1163,7 +1163,7 @@ const translations: Record<Language, Record<string, string>> = {
     "sheet.busy": "Ocupado",
 
     // Add Course Modal
-    "modal.add_course_title": "Adicionar Nova Disciplina",
+    "modal.add_course_title": "Adicionar Novo Curso",
     "modal.add_course_desc":
       "Crie um novo programa de graduação para gerenciar no sistema.",
     "modal.course_name": "Nome do Curso",
@@ -1643,7 +1643,7 @@ const translations: Record<Language, Record<string, string>> = {
     "courses.save_class_error": "Não foi possível guardar a turma.",
     "class_details.loading": "A carregar detalhes da turma...",
     "class_details.title": "Detalhes da Turma",
-    "class_details.back_to_course": "Voltar para Disciplina",
+    "class_details.back_to_course": "Voltar para o Curso",
     "class_details.description": "Gerir horários e visualizar atribuições de professores para esta turma.",
     "class_details.assigned_teacher": "Professor Atribuído",
     "class_details.no_teacher": "Nenhum professor atribuído",

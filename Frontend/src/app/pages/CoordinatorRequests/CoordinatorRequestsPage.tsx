@@ -75,6 +75,11 @@ const toClassRequest = (request: CompensationRequest): ClassRequest => ({
     contentType: doc.contentType,
     createdAt: doc.createdAt,
   })),
+  courseId: request.courseId,
+  curricularUnitId: request.curricularUnitId,
+  classGroupId: request.classGroupId,
+  originalClassScheduleId: request.originalClassScheduleId,
+  newClassroomId: request.newClassroomId,
 });
 
 export const CoordinatorRequestsPage = ({
@@ -445,6 +450,7 @@ export const CoordinatorRequestsPage = ({
               totalPages={totalPages}
               onPageChange={setCurrentPage}
               onViewDetails={openDetails}
+              onStatusChange={isAdmin ? undefined : handleStatusChange}
             />
           )}
         </div>

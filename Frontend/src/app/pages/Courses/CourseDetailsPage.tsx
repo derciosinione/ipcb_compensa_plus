@@ -106,6 +106,7 @@ import { listClassrooms } from "../../services/classrooms/classroomsApi";
 import type { Classroom } from "../../services/classrooms/classroomTypes";
 import type { AcademicYear } from "../../services/academicYears/academicYearTypes";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
+import { useLanguage } from "../../providers/LanguageContext";
 import type { User } from "../../types/user";
 
 interface CourseDetailsPageProps {
@@ -1070,14 +1071,14 @@ export const CourseDetailsPage = ({
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
                   <CalendarRange className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
-                    {t("courses.years_stat").replace("{count}", course.durationYears.toString())}
+                    {t("courses.years_stat").replace("{count}", (course.durationYears ?? 0).toString())}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
                   <BookOpen className="w-4 h-4 text-blue-400" />
                   <span className="font-medium text-sm">
-                    {t("courses.ects_stat").replace("{count}", course.totalCredits.toString())}
+                    {t("courses.ects_stat").replace("{count}", (course.totalCredits ?? 0).toString())}
                   </span>
                 </div>
 

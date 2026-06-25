@@ -1,5 +1,11 @@
 import React from "react";
-import { Calendar, Clock, MoreHorizontal } from "lucide-react";
+import { Calendar, Clock, MoreHorizontal, Eye, Pencil, Ban, CheckCircle, XCircle } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -33,6 +39,8 @@ export interface RequestsTableProps {
   onPageChange: (page: number) => void;
   onViewDetails: (req: ClassRequest) => void;
   onEdit?: (req: ClassRequest) => void;
+  onCancel?: (req: ClassRequest) => void;
+  onStatusChange?: (requestId: string, newStatus: "approved" | "rejected" | "pending") => void;
 }
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -78,6 +86,8 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
   onPageChange,
   onViewDetails,
   onEdit,
+  onCancel,
+  onStatusChange,
 }) => {
   const { t } = useLanguage();
   const isTeacher = userRole === "teacher";
@@ -200,30 +210,81 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
                 )}
 
                 <TableCell className="text-right pr-6">
-                  {isTeacher && !showHistory && onEdit ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(request);
-                      }}
-                    >
-                      <MoreHorizontal className="w-4 h-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onViewDetails(request);
-                      }}
-                    >
-                      {t("requests.table_details")}
-                    </Button>
-                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewDetails(request);
+                        }}
+                        className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Eye className="w-4 h-4 text-slate-500" />
+                        <span>{t("requests.view_details")}</span>
+                      </DropdownMenuItem>
+
+                      {isTeacher && request.status === "pending" && !showHistory && onEdit && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEdit(request);
+                          }}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                        >
+                          <Pencil className="w-4 h-4 text-blue-500" />
+                          <span>{t("requests.edit_request")}</span>
+                        </DropdownMenuItem>
+                      )}
+
+                      {isTeacher && request.status === "pending" && !showHistory && onCancel && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCancel(request);
+                          }}
+                          className="flex items-center gap-2 cursor-pointer text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
+                        >
+                          <Ban className="w-4 h-4" />
+                          <span>{t("requests.cancel_request")}</span>
+                        </DropdownMenuItem>
+                      )}
+
+                      {!isTeacher && request.status === "pending" && onStatusChange && (
+                        <>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStatusChange(request.id, "approved");
+                            }}
+                            className="flex items-center gap-2 cursor-pointer text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-950/30"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>{t("coordinator.approve_request")}</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onStatusChange(request.id, "rejected");
+                            }}
+                            className="flex items-center gap-2 cursor-pointer text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>{t("coordinator.reject_request")}</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
