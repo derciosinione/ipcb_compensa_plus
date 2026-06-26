@@ -8,6 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace CompensaIdentityApi.Tests;
 
+[Trait("Category", "Unit")]
 public sealed class JwtTokenServiceTests
 {
     private const string SigningKey = "unit-test-signing-key-with-more-than-32-chars";

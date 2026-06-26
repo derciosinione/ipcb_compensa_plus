@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     CORE_API_URL: str = "http://core-api:8080"
     NOTIFICATIONS_API_URL: str = "http://notifications-api:8000"
     DATABASE_URL: str = ""
-    JWT_SIGNING_KEY: str = "jSqDqaXIZKfdnVgt05SF+kc0rjSGs/DPByulmWLq2js="
+    JWT_SIGNING_KEY: str = ""
     JWT_ISSUER: str = "Compensa.Identity"
     JWT_AUDIENCE: str = "Compensa.Api"
 

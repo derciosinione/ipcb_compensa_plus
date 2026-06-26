@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
 import uuid
-from app.api.routes import chat
 import nest_asyncio
 import os
 from opentelemetry import trace, metrics, _logs
@@ -72,6 +71,8 @@ logging.getLogger().addHandler(logHandler)
 logging.getLogger().setLevel(logging.INFO)
 
 app = FastAPI(title="CompensaAI", version="0.1.0")
+
+from app.api.routes import chat
 
 @app.middleware("http")
 async def structured_logging_middleware(request: Request, call_next):

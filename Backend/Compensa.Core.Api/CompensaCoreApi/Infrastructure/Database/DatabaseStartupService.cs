@@ -8,6 +8,8 @@ namespace CompensaCoreApi.Infrastructure.Database;
 
 public sealed class DatabaseStartupService : IHostedService
 {
+    private const long StartupLockId = 2026062501;
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DatabaseStartupService> _logger;
 
@@ -22,18 +24,39 @@ public sealed class DatabaseStartupService : IHostedService
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
 
-        await ApplyMigrationsOrUseLegacySchemaAsync(context, cancellationToken);
-        await EnsureAcademicYearsTableAsync(context, cancellationToken);
-        await EnsureClassroomsTableAsync(context, cancellationToken);
-        await EnsureCoursesTableAsync(context, cancellationToken);
-        await SeedAcademicYearsAsync(context, cancellationToken);
-        await EnsureCourseDetailsTablesAsync(context, cancellationToken);
-        await EnsureCompensationRequestsSchemaAsync(context, cancellationToken);
-        await EnsureUserAssignmentsTableAsync(context, cancellationToken);
-        await SeedClassroomsAsync(context, cancellationToken);
-        await SeedCoursesAsync(context, cancellationToken);
-        await SeedCourseDetailsAsync(context, cancellationToken);
-        _logger.LogInformation("Core database schema is ready.");
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                $"select pg_advisory_lock({StartupLockId})",
+                cancellationToken);
+
+            try
+            {
+                await ApplyMigrationsOrUseLegacySchemaAsync(context, cancellationToken);
+                await EnsureAcademicYearsTableAsync(context, cancellationToken);
+                await EnsureClassroomsTableAsync(context, cancellationToken);
+                await EnsureCoursesTableAsync(context, cancellationToken);
+                await SeedAcademicYearsAsync(context, cancellationToken);
+                await EnsureCourseDetailsTablesAsync(context, cancellationToken);
+                await EnsureCompensationRequestsSchemaAsync(context, cancellationToken);
+                await EnsureUserAssignmentsTableAsync(context, cancellationToken);
+                await SeedClassroomsAsync(context, cancellationToken);
+                await SeedCoursesAsync(context, cancellationToken);
+                await SeedCourseDetailsAsync(context, cancellationToken);
+                _logger.LogInformation("Core database schema is ready.");
+            }
+            finally
+            {
+                await context.Database.ExecuteSqlRawAsync(
+                    $"select pg_advisory_unlock({StartupLockId})",
+                    CancellationToken.None);
+            }
+        }
+        finally
+        {
+            await context.Database.CloseConnectionAsync();
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

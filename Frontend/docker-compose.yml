@@ -4,7 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5005}
         VITE_IDENTITY_API_URL: ${VITE_IDENTITY_API_URL:-http://localhost:5002}
+        VITE_ENABLE_DEV_LOGIN: ${VITE_ENABLE_DEV_LOGIN:-false}
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5173}:80"

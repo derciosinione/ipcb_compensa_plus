@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any
 
 from ..core.database import get_db
+from ..metrics import record_notification_read, record_preferences_updated
 from ..models import Notification, NotificationPreference
 from .auth import get_current_user_id
 
@@ -54,6 +55,7 @@ async def mark_notification_read(
         
     notification.is_read = True
     await db.commit()
+    record_notification_read()
     
     return {"success": True, "message": "Notification marked as read"}
 
@@ -101,4 +103,5 @@ async def update_preferences(
         pref.email_enabled = email_enabled
         
     await db.commit()
+    record_preferences_updated(email_enabled)
     return {"success": True, "message": "Preferences updated"}

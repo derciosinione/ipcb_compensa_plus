@@ -73,7 +73,7 @@ cp .env.example .env
 Important variables:
 
 ```bash
-POSTGRES_PASSWORD=change_me
+POSTGRES_PASSWORD=change_me_to_a_strong_local_password
 JWT_SIGNING_KEY=replace_with_a_secret_at_least_32_chars
 FRONTEND_PUBLIC_URL=http://localhost:5173
 VITE_API_URL=http://localhost:5005
@@ -82,7 +82,7 @@ GEMINI_API_KEY=
 EMAIL_PASSWORD=
 ```
 
-Do not commit real API keys, SMTP passwords, or production JWT secrets.
+Do not commit real API keys, SMTP passwords, database passwords, or production JWT secrets. The Docker Compose files require `POSTGRES_PASSWORD` and `JWT_SIGNING_KEY` to come from `.env`; they intentionally do not include secret defaults.
 
 ## Run Locally
 

@@ -5,6 +5,7 @@ using CompensaIdentityApi.Infrastructure.Auth;
 using CompensaIdentityApi.Infrastructure.Email;
 using CompensaIdentityApi.Infrastructure.MagicLinks;
 using CompensaIdentityApi.Models;
+using CompensaIdentityApi.Observability;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -50,6 +51,7 @@ public sealed class AuthService : IAuthService
         if (user == null)
         {
             _logger.LogInformation("Magic link requested for unknown email {Email}", request.Email);
+            CompensaIdentityMetrics.RecordMagicLinkRequested("unknown_email");
             return new LoginResponse(request.Email, MagicLinkSent: true);
         }
 
@@ -57,6 +59,7 @@ public sealed class AuthService : IAuthService
         var magicLink = _magicLinkUrlBuilder.BuildVerifyUrl(token);
 
         await _emailSender.SendMagicLinkAsync(user.Email!, magicLink, cancellationToken);
+        CompensaIdentityMetrics.RecordMagicLinkRequested("sent");
 
         return new LoginResponse(
             user.Email!,
@@ -71,9 +74,13 @@ public sealed class AuthService : IAuthService
         var user = await _magicLinkService.ValidateMagicLinkTokenAsync(token, cancellationToken);
 
         if (user == null)
+        {
+            CompensaIdentityMetrics.RecordMagicLinkVerified("invalid");
             return null;
+        }
 
-        return await GenerateAuthResponseAsync(user, cancellationToken);
+        CompensaIdentityMetrics.RecordMagicLinkVerified("success");
+        return await GenerateAuthResponseAsync(user, "magic_link", cancellationToken);
     }
 
     public async Task<VerifyMagicLinkResponse?> RefreshTokenAsync(
@@ -85,23 +92,31 @@ public sealed class AuthService : IAuthService
             .FirstOrDefaultAsync(t => t.Token == refreshToken, cancellationToken);
 
         if (storedToken == null)
+        {
+            CompensaIdentityMetrics.RecordRefreshTokenUsed("not_found");
             return null;
+        }
 
         var isActuallyExpired = storedToken.IsExpired;
         var wasRevokedLongAgo = storedToken.RevokedAt != null && storedToken.RevokedAt < DateTime.UtcNow.AddSeconds(-60);
 
         if (isActuallyExpired || wasRevokedLongAgo)
+        {
+            CompensaIdentityMetrics.RecordRefreshTokenUsed(isActuallyExpired ? "expired" : "revoked");
             return null;
+        }
 
         // Revoke current token
         storedToken.RevokedAt = DateTime.UtcNow;
         _dbContext.RefreshTokens.Update(storedToken);
 
-        return await GenerateAuthResponseAsync(storedToken.User, cancellationToken);
+        CompensaIdentityMetrics.RecordRefreshTokenUsed("success");
+        return await GenerateAuthResponseAsync(storedToken.User, "refresh_token", cancellationToken);
     }
 
     private async Task<VerifyMagicLinkResponse> GenerateAuthResponseAsync(
         ApplicationUser user,
+        string grantType,
         CancellationToken cancellationToken)
     {
         var roles = await _userManager.GetRolesAsync(user);
@@ -118,6 +133,7 @@ public sealed class AuthService : IAuthService
 
         _dbContext.RefreshTokens.Add(refreshTokenEntity);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        CompensaIdentityMetrics.RecordAuthSessionIssued(grantType);
 
         return new VerifyMagicLinkResponse(
             user.Id,

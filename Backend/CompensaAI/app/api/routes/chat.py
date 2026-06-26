@@ -1,10 +1,17 @@
 import os
 import tempfile
+import time
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 
 from app.api.auth import get_current_user_context
+from app.metrics import (
+    record_chat_failure,
+    record_chat_request,
+    record_file_upload,
+    record_thread_deleted,
+)
 from app.services.ai_coordinator import ai_coordinator
 
 router = APIRouter()
@@ -28,17 +35,19 @@ async def send_message(
     request: ChatRequest,
     user_context: Dict[str, Any] = Depends(get_current_user_context),
 ):
+    start_time = time.perf_counter()
+    provider = request.model or "auto"
     try:
         thread_id = request.thread_id
         if not thread_id:
-            thread_id = await ai_coordinator.create_thread(provider=request.model or "auto")
+            thread_id = await ai_coordinator.create_thread(provider=provider)
 
         result = await ai_coordinator.send_message(
             thread_id=thread_id,
             content=request.message,
             file_ids=request.file_ids,
             user_context=user_context,
-            provider=request.model or "auto"
+            provider=provider
         )
 
         response = ChatResponse(
@@ -52,9 +61,11 @@ async def send_message(
         # If the coordinator swapped to Gemini, make sure we return the new thread ID
         if "thread_id" in result and result["thread_id"]:
             response.thread_id = result["thread_id"]
-            
+
+        record_chat_request(provider, response.response_type, time.perf_counter() - start_time)
         return response
     except Exception as e:
+        record_chat_failure(provider)
         import traceback
         print(f"CHAT ROUTE ERROR: {e}")
         traceback.print_exc()
@@ -76,9 +87,11 @@ async def upload_file(
         
         # Cleanup
         os.unlink(temp_file_path)
+        record_file_upload("success")
 
         return {"file_id": file_id, "filename": file.filename}
     except Exception as e:
+        record_file_upload("failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/thread/{thread_id}")
@@ -88,8 +101,10 @@ async def delete_thread(
 ):
     try:
         success = await ai_coordinator.delete_thread(thread_id)
+        record_thread_deleted("success" if success else "not_found")
         return {"success": success}
     except Exception as e:
+        record_thread_deleted("failed")
         import traceback
         print(f"DELETE THREAD ROUTE ERROR: {e}")
         traceback.print_exc()

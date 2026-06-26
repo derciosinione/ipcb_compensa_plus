@@ -8,8 +8,10 @@ public sealed class CoreDbContextFactory : IDesignTimeDbContextFactory<CoreDbCon
     public CoreDbContext CreateDbContext(string[] args)
     {
         var connectionString =
-            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-            ?? "Host=localhost;Database=CompensaCoreDB;Username=compensa;Password=#compensaipcb2026!";
+            Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("Set ConnectionStrings__DefaultConnection before running design-time EF Core commands.");
 
         var optionsBuilder = new DbContextOptionsBuilder<CoreDbContext>();
         optionsBuilder.UseNpgsql(connectionString);

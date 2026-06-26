@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
+from starlette.datastructures import Headers
+from starlette.requests import Request
 
 from app.api.auth import get_current_user_context
 from app.core.config import get_settings
@@ -27,7 +29,7 @@ class CompensaAIAuthTests(unittest.TestCase):
             }
         )
 
-        context = get_current_user_context(self._credentials(token))
+        context = get_current_user_context(self._request(), self._credentials(token))
 
         self.assertEqual(context["id"], "user-123")
         self.assertEqual(context["name"], "Test Teacher")
@@ -36,9 +38,39 @@ class CompensaAIAuthTests(unittest.TestCase):
         self.assertEqual(context["roles"], ["teacher", "coordinator"])
         self.assertEqual(context["token"], token)
 
+    def test_get_current_user_context_uses_active_role_when_authorized(self):
+        token = self._make_token(
+            {
+                "sub": "user-123",
+                "role": ["Teacher", "Coordinator"],
+            }
+        )
+
+        context = get_current_user_context(
+            self._request(headers={"x-active-role": "Coordinator"}),
+            self._credentials(token),
+        )
+
+        self.assertEqual(context["role"], "coordinator")
+
+    def test_get_current_user_context_ignores_active_role_not_in_token(self):
+        token = self._make_token(
+            {
+                "sub": "user-123",
+                "role": ["Teacher"],
+            }
+        )
+
+        context = get_current_user_context(
+            self._request(headers={"x-active-role": "Admin"}),
+            self._credentials(token),
+        )
+
+        self.assertEqual(context["role"], "teacher")
+
     def test_get_current_user_context_rejects_invalid_token(self):
         with self.assertRaises(HTTPException) as exc:
-            get_current_user_context(self._credentials("invalid-token"))
+            get_current_user_context(self._request(), self._credentials("invalid-token"))
 
         self.assertEqual(exc.exception.status_code, 401)
 
@@ -46,7 +78,7 @@ class CompensaAIAuthTests(unittest.TestCase):
         token = self._make_token({"email": "teacher@compensa.test"})
 
         with self.assertRaises(HTTPException) as exc:
-            get_current_user_context(self._credentials(token))
+            get_current_user_context(self._request(), self._credentials(token))
 
         self.assertEqual(exc.exception.status_code, 401)
         self.assertEqual(exc.exception.detail, "User ID not found in token")
@@ -66,6 +98,17 @@ class CompensaAIAuthTests(unittest.TestCase):
     @staticmethod
     def _credentials(token):
         return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+    @staticmethod
+    def _request(headers=None):
+        return Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/",
+                "headers": Headers(headers or {}).raw,
+            }
+        )
 
 
 if __name__ == "__main__":

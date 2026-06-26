@@ -11,6 +11,7 @@ using CompensaIdentityApi.Infrastructure.MagicLinks;
 using CompensaIdentityApi.Infrastructure.OpenApi;
 using CompensaIdentityApi.Middleware;
 using CompensaIdentityApi.Models;
+using CompensaIdentityApi.Observability;
 using CompensaIdentityApi.Repositories.AuthTokens;
 using CompensaIdentityApi.Repositories.Users;
 using CompensaIdentityApi.Services;
@@ -57,6 +58,7 @@ builder.Services.AddOpenTelemetry()
         metrics.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
+            .AddMeter(CompensaIdentityMetrics.MeterName)
             .AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
     });
 

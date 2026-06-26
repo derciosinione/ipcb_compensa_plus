@@ -132,6 +132,10 @@ coverage
 # nyc test coverage
 .nyc_output
 
+# Playwright
+playwright-report/
+test-results/
+
 # Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
@@ -147,6 +151,7 @@ build/Release
 # Dependency directories
 node_modules/
 jspm_packages/
+.pnpm-store/
 
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/

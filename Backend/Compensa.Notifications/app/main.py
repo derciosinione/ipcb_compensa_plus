@@ -24,8 +24,6 @@ from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from .core.config import settings
 from .core.rabbitmq import rabbitmq_client
 from .core.database import engine, Base
-from .services.consumer import start_consumers
-from .api import router as api_router
 import app.models # Import models to register them with Base
 
 resource = Resource(attributes={
@@ -76,6 +74,9 @@ for logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error", "fastapi"):
 logging.getLogger().addHandler(logHandler)
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
+
+from .services.consumer import start_consumers
+from .api import router as api_router
 
 async def ensure_schema_compatibility(conn):
     result = await conn.execute(text(

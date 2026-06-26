@@ -12,6 +12,7 @@ using CompensaCoreApi.Services.Documents;
 using MassTransit;
 using CompensaCoreApi.IntegrationEvents;
 using CompensaCoreApi.Infrastructure.Caching;
+using CompensaCoreApi.Observability;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace CompensaCoreApi.Services.CompensationRequests;
@@ -82,7 +83,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
     {
         var request = await _repository.GetByIdAsync(id, includeDocuments: true, cancellationToken)
             ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
-        
+
         if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
         {
             throw new ForbiddenException("You don't have permission to view this request.");
@@ -187,6 +188,9 @@ public sealed class CompensationRequestService : ICompensationRequestService
         }
 
         await InvalidateDashboardCacheAsync(cancellationToken);
+        CompensaCoreMetrics.RecordCompensationRequestCreated(
+            GetActorRole(isCoordinator, isAdmin),
+            string.Equals(compensationRequest.TeacherUserId, actorUserId, StringComparison.Ordinal));
 
         return ToResponse(compensationRequest);
     }
@@ -220,19 +224,20 @@ public sealed class CompensationRequestService : ICompensationRequestService
             ?? throw new NotFoundException("Original schedule context lost.");
 
         // Check for conflicts again with the new data
-        var updateCheck = new CreateCompensationRequestRequest 
-        { 
-            NewDate = request.NewDate, 
-            NewStartTime = request.NewStartTime, 
-            NewEndTime = request.NewEndTime, 
-            NewClassroomId = request.NewClassroomId 
+        var updateCheck = new CreateCompensationRequestRequest
+        {
+            NewDate = request.NewDate,
+            NewStartTime = request.NewStartTime,
+            NewEndTime = request.NewEndTime,
+            NewClassroomId = request.NewClassroomId
         };
         await EnsureNewScheduleHasNoConflictsAsync(updateCheck, classGroup, originalSchedule, cancellationToken);
 
-        var previousState = new { 
-            compensationRequest.NewDate, 
-            compensationRequest.NewStartTime, 
-            compensationRequest.NewEndTime, 
+        var previousState = new
+        {
+            compensationRequest.NewDate,
+            compensationRequest.NewStartTime,
+            compensationRequest.NewEndTime,
             compensationRequest.NewRoom,
             compensationRequest.NewClassroomId,
             compensationRequest.Justification,
@@ -245,7 +250,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         compensationRequest.NewRoom = newRoom.Name;
         compensationRequest.NewClassroomId = newRoom.Id;
         compensationRequest.Justification = request.Justification.Trim();
-        
+
         // If it was rejected, reset to pending upon edit
         if (compensationRequest.Status == CompensationRequestStatus.Rejected)
         {
@@ -279,7 +284,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
     {
         var compensationRequest = await _repository.GetByIdAsync(id, includeDocuments: true, cancellationToken)
             ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
-            
+
         // Security check
         bool isCancellation = request.Status == CompensationRequestStatus.Cancelled;
         bool isRestore = compensationRequest.Status == CompensationRequestStatus.Cancelled && request.Status == CompensationRequestStatus.Pending;
@@ -298,7 +303,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         {
             await EnsureCanDecideRequestAsync(compensationRequest, actorUserId, isCoordinator, isAdmin, cancellationToken);
         }
-        
+
         if (compensationRequest.CourseId == null) throw new InvalidOperationException("Request has no associated course.");
         var course = await _courseRepository.GetByIdAsync(compensationRequest.CourseId.Value, cancellationToken);
         if (course is null) throw new InvalidOperationException("Course not found.");
@@ -322,6 +327,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (request.Status is CompensationRequestStatus.Rejected && string.IsNullOrWhiteSpace(request.DecisionComment))
             throw new InvalidOperationException("Rejected requests require a decision comment.");
 
+        var previousStatus = compensationRequest.Status;
         var previousState = new { compensationRequest.Status, compensationRequest.DecisionComment };
 
         compensationRequest.Status = request.Status;
@@ -353,6 +359,11 @@ public sealed class CompensationRequestService : ICompensationRequestService
         }
 
         await InvalidateDashboardCacheAsync(cancellationToken);
+        CompensaCoreMetrics.RecordCompensationRequestStatusChanged(
+            previousStatus,
+            compensationRequest.Status,
+            GetActorRole(isCoordinator, isAdmin),
+            GetDecisionLatencyHours(compensationRequest));
 
         return ToResponse(compensationRequest);
     }
@@ -385,7 +396,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         }
 
         await _repository.DeleteAsync(request, cancellationToken);
-        
+
         await _auditService.LogActionAsync(
             "CompensationRequest",
             id.ToString(),
@@ -395,6 +406,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             null);
 
         await InvalidateDashboardCacheAsync(cancellationToken);
+        CompensaCoreMetrics.RecordCompensationRequestDeleted(request.Status, GetActorRole(isCoordinator, isAdmin));
     }
 
     // --- Document Methods ---
@@ -487,6 +499,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             // Logging warning or swallowing integration event fail to keep request logic working
         }
 
+        CompensaCoreMetrics.RecordCompensationRequestDocumentUploaded(role, sizeInBytes);
         return ToDocumentResponse(document);
     }
 
@@ -590,16 +603,32 @@ public sealed class CompensationRequestService : ICompensationRequestService
         return false;
     }
 
+    private static string GetActorRole(bool isCoordinator, bool isAdmin)
+    {
+        if (isAdmin)
+            return "admin";
+
+        return isCoordinator ? "coordinator" : "teacher";
+    }
+
+    private static double? GetDecisionLatencyHours(CompensationRequest request)
+    {
+        if (request.Status is not (CompensationRequestStatus.Approved or CompensationRequestStatus.Rejected or CompensationRequestStatus.Cancelled))
+            return null;
+
+        return Math.Max(0, (request.UpdatedAt - request.SubmittedAt).TotalHours);
+    }
+
     private async Task<bool> IsActualCoordinatorOfRequestAsync(
         CompensationRequest request,
         string actorUserId,
         CancellationToken cancellationToken)
     {
         if (!request.CourseId.HasValue) return false;
-        
+
         var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
         if (course == null) return false;
-        
+
         return await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
     }
 
@@ -659,7 +688,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
         // Also include courses where user is the main coordinator
         var coursesWhereMainCoordinator = await _courseRepository.ListCoordinatedByAsync(actorUserId, cancellationToken);
         coordinatedCourseIds.AddRange(coursesWhereMainCoordinator.Select(c => c.Id));
-        
+
         var distinctCourseIds = coordinatedCourseIds.Distinct().ToList();
 
         foreach (var request in requests)
@@ -761,8 +790,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         if (!string.IsNullOrWhiteSpace(request.TeacherUserId))
         {
-            var teacherConflict = overlaps.FirstOrDefault(item => 
-                !string.IsNullOrWhiteSpace(item.ClassGroup.TeacherId) && 
+            var teacherConflict = overlaps.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.ClassGroup.TeacherId) &&
                 item.ClassGroup.TeacherId == request.TeacherUserId);
             if (teacherConflict.Schedule != null)
                 throw new InvalidOperationException($"Teacher '{request.TeacherUserId}' already has a class in the proposed time interval.");
@@ -787,8 +816,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         if (!string.IsNullOrWhiteSpace(request.TeacherUserId))
         {
-            var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item => 
-                !string.IsNullOrWhiteSpace(item.TeacherUserId) && 
+            var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.TeacherUserId) &&
                 item.TeacherUserId == request.TeacherUserId);
             if (requestedTeacherConflict != null)
                 throw new InvalidOperationException($"Teacher '{request.TeacherUserId}' already has a compensation request in the proposed time interval.");

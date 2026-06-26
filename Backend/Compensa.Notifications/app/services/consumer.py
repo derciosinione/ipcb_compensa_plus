@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy.future import select
 from .email import send_email_async
+from ..metrics import record_event_consumed, record_event_failure, record_notification_created
 from ..models import Notification, NotificationPreference
 from ..core.database import AsyncSessionLocal
 
@@ -20,6 +21,7 @@ async def process_message(message: IncomingMessage):
             message_type = message_type_arr[0] if message_type_arr else "Unknown"
             
             logger.info(f"Processing event: {message_type}")
+            record_event_consumed(message_type)
             
             async with AsyncSessionLocal() as db:
                 if "UserRegisteredEvent" in message_type:
@@ -34,6 +36,7 @@ async def process_message(message: IncomingMessage):
                     await handle_document_uploaded(actual_message, db)
                     
         except Exception as e:
+            record_event_failure(message_type if "message_type" in locals() else "Unknown")
             logger.error(f"Error processing message: {e}")
 
 async def handle_user_registered(data: dict, db):
@@ -66,6 +69,7 @@ async def handle_request_created(data: dict, db):
     )
     db.add(notification)
     await db.commit()
+    record_notification_created("RequestCreated")
     
     await notify_user(coordinator_id, title, msg, db)
 
@@ -95,6 +99,7 @@ async def handle_request_status_updated(data: dict, db):
     )
     db.add(notification)
     await db.commit()
+    record_notification_created("RequestStatusUpdated")
     
     await notify_user(target_user_id, title, msg, db)
 
@@ -122,6 +127,7 @@ async def handle_comment_added(data: dict, db):
     )
     db.add(notification)
     await db.commit()
+    record_notification_created("RequestCommentAdded")
 
     await notify_user(target_user_id, title, msg, db)
 
@@ -149,6 +155,7 @@ async def handle_document_uploaded(data: dict, db):
     )
     db.add(notification)
     await db.commit()
+    record_notification_created("RequestDocumentUploaded")
 
     await notify_user(target_user_id, title, msg, db)
 

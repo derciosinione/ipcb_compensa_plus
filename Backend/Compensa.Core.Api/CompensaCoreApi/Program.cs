@@ -9,6 +9,7 @@ using CompensaCoreApi.Infrastructure.Auth;
 using CompensaCoreApi.Infrastructure.Database;
 using CompensaCoreApi.Infrastructure.OpenApi;
 using CompensaCoreApi.Middleware;
+using CompensaCoreApi.Observability;
 using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Classrooms;
@@ -65,6 +66,7 @@ builder.Services.AddOpenTelemetry()
         metrics.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
+            .AddMeter(CompensaCoreMetrics.MeterName)
             .AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
     });
 

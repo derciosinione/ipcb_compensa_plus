@@ -10,6 +10,7 @@ using CompensaCoreApi.Services.CompensationRequests;
 
 namespace CompensaCoreApi.Tests;
 
+[Trait("Category", "Unit")]
 public sealed class CompensationRequestAuthorizationTests
 {
     [Fact]

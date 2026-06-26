@@ -2,6 +2,7 @@ using CompensaIdentityApi.Models;
 
 namespace CompensaIdentityApi.Tests;
 
+[Trait("Category", "Unit")]
 public sealed class RefreshTokenTests
 {
     [Fact]

@@ -38,9 +38,7 @@ public sealed class TimetableImportService : ITimetableImportService
             : await _context.AcademicYears.FirstOrDefaultAsync(y => y.IsActive, cancellationToken);
 
         if (activeYear == null)
-        {
             throw new InvalidOperationException("No active academic year found.");
-        }
 
         // 2. Load DB entities for matching
         var dbCourses = await _context.Courses.ToListAsync(cancellationToken);
@@ -425,8 +423,8 @@ public sealed class TimetableImportService : ITimetableImportService
                     continue;
                 }
 
-                var type = c.Abbreviation.Contains("CTeSP", StringComparison.OrdinalIgnoreCase) 
-                    ? CourseDegreeType.CTeSP 
+                var type = c.Abbreviation.Contains("CTeSP", StringComparison.OrdinalIgnoreCase)
+                    ? CourseDegreeType.CTeSP
                     : c.Abbreviation.Contains("Mestrado", StringComparison.OrdinalIgnoreCase)
                         ? CourseDegreeType.Mestrado
                         : CourseDegreeType.Licenciatura;
@@ -460,7 +458,7 @@ public sealed class TimetableImportService : ITimetableImportService
         if (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0)
         {
             var requestGroupIds = request.ClassGroupsToCreate.Select(x => x.Id).ToList();
-            
+
             // Map CourseIds for database query using courseIdRemap
             var queryCourseIds = request.ClassGroupsToCreate
                 .Select(cg => courseIdRemap.TryGetValue(cg.CourseId, out var rId) ? rId : cg.CourseId)
@@ -531,7 +529,7 @@ public sealed class TimetableImportService : ITimetableImportService
         if (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0)
         {
             var requestUcIds = request.CurricularUnitsToCreate.Select(x => x.Id).ToList();
-            
+
             // Map CourseIds for database query using courseIdRemap
             var requestCourseIds = request.CurricularUnitsToCreate
                 .Select(x => courseIdRemap.TryGetValue(x.CourseId, out var rId) ? rId : x.CourseId)
@@ -562,7 +560,7 @@ public sealed class TimetableImportService : ITimetableImportService
                 }
 
                 var unitAbbrev = cu.Abbreviation?.Trim() ?? string.Empty;
-                var unitName   = !string.IsNullOrWhiteSpace(cu.Name) ? cu.Name.Trim() : unitAbbrev;
+                var unitName = !string.IsNullOrWhiteSpace(cu.Name) ? cu.Name.Trim() : unitAbbrev;
 
                 // Check if an existing UC with the same (CourseId + Name) already exists
                 var matchByName = existingInCourses
@@ -728,8 +726,8 @@ public sealed class TimetableImportService : ITimetableImportService
         }
 
         // Save new entities and updates to database
-        if ((request.CoursesToCreate != null && request.CoursesToCreate.Count > 0) || 
-            (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0) || 
+        if ((request.CoursesToCreate != null && request.CoursesToCreate.Count > 0) ||
+            (request.ClassGroupsToCreate != null && request.ClassGroupsToCreate.Count > 0) ||
             (request.CurricularUnitsToCreate != null && request.CurricularUnitsToCreate.Count > 0) ||
             (request.CurricularUnitsToUpdate != null && request.CurricularUnitsToUpdate.Count > 0) ||
             (request.ClassroomsToCreate != null && request.ClassroomsToCreate.Count > 0))
@@ -741,10 +739,10 @@ public sealed class TimetableImportService : ITimetableImportService
         if (request.OverwriteExisting)
         {
             var targetClassGroupIds = request.Schedules.Select(s => s.ClassGroupId).Distinct().ToList();
-            
+
             var existing = await _context.ClassSchedules
-                .Where(s => s.AcademicYearId == request.AcademicYearId && 
-                            s.Semester == request.Semester && 
+                .Where(s => s.AcademicYearId == request.AcademicYearId &&
+                            s.Semester == request.Semester &&
                             targetClassGroupIds.Contains(s.ClassGroupId))
                 .ToListAsync(cancellationToken);
 
@@ -944,7 +942,7 @@ public sealed class TimetableImportService : ITimetableImportService
         string rawAbbrev;
         if (parts.Length > 1)
         {
-            if (parts[0].Equals("L", StringComparison.OrdinalIgnoreCase) || 
+            if (parts[0].Equals("L", StringComparison.OrdinalIgnoreCase) ||
                 parts[0].Equals("CTeSP", StringComparison.OrdinalIgnoreCase) ||
                 parts[0].Equals("M", StringComparison.OrdinalIgnoreCase))
             {
@@ -1000,21 +998,21 @@ public sealed class TimetableImportService : ITimetableImportService
         if (string.IsNullOrWhiteSpace(nameOrAbbrev) || dbCourses == null) return null;
 
         var cleanTarget = new string(nameOrAbbrev.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
-        
-        var matched = dbCourses.FirstOrDefault(c => 
+
+        var matched = dbCourses.FirstOrDefault(c =>
             c.Abbreviation != null &&
             new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant() == cleanTarget);
         if (matched != null) return matched;
-        
-        matched = dbCourses.FirstOrDefault(c => 
+
+        matched = dbCourses.FirstOrDefault(c =>
             c.Abbreviation != null &&
             (cleanTarget.Contains(new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant()) ||
              new string(c.Abbreviation.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant().Contains(cleanTarget)));
         if (matched != null) return matched;
 
-        matched = dbCourses.FirstOrDefault(c => 
+        matched = dbCourses.FirstOrDefault(c =>
             c.Name != null && c.Name.Contains(nameOrAbbrev, StringComparison.OrdinalIgnoreCase));
-        
+
         return matched;
     }
 
@@ -1022,8 +1020,8 @@ public sealed class TimetableImportService : ITimetableImportService
     {
         if (string.IsNullOrWhiteSpace(name) || dbClasses == null) return null;
 
-        return dbClasses.FirstOrDefault(c => 
-            c.CourseId == courseId && 
+        return dbClasses.FirstOrDefault(c =>
+            c.CourseId == courseId &&
             c.Name != null &&
             (string.Equals(c.Name, name, StringComparison.OrdinalIgnoreCase) ||
              name.EndsWith("." + c.Name, StringComparison.OrdinalIgnoreCase) ||
@@ -1040,14 +1038,14 @@ public sealed class TimetableImportService : ITimetableImportService
         // 1. Match by abbreviation/sigla prefix
         if (!string.IsNullOrWhiteSpace(abbrev))
         {
-            var abbrevMatch = courseUnits.FirstOrDefault(u => 
+            var abbrevMatch = courseUnits.FirstOrDefault(u =>
                 u.Name.StartsWith(abbrev + " -", StringComparison.OrdinalIgnoreCase) ||
                 u.Name.Equals(abbrev, StringComparison.OrdinalIgnoreCase));
             if (abbrevMatch != null) return abbrevMatch;
         }
 
         // 2. Exact or suffix name match
-        var match = courseUnits.FirstOrDefault(u => 
+        var match = courseUnits.FirstOrDefault(u =>
             string.Equals(u.Name, name, StringComparison.OrdinalIgnoreCase) ||
             u.Name.EndsWith(" - " + name, StringComparison.OrdinalIgnoreCase));
         if (match != null) return match;
@@ -1083,10 +1081,10 @@ public sealed class TimetableImportService : ITimetableImportService
         }
 
         // Partial contains match
-        match = courseUnits.FirstOrDefault(u => 
-            u.Name.Contains(name, StringComparison.OrdinalIgnoreCase) || 
+        match = courseUnits.FirstOrDefault(u =>
+            u.Name.Contains(name, StringComparison.OrdinalIgnoreCase) ||
             name.Contains(u.Name, StringComparison.OrdinalIgnoreCase));
-        
+
         return match;
     }
 
@@ -1105,8 +1103,8 @@ public sealed class TimetableImportService : ITimetableImportService
         if (match != null) return match;
 
         // Try fuzzy e.g. "ANF B" matches "Anfiteatro B" or "A.1" matches "Sala A.1" or "Lab 1"
-        match = dbClassrooms.FirstOrDefault(r => 
-            r.Name.Contains(name, StringComparison.OrdinalIgnoreCase) || 
+        match = dbClassrooms.FirstOrDefault(r =>
+            r.Name.Contains(name, StringComparison.OrdinalIgnoreCase) ||
             name.Contains(r.Name, StringComparison.OrdinalIgnoreCase));
 
         return match;
@@ -1119,7 +1117,7 @@ public sealed class TimetableImportService : ITimetableImportService
 
         // Matches letter + optional dot + digits (e.g. B2, D7, A8, B.1.1)
         if (Regex.IsMatch(upperLine, @"^[A-Z]\.?\d+(\.\d+)*$")) return true;
-        
+
         return upperLine.StartsWith("A.") ||
                upperLine.StartsWith("B.") ||
                upperLine.StartsWith("C.") ||
@@ -1135,7 +1133,7 @@ public sealed class TimetableImportService : ITimetableImportService
 
     private static bool IsTimetableHeader(List<ParsedCell> row)
     {
-        return row.Any(c => 
+        return row.Any(c =>
             c.Text.Contains("Segunda", StringComparison.OrdinalIgnoreCase) ||
             c.Text.Contains("Terça", StringComparison.OrdinalIgnoreCase) ||
             c.Text.Contains("Quarta", StringComparison.OrdinalIgnoreCase) ||
@@ -1153,35 +1151,35 @@ public sealed class TimetableImportService : ITimetableImportService
     {
         var tables = new List<ParsedTable>();
         var tableMatches = Regex.Matches(html, @"<table[^>]*>([\s\S]*?)</table>", RegexOptions.IgnoreCase);
-        
+
         foreach (Match tableMatch in tableMatches)
         {
             var parsedTable = new ParsedTable();
             var tableContent = tableMatch.Groups[1].Value;
-            
+
             var rowMatches = Regex.Matches(tableContent, @"<tr[^>]*>([\s\S]*?)</tr>", RegexOptions.IgnoreCase);
             foreach (Match rowMatch in rowMatches)
             {
                 var parsedRow = new List<ParsedCell>();
                 var rowContent = rowMatch.Groups[1].Value;
-                
+
                 var cellMatches = Regex.Matches(rowContent, @"<(td|th)[^>]*>([\s\S]*?)</\1>", RegexOptions.IgnoreCase);
                 foreach (Match cellMatch in cellMatches)
                 {
                     var cellTag = cellMatch.Value;
                     var cellContent = cellMatch.Groups[2].Value;
-                    
+
                     int rowspan = 1;
                     var rowspanMatch = Regex.Match(cellTag, @"rowspan\s*=\s*""?(\d+)""?", RegexOptions.IgnoreCase);
                     if (rowspanMatch.Success)
                     {
                         int.TryParse(rowspanMatch.Groups[1].Value, out rowspan);
                     }
-                    
+
                     var textWithBreaks = Regex.Replace(cellContent, @"(?i)<br\s*/?>", "\n");
                     var cleanText = Regex.Replace(textWithBreaks, @"<[^>]+>", "").Trim();
                     cleanText = System.Net.WebUtility.HtmlDecode(cleanText);
-                    
+
                     parsedRow.Add(new ParsedCell
                     {
                         Html = cellContent,
