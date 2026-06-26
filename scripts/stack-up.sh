@@ -49,6 +49,14 @@ if ! docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null | grep -q '^ac
   docker swarm init
 fi
 
+LOCAL_NODE_ID="$(docker info --format '{{.Swarm.NodeID}}')"
+if [ -n "$LOCAL_NODE_ID" ]; then
+  echo "Applying local single-node placement labels..."
+  for role in manager backend db cache ops; do
+    docker node update --label-add "compensa.${role}=true" "$LOCAL_NODE_ID" >/dev/null
+  done
+fi
+
 if [ "$SKIP_BUILD" != "true" ]; then
   echo "Building stack images from $STACK_FILE..."
   docker compose -f "$STACK_FILE" build

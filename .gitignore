@@ -190,6 +190,16 @@ web_modules/
 .env.production.local
 .env.local
 
+# Infrastructure local state and generated inventory
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+backend.hcl
+infra/ansible/inventory/*.ini
+infra/ansible/extra-vars.json
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

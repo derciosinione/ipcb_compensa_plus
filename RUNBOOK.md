@@ -72,6 +72,19 @@ REMOVE_VOLUMES=true LEAVE_SWARM=false ./scripts/stack-destroy.sh
 
 For multi-node deployments, push the `compensa-*:local` images to a registry and update the image names in `docker-stack.yml`.
 
+## Azure Production Deploy
+
+The Azure deployment assets are in:
+
+```text
+infra/terraform/azure
+infra/ansible
+.github/workflows/azure-infra.yml
+.github/workflows/azure-deploy.yml
+```
+
+See `docs/deploy-azure.md` for the VM topology, required GitHub Secrets and the deploy sequence.
+
 ## Smoke Test
 
 Run the infrastructure smoke test after the stack is up:

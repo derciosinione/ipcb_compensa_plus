@@ -1,0 +1,24 @@
+stack_name: compensa
+deploy_dir: /opt/compensa
+docker_data_root: /var/lib/docker
+
+postgres_user: compensa
+postgres_db: compensa
+identity_db: CompensaIdentityDB
+core_db: CompensaCoreDB
+ai_db: CompensaAiDB
+notifications_db: CompensaNotificationsDB
+
+aspnetcore_environment: Production
+compensa_ai_environment: production
+frontend_public_url: "http://{{ hostvars[groups['manager'][0]].ansible_host }}"
+vite_api_url: /api
+
+frontend_port: 80
+gateway_port: 5005
+identity_api_port: 5002
+core_api_port: 5001
+compensa_ai_port: 8000
+notifications_port: 8001
+portainer_port: 9000
+portainer_https_port: 9443
