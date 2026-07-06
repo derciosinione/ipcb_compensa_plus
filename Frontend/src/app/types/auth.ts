@@ -1,1 +1,1 @@
-export type AuthView = 'signin' | 'signup';
+export type AuthView = "signin" | "signup";

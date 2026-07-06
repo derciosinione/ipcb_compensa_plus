@@ -37,4 +37,39 @@ public sealed class AcademicYearsController : ControllerBase
         var year = await _service.GetActiveAsync(cancellationToken);
         return Ok(ApiResponse<AcademicYearResponse>.Ok("Active academic year loaded.", year));
     }
+
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<AcademicYearResponse>), StatusCodes.Status201Created)]
+    public async Task<ActionResult<ApiResponse<AcademicYearResponse>>> Create(
+        [FromBody] UpsertAcademicYearRequest request,
+        CancellationToken cancellationToken)
+    {
+        var year = await _service.CreateAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(List), ApiResponse<AcademicYearResponse>.Ok("Academic year created.", year));
+    }
+
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<AcademicYearResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<AcademicYearResponse>>> Update(
+        Guid id,
+        [FromBody] UpsertAcademicYearRequest request,
+        CancellationToken cancellationToken)
+    {
+        var year = await _service.UpdateAsync(id, request, cancellationToken);
+        return Ok(ApiResponse<AcademicYearResponse>.Ok("Academic year updated.", year));
+    }
+
+    [HttpPost("{toYearId:guid}/copy-offerings/{fromYearId:guid}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<object>>> CopyOfferings(
+        Guid toYearId,
+        Guid fromYearId,
+        CancellationToken cancellationToken)
+    {
+        await _service.CopyOfferingsAsync(fromYearId, toYearId, cancellationToken);
+        return Ok(ApiResponse<object>.Ok("Offerings copied successfully.", null!));
+    }
 }

@@ -141,6 +141,54 @@ namespace CompensaCoreApi.Migrations
                     b.ToTable("user_unit_assignments", (string)null);
                 });
 
+            modelBuilder.Entity("CompensaCoreApi.Domain.Audit.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ActorUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NewState")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("PreviousState")
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("EntityId");
+
+                    b.HasIndex("EntityName");
+
+                    b.ToTable("audit_logs", (string)null);
+                });
+
             modelBuilder.Entity("CompensaCoreApi.Domain.Classrooms.Classroom", b =>
                 {
                     b.Property<Guid>("Id")
@@ -321,10 +369,94 @@ namespace CompensaCoreApi.Migrations
                     b.ToTable("compensation_requests", (string)null);
                 });
 
+            modelBuilder.Entity("CompensaCoreApi.Domain.CompensationRequests.CompensationRequestComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("AuthorUserId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("CompensationRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompensationRequestId");
+
+                    b.ToTable("compensation_request_comments", (string)null);
+                });
+
+            modelBuilder.Entity("CompensaCoreApi.Domain.CompensationRequests.CompensationRequestDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CompensationRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("SizeInBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompensationRequestId");
+
+                    b.ToTable("compensation_request_documents", (string)null);
+                });
+
             modelBuilder.Entity("CompensaCoreApi.Domain.Courses.ClassGroup", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcademicYearId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("CourseId")
@@ -332,9 +464,6 @@ namespace CompensaCoreApi.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CurricularUnitId")
-                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -352,11 +481,14 @@ namespace CompensaCoreApi.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("AcademicYearId");
 
-                    b.HasIndex("CurricularUnitId", "Name")
+                    b.HasIndex("CourseId", "AcademicYearId", "Year", "Name")
                         .IsUnique();
 
                     b.ToTable("class_groups", (string)null);
@@ -374,7 +506,7 @@ namespace CompensaCoreApi.Migrations
                     b.Property<Guid>("ClassGroupId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ClassroomId")
+                    b.Property<Guid?>("ClassroomId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ComponentType")
@@ -437,25 +569,11 @@ namespace CompensaCoreApi.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<string>("CoordinatorUserId")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
                     b.Property<int>("DurationYears")
                         .HasColumnType("integer");
-
-                    b.Property<string>("ImageUrl")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -484,11 +602,61 @@ namespace CompensaCoreApi.Migrations
                     b.ToTable("courses", (string)null);
                 });
 
+            modelBuilder.Entity("CompensaCoreApi.Domain.Courses.CourseOffering", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcademicYearId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CoordinatorUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicYearId");
+
+                    b.HasIndex("CourseId", "AcademicYearId")
+                        .IsUnique();
+
+                    b.ToTable("course_offerings", (string)null);
+                });
+
             modelBuilder.Entity("CompensaCoreApi.Domain.Courses.CurricularUnit", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Abbreviation")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<Guid>("CourseId")
                         .HasColumnType("uuid");
@@ -507,16 +675,6 @@ namespace CompensaCoreApi.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<string>("ResponsibleTeacherEmail")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("ResponsibleTeacherId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<int>("Semester")
                         .HasColumnType("integer");
 
@@ -527,6 +685,9 @@ namespace CompensaCoreApi.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CourseId", "Abbreviation")
+                        .IsUnique();
 
                     b.HasIndex("CourseId", "Name")
                         .IsUnique();
@@ -585,6 +746,53 @@ namespace CompensaCoreApi.Migrations
                     b.ToTable("curricular_unit_components", (string)null);
                 });
 
+            modelBuilder.Entity("CompensaCoreApi.Domain.Courses.CurricularUnitOffering", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcademicYearId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CurricularUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ResponsibleTeacherEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ResponsibleTeacherId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("Semester")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcademicYearId");
+
+                    b.HasIndex("CurricularUnitId", "AcademicYearId")
+                        .IsUnique();
+
+                    b.ToTable("curricular_unit_offerings", (string)null);
+                });
+
             modelBuilder.Entity("CompensaCoreApi.Domain.Assignments.CourseTeacherAssignment", b =>
                 {
                     b.HasOne("CompensaCoreApi.Domain.Courses.Course", null)
@@ -619,7 +827,7 @@ namespace CompensaCoreApi.Migrations
                     b.HasOne("CompensaCoreApi.Domain.Courses.ClassGroup", null)
                         .WithMany()
                         .HasForeignKey("ClassGroupId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("CompensaCoreApi.Domain.Courses.Course", null)
                         .WithMany()
@@ -639,7 +847,7 @@ namespace CompensaCoreApi.Migrations
                     b.HasOne("CompensaCoreApi.Domain.Courses.ClassSchedule", null)
                         .WithMany()
                         .HasForeignKey("OriginalClassScheduleId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("CompensaCoreApi.Domain.Classrooms.Classroom", null)
                         .WithMany()
@@ -647,17 +855,39 @@ namespace CompensaCoreApi.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("CompensaCoreApi.Domain.Courses.ClassGroup", b =>
+            modelBuilder.Entity("CompensaCoreApi.Domain.CompensationRequests.CompensationRequestComment", b =>
                 {
-                    b.HasOne("CompensaCoreApi.Domain.Courses.Course", null)
-                        .WithMany()
-                        .HasForeignKey("CourseId")
+                    b.HasOne("CompensaCoreApi.Domain.CompensationRequests.CompensationRequest", "CompensationRequest")
+                        .WithMany("Comments")
+                        .HasForeignKey("CompensationRequestId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("CompensaCoreApi.Domain.Courses.CurricularUnit", null)
+                    b.Navigation("CompensationRequest");
+                });
+
+            modelBuilder.Entity("CompensaCoreApi.Domain.CompensationRequests.CompensationRequestDocument", b =>
+                {
+                    b.HasOne("CompensaCoreApi.Domain.CompensationRequests.CompensationRequest", "CompensationRequest")
+                        .WithMany("Documents")
+                        .HasForeignKey("CompensationRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CompensationRequest");
+                });
+
+            modelBuilder.Entity("CompensaCoreApi.Domain.Courses.ClassGroup", b =>
+                {
+                    b.HasOne("CompensaCoreApi.Domain.AcademicYears.AcademicYear", null)
                         .WithMany()
-                        .HasForeignKey("CurricularUnitId")
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CompensaCoreApi.Domain.Courses.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -679,8 +909,7 @@ namespace CompensaCoreApi.Migrations
                     b.HasOne("CompensaCoreApi.Domain.Classrooms.Classroom", null)
                         .WithMany()
                         .HasForeignKey("ClassroomId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("CompensaCoreApi.Domain.Courses.Course", null)
                         .WithMany()
@@ -693,6 +922,25 @@ namespace CompensaCoreApi.Migrations
                         .HasForeignKey("CurricularUnitId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CompensaCoreApi.Domain.Courses.CourseOffering", b =>
+                {
+                    b.HasOne("CompensaCoreApi.Domain.AcademicYears.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CompensaCoreApi.Domain.Courses.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AcademicYear");
+
+                    b.Navigation("Course");
                 });
 
             modelBuilder.Entity("CompensaCoreApi.Domain.Courses.CurricularUnit", b =>
@@ -717,6 +965,32 @@ namespace CompensaCoreApi.Migrations
                         .HasForeignKey("CurricularUnitId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CompensaCoreApi.Domain.Courses.CurricularUnitOffering", b =>
+                {
+                    b.HasOne("CompensaCoreApi.Domain.AcademicYears.AcademicYear", "AcademicYear")
+                        .WithMany()
+                        .HasForeignKey("AcademicYearId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CompensaCoreApi.Domain.Courses.CurricularUnit", "CurricularUnit")
+                        .WithMany()
+                        .HasForeignKey("CurricularUnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AcademicYear");
+
+                    b.Navigation("CurricularUnit");
+                });
+
+            modelBuilder.Entity("CompensaCoreApi.Domain.CompensationRequests.CompensationRequest", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Documents");
                 });
 #pragma warning restore 612, 618
         }

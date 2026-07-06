@@ -11,3 +11,7 @@ public sealed record ClassroomResponse(
     bool IsActive,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
+
+public sealed record ClassroomUsageResponse(Guid ClassroomId, int AssociatedSchedulesCount);
+
+public sealed record ClassroomsUsageBulkResponse(List<ClassroomUsageResponse> Usages);

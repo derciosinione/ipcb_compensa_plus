@@ -1,0 +1,29 @@
+- name: Prepare Compensa+ Azure VMs
+  hosts: swarm
+  become: true
+  roles:
+    - common
+
+- name: Prepare persistent database disk
+  hosts: db
+  become: true
+  roles:
+    - data_disk
+
+- name: Install Docker
+  hosts: swarm
+  become: true
+  roles:
+    - docker
+
+- name: Configure Docker Swarm
+  hosts: swarm
+  become: true
+  roles:
+    - swarm
+
+- name: Deploy Compensa+ stack
+  hosts: swarm
+  become: true
+  roles:
+    - deploy

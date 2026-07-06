@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from sqlalchemy.future import select
 from .email import send_email_async
+from ..metrics import record_event_consumed, record_event_failure, record_notification_created
 from ..models import Notification, NotificationPreference
 from ..core.database import AsyncSessionLocal
 
@@ -20,6 +21,7 @@ async def process_message(message: IncomingMessage):
             message_type = message_type_arr[0] if message_type_arr else "Unknown"
             
             logger.info(f"Processing event: {message_type}")
+            record_event_consumed(message_type)
             
             async with AsyncSessionLocal() as db:
                 if "UserRegisteredEvent" in message_type:
@@ -28,8 +30,13 @@ async def process_message(message: IncomingMessage):
                     await handle_request_created(actual_message, db)
                 elif "RequestStatusUpdatedEvent" in message_type:
                     await handle_request_status_updated(actual_message, db)
+                elif "RequestCommentAddedEvent" in message_type:
+                    await handle_comment_added(actual_message, db)
+                elif "RequestDocumentUploadedEvent" in message_type:
+                    await handle_document_uploaded(actual_message, db)
                     
         except Exception as e:
+            record_event_failure(message_type if "message_type" in locals() else "Unknown")
             logger.error(f"Error processing message: {e}")
 
 async def handle_user_registered(data: dict, db):
@@ -62,6 +69,7 @@ async def handle_request_created(data: dict, db):
     )
     db.add(notification)
     await db.commit()
+    record_notification_created("RequestCreated")
     
     await notify_user(coordinator_id, title, msg, db)
 
@@ -91,7 +99,64 @@ async def handle_request_status_updated(data: dict, db):
     )
     db.add(notification)
     await db.commit()
+    record_notification_created("RequestStatusUpdated")
     
+    await notify_user(target_user_id, title, msg, db)
+
+async def handle_comment_added(data: dict, db):
+    author_role = data.get("role", "").lower()
+    if author_role == "teacher":
+        target_user_id = data.get("coordinatorUserId")
+    else:
+        target_user_id = data.get("teacherUserId")
+
+    if not target_user_id:
+        return
+
+    author_name = data.get("authorName") or "Someone"
+    comment_text = data.get("commentText") or ""
+    
+    title = "New Comment on Request"
+    msg = f"{author_name} added a comment: \"{comment_text}\""
+
+    notification = Notification(
+        user_id=target_user_id,
+        title=title,
+        message=msg,
+        type="RequestCommentAdded"
+    )
+    db.add(notification)
+    await db.commit()
+    record_notification_created("RequestCommentAdded")
+
+    await notify_user(target_user_id, title, msg, db)
+
+async def handle_document_uploaded(data: dict, db):
+    author_role = data.get("role", "").lower()
+    if author_role == "teacher":
+        target_user_id = data.get("coordinatorUserId")
+    else:
+        target_user_id = data.get("teacherUserId")
+
+    if not target_user_id:
+        return
+
+    author_name = data.get("authorName") or "Someone"
+    file_name = data.get("fileName") or "document"
+    
+    title = "New Document Uploaded"
+    msg = f"{author_name} uploaded a document: {file_name}"
+
+    notification = Notification(
+        user_id=target_user_id,
+        title=title,
+        message=msg,
+        type="RequestDocumentUploaded"
+    )
+    db.add(notification)
+    await db.commit()
+    record_notification_created("RequestDocumentUploaded")
+
     await notify_user(target_user_id, title, msg, db)
 
 async def notify_user(user_id: str, subject: str, message: str, db):
@@ -117,7 +182,9 @@ async def start_consumers():
     exchanges_to_bind = [
         "CompensaIdentityApi.IntegrationEvents:UserRegisteredEvent",
         "CompensaCoreApi.IntegrationEvents:RequestCreatedEvent",
-        "CompensaCoreApi.IntegrationEvents:RequestStatusUpdatedEvent"
+        "CompensaCoreApi.IntegrationEvents:RequestStatusUpdatedEvent",
+        "CompensaCoreApi.IntegrationEvents:RequestCommentAddedEvent",
+        "CompensaCoreApi.IntegrationEvents:RequestDocumentUploadedEvent"
     ]
     
     for exchange_name in exchanges_to_bind:

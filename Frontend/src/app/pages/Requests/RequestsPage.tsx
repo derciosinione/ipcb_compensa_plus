@@ -1,7 +1,7 @@
-import { UserRole } from '../../mocks/data';
-import type { AuthenticatedUser } from '../../types/user';
-import { CoordinatorRequestsPage } from '../CoordinatorRequests/CoordinatorRequestsPage';
-import { TeacherRequestsPage } from '../TeacherRequests/TeacherRequestsPage';
+import { useParams } from "react-router";
+import type { AuthenticatedUser, UserRole } from "../../types/user";
+import { CoordinatorRequestsPage } from "../CoordinatorRequests/CoordinatorRequestsPage";
+import { TeacherRequestsPage } from "../TeacherRequests/TeacherRequestsPage";
 
 interface RequestsPageProps {
   userRole: UserRole;
@@ -9,9 +9,11 @@ interface RequestsPageProps {
 }
 
 export const RequestsPage = ({ userRole, user }: RequestsPageProps) => {
-  if (userRole === 'coordinator' || userRole === 'admin') {
-    return <CoordinatorRequestsPage userRole={userRole} />;
+  const { id } = useParams();
+
+  if (userRole === "coordinator" || userRole === "admin") {
+    return <CoordinatorRequestsPage userRole={userRole} requestId={id} user={user} />;
   }
 
-  return <TeacherRequestsPage user={user} />;
+  return <TeacherRequestsPage user={user} requestId={id} />;
 };

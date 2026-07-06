@@ -1,0 +1,61 @@
+- name: Ensure deployment directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0750"
+  loop:
+    - "{{ deploy_dir }}"
+    - "{{ deploy_dir }}/docker"
+
+- name: Copy Swarm stack file
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../docker-stack.yml"
+    dest: "{{ deploy_dir }}/docker-stack.yml"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0640"
+
+- name: Copy Docker runtime configuration files
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../docker/"
+    dest: "{{ deploy_dir }}/docker/"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: preserve
+
+- name: Render production environment
+  ansible.builtin.template:
+    src: compensa.env.j2
+    dest: "{{ deploy_dir }}/.env"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Login to Azure Container Registry
+  ansible.builtin.command: docker login {{ acr_login_server }} --username {{ acr_username }} --password-stdin
+  args:
+    stdin: "{{ acr_password }}"
+  no_log: true
+
+- name: Deploy Compensa+ stack
+  ansible.builtin.shell: |
+    set -a
+    . ./.env
+    set +a
+    docker stack deploy --with-registry-auth -c docker-stack.yml {{ stack_name }}
+  args:
+    chdir: "{{ deploy_dir }}"
+  when: inventory_hostname in groups['manager']
+
+- name: Show stack services
+  ansible.builtin.command: docker stack services {{ stack_name }}
+  register: stack_services
+  changed_when: false
+  when: inventory_hostname in groups['manager']
+
+- name: Print deployed services
+  ansible.builtin.debug:
+    var: stack_services.stdout_lines
+  when: inventory_hostname in groups['manager']

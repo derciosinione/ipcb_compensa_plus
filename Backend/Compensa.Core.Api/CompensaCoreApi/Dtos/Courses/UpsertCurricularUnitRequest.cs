@@ -8,6 +8,9 @@ public sealed class UpsertCurricularUnitRequest
     [StringLength(200, MinimumLength = 2)]
     public string Name { get; init; } = string.Empty;
 
+    [StringLength(50)]
+    public string? Abbreviation { get; init; }
+
     [Range(1, 10)]
     public int Year { get; init; }
 

@@ -2,12 +2,7 @@ export interface ChatMessageRequest {
   thread_id?: string;
   message: string;
   file_ids?: string[];
-  user_context?: {
-    id: string;
-    name: string;
-    role: string;
-    token?: string;
-  };
+  model?: string;
 }
 
 export interface ChatMessageResponse {
@@ -23,40 +18,74 @@ export interface UploadFileResponse {
   filename: string;
 }
 
-import { API_BASE_URL } from './httpClient';
+import { API_BASE_URL } from "./httpClient";
+import { getStoredAccessToken, getStoredActiveRole } from "../auth/authSession";
 
 const AI_API_URL = `${API_BASE_URL}/api/chat`;
 
 export const IAService = {
+  getAuthHeaders(): HeadersInit {
+    const token = getStoredAccessToken();
+    if (!token) {
+      throw new Error("Authentication required");
+    }
+
+    const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+    const activeRole = getStoredActiveRole();
+    if (activeRole) {
+      headers["X-Active-Role"] = activeRole;
+    }
+
+    return headers;
+  },
+
   async uploadDocument(file: File): Promise<UploadFileResponse> {
     const formData = new FormData();
-    formData.append('file', file);
-    
+    formData.append("file", file);
+
     const response = await fetch(`${AI_API_URL}/upload`, {
-      method: 'POST',
+      method: "POST",
+      headers: this.getAuthHeaders(),
       body: formData,
     });
-    
+
     if (!response.ok) {
-      throw new Error('Failed to upload document to AI service');
+      throw new Error("Failed to upload document to AI service");
     }
-    
+
     return response.json();
   },
 
   async sendMessage(data: ChatMessageRequest): Promise<ChatMessageResponse> {
     const response = await fetch(`${AI_API_URL}/message`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        ...this.getAuthHeaders(),
       },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
-      throw new Error('Failed to send message to AI service');
+      throw new Error("Failed to send message to AI service");
     }
-    
+
     return response.json();
-  }
+  },
+
+  async deleteThread(threadId: string): Promise<boolean> {
+    if (!threadId || threadId.startsWith("local-")) {
+      return true;
+    }
+    try {
+      const response = await fetch(`${AI_API_URL}/thread/${threadId}`, {
+        method: "DELETE",
+        headers: this.getAuthHeaders(),
+      });
+      return response.ok;
+    } catch (e) {
+      console.error("Failed to delete thread on backend:", e);
+      return false;
+    }
+  },
 };

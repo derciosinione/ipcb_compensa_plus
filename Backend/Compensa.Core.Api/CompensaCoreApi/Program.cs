@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Http.Resilience;
 using System.Text;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -8,6 +9,7 @@ using CompensaCoreApi.Infrastructure.Auth;
 using CompensaCoreApi.Infrastructure.Database;
 using CompensaCoreApi.Infrastructure.OpenApi;
 using CompensaCoreApi.Middleware;
+using CompensaCoreApi.Observability;
 using CompensaCoreApi.Repositories.Assignments;
 using CompensaCoreApi.Repositories.AcademicYears;
 using CompensaCoreApi.Repositories.Classrooms;
@@ -22,6 +24,7 @@ using CompensaCoreApi.Services.Dashboard;
 using CompensaCoreApi.Services.Schedules;
 using CompensaCoreApi.Services.Search;
 using CompensaCoreApi.Services.Audit;
+using CompensaCoreApi.Services.Documents;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -29,10 +32,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MassTransit;
 using OpenTelemetry.Resources;
-using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Serilog;
+using Serilog.Formatting.Json;
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,6 +45,13 @@ var serviceName = "Compensa.Core.Api";
 var otelEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://otel-collector:4317";
 
 // Add OpenTelemetry
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new JsonFormatter())
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithTracing(tracing =>
@@ -54,16 +66,9 @@ builder.Services.AddOpenTelemetry()
         metrics.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
+            .AddMeter(CompensaCoreMetrics.MeterName)
             .AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
     });
-
-builder.Logging.AddOpenTelemetry(options =>
-{
-    options.IncludeFormattedMessage = true;
-    options.IncludeScopes = true;
-    options.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
-    options.AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
-});
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
@@ -131,9 +136,17 @@ builder.Services.AddScoped<IUserUnitAssignmentService, UserUnitAssignmentService
 builder.Services.AddScoped<ICompensationRequestRepository, CompensationRequestRepository>();
 builder.Services.AddScoped<ICompensationRequestService, CompensationRequestService>();
 builder.Services.AddScoped<IScheduleAvailabilityService, ScheduleAvailabilityService>();
+builder.Services.AddScoped<ITimetableImportService, TimetableImportService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IDocumentStorageService, LocalDocumentStorageService>();
+
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    options.InstanceName = "CompensaCore_";
+});
 
 builder.Services.AddMassTransit(x =>
 {
@@ -145,7 +158,15 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
+builder.Services.AddHttpClient("CompensaAI")
+    .AddStandardResilienceHandler();
+
 builder.Services.AddHostedService<DatabaseStartupService>();
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 builder.Services
     .AddControllers()
@@ -175,6 +196,7 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<StructuredLoggingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

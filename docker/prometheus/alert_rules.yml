@@ -18,3 +18,66 @@ groups:
         annotations:
           summary: "High error rate on {{ $labels.service_name }}"
           description: "{{ $labels.service_name }} error rate is above 5%."
+
+      - alert: HighHttp5xxRate
+        expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) by (service_name) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])) by (service_name), 0.001) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx rate on {{ $labels.service_name }}"
+          description: "{{ $labels.service_name }} has more than 5% HTTP 5xx responses over the last 5 minutes."
+
+      - alert: NoHttpTelemetryReceived
+        expr: absent_over_time(http_server_request_duration_seconds_count[10m])
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No HTTP telemetry received"
+          description: "Prometheus has not received HTTP server metrics from OpenTelemetry for more than 10 minutes."
+
+      - alert: MagicLinkInvalidSpike
+        expr: sum(rate(compensa_identity_magic_links_verified_total{outcome="invalid"}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Magic link invalid verification spike"
+          description: "Invalid magic link verifications are above 0.1 requests/second over the last 5 minutes."
+
+      - alert: NotificationEventFailures
+        expr: sum(increase(compensa_notifications_event_failures_total[5m])) by (event_type) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Notification event processing failures"
+          description: "Notification event {{ $labels.event_type }} failed at least once in the last 5 minutes."
+
+      - alert: AiChatFailureRateHigh
+        expr: sum(rate(compensa_ai_chat_failures_total[5m])) / clamp_min(sum(rate(compensa_ai_chat_requests_total[5m])) + sum(rate(compensa_ai_chat_failures_total[5m])), 0.001) > 0.2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI chat failure rate is high"
+          description: "AI chat failures are above 20% over the last 5 minutes."
+
+      - alert: AiChatLatencyHigh
+        expr: sum(rate(compensa_ai_chat_latency_seconds_sum[5m])) by (provider) / clamp_min(sum(rate(compensa_ai_chat_latency_seconds_count[5m])) by (provider), 0.001) > 15
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI chat latency high for {{ $labels.provider }}"
+          description: "Average AI chat latency is above 15 seconds for provider {{ $labels.provider }}."
+
+      - alert: CompensationDecisionLatencyHigh
+        expr: sum(rate(compensa_core_compensation_request_decision_latency_hours_sum[30m])) / clamp_min(sum(rate(compensa_core_compensation_request_decision_latency_hours_count[30m])), 0.001) > 72
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Compensation request decision latency high"
+          description: "Average compensation request decision latency is above 72 hours."

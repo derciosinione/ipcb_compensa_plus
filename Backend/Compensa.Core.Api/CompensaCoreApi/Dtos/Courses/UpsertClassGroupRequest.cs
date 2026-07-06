@@ -5,15 +5,18 @@ namespace CompensaCoreApi.Dtos.Courses;
 public sealed class UpsertClassGroupRequest
 {
     [Required]
-    public Guid CurricularUnitId { get; init; }
+    [Range(1, 10)]
+    public int Year { get; init; }
 
     [Required]
     [StringLength(80, MinimumLength = 1)]
     public string Name { get; init; } = string.Empty;
 
-    [Required]
-    [StringLength(128, MinimumLength = 1)]
+    [StringLength(128)]
     public string TeacherId { get; init; } = string.Empty;
+
+    [Required]
+    public Guid AcademicYearId { get; init; }
 
     public bool IsActive { get; init; } = true;
 }

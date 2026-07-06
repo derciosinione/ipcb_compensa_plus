@@ -1,7 +1,7 @@
-import React from 'react';
-import { Navigate } from 'react-router';
-import type { AuthenticatedUser, UserRole } from '../types/user';
-import { appPaths } from './paths';
+import React from "react";
+import { Navigate } from "react-router";
+import type { AuthenticatedUser, UserRole } from "../types/user";
+import { appPaths } from "./paths";
 
 interface ProtectedRouteProps {
   isAuthenticated: boolean;
@@ -20,7 +20,10 @@ export const ProtectedRoute = ({
     return <Navigate to={appPaths.login} replace />;
   }
 
-  if (allowedRoles?.length && !user?.roles.some((role) => allowedRoles.includes(role))) {
+  if (
+    allowedRoles?.length &&
+    !user?.roles.some((role) => allowedRoles.includes(role))
+  ) {
     return <Navigate to={appPaths.dashboard} replace />;
   }
 

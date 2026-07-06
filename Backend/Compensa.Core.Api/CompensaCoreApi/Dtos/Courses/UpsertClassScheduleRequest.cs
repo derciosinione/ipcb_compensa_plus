@@ -8,6 +8,9 @@ public sealed class UpsertClassScheduleRequest
     [Required]
     public Guid AcademicYearId { get; init; }
 
+    [Required]
+    public Guid CurricularUnitId { get; init; }
+
     [Range(1, 2)]
     public int Semester { get; init; }
 

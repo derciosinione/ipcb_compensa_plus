@@ -1,4 +1,4 @@
-export type CourseDegreeType = 'Licenciatura' | 'Mestrado' | 'CTeSP';
+export type CourseDegreeType = "Licenciatura" | "Mestrado" | "CTeSP";
 
 export interface Course {
   id: string;
@@ -27,10 +27,11 @@ export interface UpsertCourseRequest {
   isActive: boolean;
 }
 
-export type UnitComponentType = 'Theoretical' | 'Practical' | 'All';
+export type UnitComponentType = "Theoretical" | "Practical" | "TheoreticalPractical" | "PracticalLaboratorial" | "All";
 
 export interface UpsertCurricularUnitRequest {
   name: string;
+  abbreviation?: string;
   year: number;
   semester: 1 | 2;
   ects: number;
@@ -62,6 +63,7 @@ export interface CurricularUnit {
   id: string;
   courseId: string;
   name: string;
+  abbreviation: string;
   year: number;
   semester: 1 | 2;
   ects: number;
@@ -75,9 +77,10 @@ export interface CurricularUnit {
 export interface ClassGroup {
   id: string;
   courseId: string;
-  curricularUnitId: string;
+  year: number;
   name: string;
   teacherId: string;
+  academicYearId: string;
   isActive: boolean;
 }
 
@@ -97,14 +100,16 @@ export interface ClassSchedule {
 }
 
 export interface UpsertClassGroupRequest {
-  curricularUnitId: string;
+  year: number;
   name: string;
   teacherId: string;
+  academicYearId: string;
   isActive: boolean;
 }
 
 export interface UpsertClassScheduleRequest {
   academicYearId: string;
+  curricularUnitId: string;
   semester: 1 | 2;
   componentType: UnitComponentType;
   dayOfWeek: number;

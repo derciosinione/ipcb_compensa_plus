@@ -1,5 +1,8 @@
-import { authenticatedApiRequest, coreApiBaseUrl } from '../api/httpClient';
-import type { CourseAssignmentInput, UserAcademicAssignments } from './assignmentTypes';
+import { authenticatedApiRequest, coreApiBaseUrl } from "../api/httpClient";
+import type {
+  CourseAssignmentInput,
+  UserAcademicAssignments,
+} from "./assignmentTypes";
 
 export const listUserUnitAssignments = async (userId: string) => {
   const response = await authenticatedApiRequest<UserAcademicAssignments>(
@@ -20,7 +23,7 @@ export const saveUserUnitAssignments = async (
     coreApiBaseUrl,
     `/api/users/${encodeURIComponent(userId)}/unit-assignments`,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify({ userEmail, courses, curricularUnitIds }),
     },
   );

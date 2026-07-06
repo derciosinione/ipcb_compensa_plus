@@ -1,43 +1,134 @@
-import React from 'react';
+import React from "react";
 import {
+  AcademicYearsPage,
   AiConverterPage,
   CalendarPage,
   ClassroomsPage,
+  ClassDetailsPage,
   CoursesPage,
+  CourseDetailsPage,
   DashboardPage,
+  ImportSchedulesPage,
   NotificationsPage,
   PreferencesPage,
   ProfilePage,
-  ProjectStoryboardPage,
   RequestsPage,
   SettingsPage,
   SystemCalendarPage,
   UsersPage,
-} from '../pages';
-import type { AuthenticatedUser, UserRole } from '../types/user';
-import { AppPath, appPaths } from './paths';
+} from "../pages";
+import type { AuthenticatedUser, UserRole } from "../types/user";
+import { AppPath, appPaths } from "./paths";
 
 export interface AppRouteDefinition {
   path: AppPath;
   element: React.ReactElement;
+  title: string;
   allowedRoles?: UserRole[];
 }
 
-const adminOnly: UserRole[] = ['admin'];
-const staffRoles: UserRole[] = ['teacher', 'coordinator', 'admin'];
+const adminOnly: UserRole[] = ["admin"];
+const staffRoles: UserRole[] = ["teacher", "coordinator", "admin"];
 
-export const getProtectedRouteDefinitions = (user: AuthenticatedUser): AppRouteDefinition[] => [
-  { path: appPaths.dashboard, element: <DashboardPage /> },
-  { path: appPaths.requests, element: <RequestsPage userRole={user.role} user={user} />, allowedRoles: staffRoles },
-  { path: appPaths.calendar, element: <CalendarPage userRole={user.role} user={user} />, allowedRoles: staffRoles },
-  { path: appPaths.notifications, element: <NotificationsPage /> },
-  { path: appPaths.courses, element: <CoursesPage user={user} />, allowedRoles: staffRoles },
-  { path: appPaths.classrooms, element: <ClassroomsPage user={user} />, allowedRoles: staffRoles },
-  { path: appPaths.users, element: <UsersPage />, allowedRoles: adminOnly },
-  { path: appPaths.systemCalendar, element: <SystemCalendarPage />, allowedRoles: adminOnly },
-  { path: appPaths.projectStoryboard, element: <ProjectStoryboardPage />, allowedRoles: adminOnly },
-  { path: appPaths.aiConverter, element: <AiConverterPage />, allowedRoles: staffRoles },
-  { path: appPaths.profile, element: <ProfilePage user={user} /> },
-  { path: appPaths.settings, element: <SettingsPage />, allowedRoles: adminOnly },
-  { path: appPaths.preferences, element: <PreferencesPage /> },
+export const getProtectedRouteDefinitions = (
+  user: AuthenticatedUser,
+): AppRouteDefinition[] => [
+  {
+    path: appPaths.dashboard,
+    element: <DashboardPage />,
+    title: "Dashboard",
+  },
+  {
+    path: appPaths.requests,
+    element: <RequestsPage userRole={user.role} user={user} />,
+    title: "Requests Management",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.requestDetails,
+    element: <RequestsPage userRole={user.role} user={user} />,
+    title: "Request Details",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.calendar,
+    element: <CalendarPage userRole={user.role} user={user} />,
+    title: "Calendar",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.notifications,
+    element: <NotificationsPage />,
+    title: "Notifications",
+  },
+  {
+    path: appPaths.courses,
+    element: <CoursesPage user={user} />,
+    title: "Courses",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.courseDetails,
+    element: <CourseDetailsPage user={user} />,
+    title: "Course Details",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.classDetails,
+    element: <ClassDetailsPage user={user} />,
+    title: "Class Details",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.classrooms,
+    element: <ClassroomsPage user={user} />,
+    title: "Classrooms",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.users,
+    element: <UsersPage />,
+    title: "Users Management",
+    allowedRoles: adminOnly,
+  },
+  {
+    path: appPaths.systemCalendar,
+    element: <SystemCalendarPage />,
+    title: "System Calendar",
+    allowedRoles: adminOnly,
+  },
+  {
+    path: appPaths.aiAssistant,
+    element: <AiConverterPage user={user} />,
+    title: "AI Assistant",
+    allowedRoles: staffRoles,
+  },
+  {
+    path: appPaths.profile,
+    element: <ProfilePage user={user} />,
+    title: "Profile",
+  },
+  {
+    path: appPaths.settings,
+    element: <SettingsPage />,
+    title: "Settings",
+    allowedRoles: adminOnly,
+  },
+  {
+    path: appPaths.academicYears,
+    element: <AcademicYearsPage />,
+    title: "Academic Years",
+    allowedRoles: adminOnly,
+  },
+  {
+    path: appPaths.importSchedules,
+    element: <ImportSchedulesPage />,
+    title: "Import Schedules",
+    allowedRoles: ["coordinator", "admin"],
+  },
+  {
+    path: appPaths.preferences,
+    element: <PreferencesPage />,
+    title: "Preferences",
+  },
 ];

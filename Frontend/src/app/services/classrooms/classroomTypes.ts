@@ -1,4 +1,4 @@
-export type ClassroomType = 'Amphitheater' | 'Standard' | 'PcLab' | 'MacLab';
+export type ClassroomType = "Amphitheater" | "Standard" | "PcLab" | "MacLab";
 
 export interface Classroom {
   id: string;

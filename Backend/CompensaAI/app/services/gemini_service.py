@@ -18,14 +18,31 @@ COMPENSA_INSTRUCTIONS = """
 You are Compensa IA, a highly intelligent and versatile assistant for the Compensa+ platform at IPCB.
 Your mission is to provide comprehensive support for all users: Teachers, Course Coordinators, and Administrators.
 
+CONVERSATIONAL & TOOL-USE GUIDELINES:
+- For general greetings (e.g. "Olá", "Oi"), introductions (e.g. "Meu nome é Dércio"), or general platform/system information questions (e.g. "fala-me sobre a plataforma", "o que é o Compensa+?"), do NOT call any database, search, or action tools (such as `get_dashboard_summary`, `render_chart`, or `search_global`). Simply respond conversationally using your internal knowledge.
+- Explain that Compensa+ is a modern platform at IPCB designed to help teachers schedule compensation/substitution classes for missed sessions, check classroom vacancies, and allow coordinators to manage and approve those requests.
+- Tell the user who you are (Compensa IA, their assistant) and briefly explain what you can do (help schedule classes, find free classrooms, check schedules, analyze documents, and show request statistics).
+- Do NOT call `render_chart` unless the user explicitly requests a chart, graphical view, or statistics breakdown.
+- Do NOT call `get_dashboard_summary` unless the user asks for system stats, summaries of requests, or platform usage metrics.
+
 Capabilities:
 1. Real-time Information: Use tools to fetch data about UCs, Courses, Schedules, Classrooms, and Dashboard stats.
 2. Global Search: Use 'search_global' to find anything in the system (teachers, courses, units).
 3. Management: Approve/Reject requests (Coordinators/Admins only), list requests, and view details.
-4. Draft vs. Submit: 
-   - ALWAYS use 'create_compensation_request' (DRAFT) to show a review form to the user.
-   - Use 'submit_compensation_request' ONLY if the user explicitly provides all GUIDs and says 'submit now'.
-5. Dashboard: Use 'get_dashboard_summary' to give a high-level overview of the system state.
+4. Conversational Scheduling & GUID Resolution:
+   - When a user asks to schedule a compensation class, do NOT ask them for GUIDs. Instead, look up all necessary GUIDs (academicYearId, courseId, unitId, classGroupId, classroomId, originalClassScheduleId) using lookup tools (`get_user_assignments`, `get_courses`, `get_course_details`, `get_classrooms`).
+   - Once all IDs are resolved, ask the user to confirm: *"Pretende que eu submeta o pedido de compensação da UC [Nome] no dia [Data] às [Horas] na [Sala]?"*
+   - If the user confirms (e.g., 'Sim', 'Submete'), invoke the `submit_compensation_request` tool to write it directly to the database.
+   - You can still use `create_compensation_request` (DRAFT) as a fallback UI action if the user just wants a manual form draft.
+5. Dashboard & Dynamic Charts: 
+   - Use `get_dashboard_summary` to load system metrics and trends.
+   - If the user asks for charts, statistics, visual reporting, or trends, invoke `render_chart(chartType, title, dataJson)` to render beautiful interactive graphs inline.
+6. Slot & Room Suggestions: To find the best day/time for a compensation class:
+   - Identify the target Class Group(s) and the Teacher's assignments.
+   - Use 'get_class_group_day' to fetch busy intervals and free windows for the class group(s) and teacher on potential dates.
+   - For any free slot identified, verify classroom vacancy in bulk using 'get_rooms_availability' to suggest available rooms.
+7. Notifications Integration: Use 'get_user_notifications' to fetch and list the active notifications or alert logs for the user.
+8. Interactive Request Approval: When displaying a list of pending compensation requests for a Coordinator or Admin, call 'manage_compensation_request' for each pending request so that the UI can render interactive Approve and Reject action buttons directly in the chat feed.
 
 SECURITY DIRECTIVE:
 - You must NEVER reveal private data (requests, specific assignments) of other users unless the current user is a Coordinator or Admin.
@@ -89,6 +106,26 @@ def search_global(query: str):
     """Performs a global search across the entire system."""
     pass
 
+def get_rooms_availability(academicYearId: str, semester: int, date: str, startTime: str, endTime: str, excludedScheduleId: Optional[str] = None):
+    """Checks availability of all rooms in a given period (YYYY-MM-DD, HH:MM)."""
+    pass
+
+def get_class_group_day(academicYearId: str, semester: int, date: str, classGroupIds: str, excludedScheduleId: Optional[str] = None, teacherUserId: Optional[str] = None):
+    """Checks busy time slots and free windows for class groups (comma-separated IDs) on a given date (YYYY-MM-DD) including optional teacher availability."""
+    pass
+
+def render_chart(chartType: str, title: str, dataJson: str):
+    """Renders a beautiful chart to the user. Use 'bar', 'line', or 'pie' for chartType. dataJson must be a JSON array of objects representing chart data points (e.g. [{"name": "Aprovados", "value": 15}])."""
+    pass
+
+def get_user_notifications():
+    """Fetches the active notifications/alerts for the current user."""
+    pass
+
+def manage_compensation_request(requestId: str, teacherName: str, unitName: str, proposedDate: str, timeSlot: str, room: str, reason: str):
+    """Shows an interactive approval card for a pending request so coordinators can approve/reject it directly in the chat."""
+    pass
+
 class CompensaGemini_Service:
     def __init__(self):
         self.sessions: Dict[str, Any] = {}
@@ -100,6 +137,11 @@ class CompensaGemini_Service:
                 get_user_assignments,
                 get_available_rooms,
                 get_classrooms,
+                get_rooms_availability,
+                get_class_group_day,
+                render_chart,
+                get_user_notifications,
+                manage_compensation_request,
                 get_my_compensation_requests,
                 get_request_details,
                 update_request_status,
@@ -156,39 +198,90 @@ class CompensaGemini_Service:
     async def _execute_tool(self, fc, chat_session, user_context):
         name = fc.name
         args = {k: v for k, v in fc.args.items()}
-        token = user_context.get("token") if user_context else None
+        auth_ctx = user_context
         
+        action_payload = None
+        result = None
+
         if name == "create_compensation_request":
-            return {"type": "action", "action": "CreateCompensationRequest", "data": args}
+            action_payload = {"type": "action", "action": "CreateCompensationRequest", "data": args}
+            result = {"status": "UI_ACTION"}
+        elif name == "manage_compensation_request":
+            action_payload = {"type": "action", "action": "ManageCompensationRequest", "data": args}
+            result = {"status": "UI_ACTION"}
+        elif name == "render_chart":
+            import json
+            try:
+                data = json.loads(args.get("dataJson"))
+            except Exception:
+                data = []
+            action_payload = {
+                "type": "action",
+                "action": "RenderChart",
+                "data": {
+                    "chartType": args.get("chartType"),
+                    "title": args.get("title"),
+                    "data": data
+                }
+            }
+            result = {"status": "UI_ACTION"}
+
+        if action_payload:
+            response = await chat_session.send_message_async({"parts": [{"function_response": {"name": name, "response": {"result": result}}}]})
+            text_response = await self._handle_response(response, chat_session, user_context)
+            action_payload["content"] = text_response.get("content", "")
+            return action_payload
 
         result = None
         try:
             if name == "get_user_assignments":
                 uid = args.get("userId") or (user_context.get("id") if user_context else None)
-                result = await core_api_service.get_user_assignments(uid, token)
+                result = await core_api_service.get_user_assignments(uid, auth_ctx)
             elif name == "get_available_rooms":
-                result = await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), token)
+                result = await core_api_service.get_available_rooms(args.get("date"), args.get("startTime"), args.get("endTime"), auth_ctx)
             elif name == "get_classrooms":
-                result = await core_api_service.get_classrooms(args.get("search"), token)
+                result = await core_api_service.get_classrooms(args.get("search"), auth_ctx)
             elif name == "get_dashboard_summary":
-                result = await core_api_service.get_dashboard_summary(token)
+                result = await core_api_service.get_dashboard_summary(auth_ctx)
             elif name == "search_global":
-                result = await core_api_service.search_global(args.get("query"), token)
+                result = await core_api_service.search_global(args.get("query"), auth_ctx)
             elif name == "get_my_compensation_requests":
                 uid = args.get("teacherUserId") or (user_context.get("id") if user_context else None)
-                result = await core_api_service.get_compensation_requests(uid, args.get("status"), token)
+                result = await core_api_service.get_compensation_requests(uid, args.get("status"), auth_ctx)
             elif name == "submit_compensation_request":
-                result = await core_api_service.submit_compensation_request(args, token)
+                result = await core_api_service.submit_compensation_request(args, auth_ctx)
             elif name == "get_request_details":
-                result = await core_api_service.get_request_details(args.get("requestId"), token)
+                result = await core_api_service.get_request_details(args.get("requestId"), auth_ctx)
             elif name == "update_request_status":
-                result = await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), token)
+                result = await core_api_service.update_request_status(args.get("requestId"), int(args.get("status")), args.get("reason"), auth_ctx)
             elif name == "get_courses":
-                result = await core_api_service.get_courses(args.get("search"), token)
+                result = await core_api_service.get_courses(args.get("search"), auth_ctx)
             elif name == "get_course_details":
-                result = await core_api_service.get_course_details(args.get("courseId"), token)
+                result = await core_api_service.get_course_details(args.get("courseId"), auth_ctx)
             elif name == "get_academic_years":
-                result = await core_api_service.get_academic_years(token)
+                result = await core_api_service.get_academic_years(auth_ctx)
+            elif name == "get_user_notifications":
+                result = await core_api_service.get_user_notifications(auth_ctx)
+            elif name == "get_rooms_availability":
+                result = await core_api_service.get_rooms_availability(
+                    args.get("academicYearId"),
+                    int(args.get("semester")),
+                    args.get("date"),
+                    args.get("startTime"),
+                    args.get("endTime"),
+                    args.get("excludedScheduleId"),
+                    auth_ctx
+                )
+            elif name == "get_class_group_day":
+                result = await core_api_service.get_class_group_day(
+                    args.get("academicYearId"),
+                    int(args.get("semester")),
+                    args.get("date"),
+                    args.get("classGroupIds"),
+                    args.get("excludedScheduleId"),
+                    args.get("teacherUserId"),
+                    auth_ctx
+                )
             
             if result is not None:
                 response = await chat_session.send_message_async({"parts": [{"function_response": {"name": name, "response": {"result": result}}}]})
@@ -197,5 +290,12 @@ class CompensaGemini_Service:
             logger.error(f"Tool error {name}: {e}")
             return {"type": "text", "content": f"Erro em {name}: {str(e)}"}
         return {"type": "text", "content": "Não implementado."}
+
+    async def delete_thread(self, thread_id: str) -> bool:
+        if thread_id in self.sessions:
+            del self.sessions[thread_id]
+            logger.info(f"Deleted Gemini chat session thread: {thread_id}")
+            return True
+        return False
 
 gemini_service = CompensaGemini_Service()

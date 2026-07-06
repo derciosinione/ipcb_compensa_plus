@@ -31,9 +31,17 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
             .ToArrayAsync(cancellationToken);
     }
 
-    public Task<CompensationRequest?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<CompensationRequest?> GetByIdAsync(Guid id, bool includeDocuments = false, CancellationToken cancellationToken = default)
     {
-        return _context.CompensationRequests.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
+        var query = _context.CompensationRequests.AsQueryable();
+        
+        if (includeDocuments)
+        {
+            query = query.Include(request => request.Documents)
+                         .Include(request => request.Comments);
+        }
+        
+        return await query.FirstOrDefaultAsync(request => request.Id == id, cancellationToken);
     }
 
     public async Task<IReadOnlyCollection<CompensationRequest>> ListOverlappingActiveAsync(
@@ -62,10 +70,47 @@ public sealed class CompensationRequestRepository : ICompensationRequestReposito
         return await query.ToArrayAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyCollection<CompensationRequest>> ListActiveForClassGroupsOnDateAsync(
+        IReadOnlyCollection<Guid> classGroupIds,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CompensationRequests
+            .AsNoTracking()
+            .Where(r => r.ClassGroupId.HasValue &&
+                        classGroupIds.Contains(r.ClassGroupId.Value) &&
+                        r.NewDate == date &&
+                        r.Status != CompensationRequestStatus.Rejected &&
+                        r.Status != CompensationRequestStatus.Cancelled)
+            .OrderBy(r => r.NewStartTime)
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<CompensationRequest>> ListActiveForTeacherOnDateAsync(
+        string teacherUserId,
+        DateOnly date,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.CompensationRequests
+            .AsNoTracking()
+            .Where(r => r.TeacherUserId == teacherUserId &&
+                        r.NewDate == date &&
+                        r.Status != CompensationRequestStatus.Rejected &&
+                        r.Status != CompensationRequestStatus.Cancelled)
+            .OrderBy(r => r.NewStartTime)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async Task AddAsync(CompensationRequest request, CancellationToken cancellationToken = default)
     {
         _context.CompensationRequests.Add(request);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task DeleteAsync(CompensationRequest request, CancellationToken cancellationToken = default)
+    {
+        _context.CompensationRequests.Remove(request);
+        return _context.SaveChangesAsync(cancellationToken);
     }
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)

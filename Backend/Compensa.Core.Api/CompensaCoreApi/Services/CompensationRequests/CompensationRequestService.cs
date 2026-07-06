@@ -8,8 +8,12 @@ using CompensaCoreApi.Repositories.Classrooms;
 using CompensaCoreApi.Repositories.CompensationRequests;
 using CompensaCoreApi.Repositories.Courses;
 using CompensaCoreApi.Services.Audit;
+using CompensaCoreApi.Services.Documents;
 using MassTransit;
 using CompensaCoreApi.IntegrationEvents;
+using CompensaCoreApi.Infrastructure.Caching;
+using CompensaCoreApi.Observability;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace CompensaCoreApi.Services.CompensationRequests;
 
@@ -22,6 +26,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
     private readonly IUserUnitAssignmentRepository _assignmentRepository;
     private readonly IPublishEndpoint _publishEndpoint;
     private readonly IAuditService _auditService;
+    private readonly IDistributedCache _cache;
+    private readonly IDocumentStorageService _documentStorageService;
 
     public CompensationRequestService(
         ICompensationRequestRepository repository,
@@ -30,7 +36,9 @@ public sealed class CompensationRequestService : ICompensationRequestService
         IAcademicYearRepository academicYearRepository,
         IUserUnitAssignmentRepository assignmentRepository,
         IPublishEndpoint publishEndpoint,
-        IAuditService auditService)
+        IAuditService auditService,
+        IDistributedCache cache,
+        IDocumentStorageService documentStorageService)
     {
         _repository = repository;
         _courseRepository = courseRepository;
@@ -39,6 +47,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
         _assignmentRepository = assignmentRepository;
         _publishEndpoint = publishEndpoint;
         _auditService = auditService;
+        _cache = cache;
+        _documentStorageService = documentStorageService;
     }
 
     public async Task<IReadOnlyCollection<CompensationRequestResponse>> ListAsync(
@@ -49,18 +59,17 @@ public sealed class CompensationRequestService : ICompensationRequestService
         bool isAdmin,
         CancellationToken cancellationToken = default)
     {
-        // Security check: Teachers can only see their own requests
         if (!isAdmin && !isCoordinator)
         {
             teacherUserId = actorUserId;
         }
 
         var requests = await _repository.ListAsync(status, teacherUserId, cancellationToken);
-        
-        // Extra layer for coordinators: they should only see requests for their courses?
-        // For now, we trust the filter above for teachers, and let coordinators see all.
-        // If we wanted to be stricter:
-        // if (isCoordinator && !isAdmin) { /* filter requests by coordinated course IDs */ }
+
+        if (!isAdmin && isCoordinator)
+        {
+            requests = await FilterRequestsByCourseRelationshipAsync(requests, actorUserId, cancellationToken);
+        }
 
         return requests.Select(ToResponse).ToArray();
     }
@@ -72,10 +81,10 @@ public sealed class CompensationRequestService : ICompensationRequestService
         bool isAdmin,
         CancellationToken cancellationToken = default)
     {
-        var request = await GetRequiredRequestAsync(id, cancellationToken);
-        
-        // Security check: If teacher, must be the owner
-        if (!isAdmin && !isCoordinator && request.TeacherUserId != actorUserId)
+        var request = await _repository.GetByIdAsync(id, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
+
+        if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
         {
             throw new ForbiddenException("You don't have permission to view this request.");
         }
@@ -86,10 +95,12 @@ public sealed class CompensationRequestService : ICompensationRequestService
     public async Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,
         string actorUserId,
-        bool canCreateForOthers,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default)
     {
         ValidateSchedule(request.NewStartTime, request.NewEndTime, "new");
+        var canCreateForOthers = isCoordinator || isAdmin;
         EnsureCanCreateRequestForUser(request, actorUserId, canCreateForOthers);
 
         var academicYear = await _academicYearRepository.GetByIdAsync(request.AcademicYearId, cancellationToken)
@@ -107,12 +118,14 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var originalSchedule = await _courseRepository.GetClassScheduleByIdAsync(request.OriginalClassScheduleId, cancellationToken)
             ?? throw new NotFoundException($"Original class schedule '{request.OriginalClassScheduleId}' was not found.");
 
-        var originalRoom = await _classroomRepository.GetByIdAsync(originalSchedule.ClassroomId, cancellationToken)
-            ?? throw new NotFoundException($"Original classroom '{originalSchedule.ClassroomId}' was not found.");
+        var originalRoom = originalSchedule.ClassroomId.HasValue
+            ? await _classroomRepository.GetByIdAsync(originalSchedule.ClassroomId.Value, cancellationToken)
+            : null;
 
         var newRoom = await _classroomRepository.GetByIdAsync(request.NewClassroomId, cancellationToken)
             ?? throw new NotFoundException($"New classroom '{request.NewClassroomId}' was not found.");
 
+        await EnsureCanCreateRequestInCourseAsync(request, course, actorUserId, isCoordinator, isAdmin, cancellationToken);
         ValidateOriginalSchedule(request, academicYear.Id, course.Id, unit.Id, classGroup.Id, originalSchedule);
         await EnsureTeacherCanUseClassAsync(request, classGroup, canCreateForOthers, cancellationToken);
         await EnsureNewScheduleHasNoConflictsAsync(request, classGroup, originalSchedule, cancellationToken);
@@ -137,7 +150,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             OriginalDate = request.OriginalDate,
             OriginalStartTime = originalSchedule.StartTime,
             OriginalEndTime = originalSchedule.EndTime,
-            OriginalRoom = originalRoom.Name,
+            OriginalRoom = originalRoom?.Name ?? "Sem Sala",
             NewDate = request.NewDate,
             NewStartTime = request.NewStartTime,
             NewEndTime = request.NewEndTime,
@@ -160,7 +173,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             null,
             compensationRequest);
 
-        var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
+        var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, academicYear.Id, cancellationToken);
         foreach (var coordinatorUserId in coordinatorUserIds)
         {
             await _publishEndpoint.Publish(new RequestCreatedEvent
@@ -174,6 +187,90 @@ public sealed class CompensationRequestService : ICompensationRequestService
             }, cancellationToken);
         }
 
+        await InvalidateDashboardCacheAsync(cancellationToken);
+        CompensaCoreMetrics.RecordCompensationRequestCreated(
+            GetActorRole(isCoordinator, isAdmin),
+            string.Equals(compensationRequest.TeacherUserId, actorUserId, StringComparison.Ordinal));
+
+        return ToResponse(compensationRequest);
+    }
+
+    public async Task<CompensationRequestResponse> UpdateAsync(
+        Guid id,
+        UpdateCompensationRequestRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var compensationRequest = await _repository.GetByIdAsync(id, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
+
+        if (!isAdmin && compensationRequest.TeacherUserId != actorUserId)
+            throw new ForbiddenException("You can only edit your own requests.");
+
+        if (!isAdmin && compensationRequest.Status == CompensationRequestStatus.Approved)
+            throw new InvalidOperationException("Approved requests cannot be edited.");
+
+        ValidateSchedule(request.NewStartTime, request.NewEndTime, "new");
+
+        var newRoom = await _classroomRepository.GetByIdAsync(request.NewClassroomId, cancellationToken)
+            ?? throw new NotFoundException($"New classroom '{request.NewClassroomId}' was not found.");
+
+        var classGroup = await _courseRepository.GetClassGroupByIdAsync(compensationRequest.CourseId ?? Guid.Empty, compensationRequest.ClassGroupId ?? Guid.Empty, cancellationToken)
+            ?? throw new NotFoundException("Class group context lost.");
+
+        var originalSchedule = await _courseRepository.GetClassScheduleByIdAsync(compensationRequest.OriginalClassScheduleId ?? Guid.Empty, cancellationToken)
+            ?? throw new NotFoundException("Original schedule context lost.");
+
+        // Check for conflicts again with the new data
+        var updateCheck = new CreateCompensationRequestRequest
+        {
+            NewDate = request.NewDate,
+            NewStartTime = request.NewStartTime,
+            NewEndTime = request.NewEndTime,
+            NewClassroomId = request.NewClassroomId
+        };
+        await EnsureNewScheduleHasNoConflictsAsync(updateCheck, classGroup, originalSchedule, cancellationToken);
+
+        var previousState = new
+        {
+            compensationRequest.NewDate,
+            compensationRequest.NewStartTime,
+            compensationRequest.NewEndTime,
+            compensationRequest.NewRoom,
+            compensationRequest.NewClassroomId,
+            compensationRequest.Justification,
+            compensationRequest.Status
+        };
+
+        compensationRequest.NewDate = request.NewDate;
+        compensationRequest.NewStartTime = request.NewStartTime;
+        compensationRequest.NewEndTime = request.NewEndTime;
+        compensationRequest.NewRoom = newRoom.Name;
+        compensationRequest.NewClassroomId = newRoom.Id;
+        compensationRequest.Justification = request.Justification.Trim();
+
+        // If it was rejected, reset to pending upon edit
+        if (compensationRequest.Status == CompensationRequestStatus.Rejected)
+        {
+            compensationRequest.Status = CompensationRequestStatus.Pending;
+        }
+
+        compensationRequest.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogActionAsync(
+            "CompensationRequest",
+            compensationRequest.Id.ToString(),
+            "Update",
+            actorUserId,
+            previousState,
+            compensationRequest);
+
+        await InvalidateDashboardCacheAsync(cancellationToken);
+
         return ToResponse(compensationRequest);
     }
 
@@ -185,19 +282,52 @@ public sealed class CompensationRequestService : ICompensationRequestService
         bool isAdmin,
         CancellationToken cancellationToken = default)
     {
-        var compensationRequest = await GetRequiredRequestAsync(id, cancellationToken);
-        await EnsureCanDecideRequestAsync(compensationRequest, actorUserId, isCoordinator, isAdmin, cancellationToken);
-        
+        var compensationRequest = await _repository.GetByIdAsync(id, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
+
+        // Security check
+        bool isCancellation = request.Status == CompensationRequestStatus.Cancelled;
+        bool isRestore = compensationRequest.Status == CompensationRequestStatus.Cancelled && request.Status == CompensationRequestStatus.Pending;
+
+        if (isCancellation)
+        {
+            if (!isAdmin && compensationRequest.TeacherUserId != actorUserId)
+                throw new ForbiddenException("You can only cancel your own requests.");
+        }
+        else if (isRestore)
+        {
+            if (!isAdmin && compensationRequest.TeacherUserId != actorUserId)
+                throw new ForbiddenException("You can only restore your own cancelled requests.");
+        }
+        else
+        {
+            await EnsureCanDecideRequestAsync(compensationRequest, actorUserId, isCoordinator, isAdmin, cancellationToken);
+        }
+
         if (compensationRequest.CourseId == null) throw new InvalidOperationException("Request has no associated course.");
         var course = await _courseRepository.GetByIdAsync(compensationRequest.CourseId.Value, cancellationToken);
         if (course is null) throw new InvalidOperationException("Course not found.");
 
+        if (compensationRequest.Status is CompensationRequestStatus.Approved or CompensationRequestStatus.Rejected)
+        {
+            if (request.Status == CompensationRequestStatus.Pending)
+                throw new InvalidOperationException("Approved or rejected requests cannot be changed back to pending.");
+        }
+
         if (compensationRequest.Status is CompensationRequestStatus.Cancelled)
-            throw new InvalidOperationException("Cancelled requests cannot be changed.");
+        {
+            // Only allow restoring to Pending (by the owner). All other transitions from Cancelled are blocked.
+            if (request.Status != CompensationRequestStatus.Pending)
+                throw new InvalidOperationException("Cancelled requests can only be restored to pending.");
+
+            if (compensationRequest.TeacherUserId != actorUserId && !isAdmin)
+                throw new ForbiddenException("You can only restore your own cancelled requests.");
+        }
 
         if (request.Status is CompensationRequestStatus.Rejected && string.IsNullOrWhiteSpace(request.DecisionComment))
             throw new InvalidOperationException("Rejected requests require a decision comment.");
 
+        var previousStatus = compensationRequest.Status;
         var previousState = new { compensationRequest.Status, compensationRequest.DecisionComment };
 
         compensationRequest.Status = request.Status;
@@ -214,7 +344,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
             previousState,
             new { compensationRequest.Status, compensationRequest.DecisionComment });
 
-        var decisionCoordinatorIds = await GetCourseCoordinatorUserIdsAsync(course, cancellationToken);
+        var decisionCoordinatorIds = await GetCourseCoordinatorUserIdsAsync(course, compensationRequest.AcademicYearId ?? Guid.Empty, cancellationToken);
         foreach (var coordinatorUserId in decisionCoordinatorIds.DefaultIfEmpty(actorUserId))
         {
             await _publishEndpoint.Publish(new RequestStatusUpdatedEvent
@@ -228,13 +358,353 @@ public sealed class CompensationRequestService : ICompensationRequestService
             }, cancellationToken);
         }
 
+        await InvalidateDashboardCacheAsync(cancellationToken);
+        CompensaCoreMetrics.RecordCompensationRequestStatusChanged(
+            previousStatus,
+            compensationRequest.Status,
+            GetActorRole(isCoordinator, isAdmin),
+            GetDecisionLatencyHours(compensationRequest));
+
         return ToResponse(compensationRequest);
     }
 
-    private async Task<CompensationRequest> GetRequiredRequestAsync(Guid id, CancellationToken cancellationToken)
+    public async Task DeleteAsync(
+        Guid id,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
     {
-        return await _repository.GetByIdAsync(id, cancellationToken)
+        var request = await _repository.GetByIdAsync(id, includeDocuments: true, cancellationToken)
             ?? throw new NotFoundException($"Compensation request '{id}' was not found.");
+
+        // Security: Only the owner (if pending) or admin can delete
+        if (!isAdmin && request.TeacherUserId != actorUserId)
+        {
+            throw new ForbiddenException("You don't have permission to delete this request.");
+        }
+
+        if (!isAdmin && request.Status != CompensationRequestStatus.Pending && request.Status != CompensationRequestStatus.Cancelled)
+        {
+            throw new InvalidOperationException("Only pending or cancelled requests can be deleted.");
+        }
+
+        // Delete physical files
+        foreach (var doc in request.Documents)
+        {
+            await _documentStorageService.DeleteDocumentAsync(doc.FilePath);
+        }
+
+        await _repository.DeleteAsync(request, cancellationToken);
+
+        await _auditService.LogActionAsync(
+            "CompensationRequest",
+            id.ToString(),
+            "Delete",
+            actorUserId,
+            request,
+            null);
+
+        await InvalidateDashboardCacheAsync(cancellationToken);
+        CompensaCoreMetrics.RecordCompensationRequestDeleted(request.Status, GetActorRole(isCoordinator, isAdmin));
+    }
+
+    // --- Document Methods ---
+
+    public async Task<CompensationRequestDocumentResponse> UploadDocumentAsync(
+        Guid requestId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        long sizeInBytes,
+        string actorUserId,
+        string actorName,
+        string role,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
+
+        if (!isAdmin && !isCoordinator && request.TeacherUserId != actorUserId)
+        {
+            throw new ForbiddenException("You don't have permission to upload documents to this request.");
+        }
+
+        if (request.Status != CompensationRequestStatus.Pending)
+        {
+            throw new InvalidOperationException("Documents can only be uploaded to pending requests.");
+        }
+
+        var (storedFileName, filePath) = await _documentStorageService.SaveDocumentAsync(fileStream, fileName, requestId);
+
+        var document = new CompensationRequestDocument
+        {
+            CompensationRequestId = requestId,
+            FileName = fileName,
+            StoredFileName = storedFileName,
+            FilePath = filePath,
+            ContentType = contentType,
+            SizeInBytes = sizeInBytes
+        };
+
+        request.Documents.Add(document);
+        request.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        // Publish documents integration event for notification service
+        try
+        {
+            if (role == "teacher" && request.CourseId.HasValue)
+            {
+                var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
+                if (course != null)
+                {
+                    var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+                    foreach (var coordinatorUserId in coordinatorUserIds)
+                    {
+                        await _publishEndpoint.Publish(new RequestDocumentUploadedEvent
+                        {
+                            RequestId = request.Id,
+                            TeacherUserId = request.TeacherUserId,
+                            CoordinatorUserId = coordinatorUserId,
+                            AuthorUserId = actorUserId,
+                            AuthorName = actorName,
+                            Role = role,
+                            FileName = fileName,
+                            CreatedAt = document.CreatedAt.UtcDateTime
+                        }, cancellationToken);
+                    }
+                }
+            }
+            else if (role == "coordinator" || role == "admin")
+            {
+                await _publishEndpoint.Publish(new RequestDocumentUploadedEvent
+                {
+                    RequestId = request.Id,
+                    TeacherUserId = request.TeacherUserId,
+                    CoordinatorUserId = actorUserId,
+                    AuthorUserId = actorUserId,
+                    AuthorName = actorName,
+                    Role = role,
+                    FileName = fileName,
+                    CreatedAt = document.CreatedAt.UtcDateTime
+                }, cancellationToken);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            // Logging warning or swallowing integration event fail to keep request logic working
+        }
+
+        CompensaCoreMetrics.RecordCompensationRequestDocumentUploaded(role, sizeInBytes);
+        return ToDocumentResponse(document);
+    }
+
+    public async Task<IReadOnlyCollection<CompensationRequestDocumentResponse>> ListDocumentsAsync(
+        Guid requestId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
+
+        if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
+        {
+            throw new ForbiddenException("You don't have permission to view documents of this request.");
+        }
+
+        return request.Documents.Select(ToDocumentResponse).ToArray();
+    }
+
+    public async Task<(Stream Stream, string FileName, string ContentType)> GetDocumentFileAsync(
+        Guid requestId,
+        Guid documentId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
+
+        if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
+        {
+            throw new ForbiddenException("You don't have permission to view documents of this request.");
+        }
+
+        var document = request.Documents.FirstOrDefault(d => d.Id == documentId)
+            ?? throw new NotFoundException($"Document '{documentId}' was not found in request '{requestId}'.");
+
+        var stream = await _documentStorageService.GetDocumentStreamAsync(document.FilePath);
+
+        return (stream, document.FileName, document.ContentType);
+    }
+
+    public async Task DeleteDocumentAsync(
+        Guid requestId,
+        Guid documentId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
+
+        if (!isAdmin && request.TeacherUserId != actorUserId)
+        {
+            throw new ForbiddenException("You don't have permission to delete documents from this request.");
+        }
+
+        if (request.Status != CompensationRequestStatus.Pending)
+        {
+            throw new InvalidOperationException("Documents can only be deleted from pending requests.");
+        }
+
+        var document = request.Documents.FirstOrDefault(d => d.Id == documentId)
+            ?? throw new NotFoundException($"Document '{documentId}' was not found in request '{requestId}'.");
+
+        await _documentStorageService.DeleteDocumentAsync(document.FilePath);
+        request.Documents.Remove(document);
+        request.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+    }
+
+    // --- Private Helpers ---
+
+    private async Task<bool> CanViewRequestAsync(
+        CompensationRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (isAdmin)
+            return true;
+
+        if (request.TeacherUserId == actorUserId)
+            return true;
+
+        if (isCoordinator && request.CourseId.HasValue)
+        {
+            var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
+            if (course != null && await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId ?? Guid.Empty, cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string GetActorRole(bool isCoordinator, bool isAdmin)
+    {
+        if (isAdmin)
+            return "admin";
+
+        return isCoordinator ? "coordinator" : "teacher";
+    }
+
+    private static double? GetDecisionLatencyHours(CompensationRequest request)
+    {
+        if (request.Status is not (CompensationRequestStatus.Approved or CompensationRequestStatus.Rejected or CompensationRequestStatus.Cancelled))
+            return null;
+
+        return Math.Max(0, (request.UpdatedAt - request.SubmittedAt).TotalHours);
+    }
+
+    private async Task<bool> IsActualCoordinatorOfRequestAsync(
+        CompensationRequest request,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (!request.CourseId.HasValue) return false;
+
+        var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
+        if (course == null) return false;
+
+        return await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+    }
+
+    private async Task<bool> HasCourseRelationshipAsync(
+        string actorUserId,
+        Guid? courseId,
+        Guid? academicYearId,
+        CancellationToken cancellationToken)
+    {
+        if (!courseId.HasValue)
+            return false;
+
+        var course = await _courseRepository.GetByIdAsync(courseId.Value, cancellationToken);
+        if (course is null)
+            return false;
+
+        if (academicYearId.HasValue)
+        {
+            var offering = await _courseRepository.GetOfferingAsync(course.Id, academicYearId.Value, cancellationToken);
+            if (offering?.CoordinatorUserId == actorUserId)
+                return true;
+        }
+
+        var unitAssignments = await _assignmentRepository.ListByUserAsync(actorUserId, cancellationToken: cancellationToken);
+        if (unitAssignments.Any(assignment => assignment.CourseId == course.Id))
+            return true;
+
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken);
+        return courseAssignments.Any(assignment => assignment.CourseId == course.Id);
+    }
+
+    private async Task<bool> CanCoordinateCourseAsync(
+        string actorUserId,
+        Course course,
+        Guid academicYearId,
+        CancellationToken cancellationToken)
+    {
+        var offering = await _courseRepository.GetOfferingAsync(course.Id, academicYearId, cancellationToken);
+        if (offering?.CoordinatorUserId == actorUserId)
+            return true;
+
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken);
+        return courseAssignments.Any(assignment => assignment.CourseId == course.Id && assignment.IsCoordinator);
+    }
+
+    private async Task<IReadOnlyCollection<CompensationRequest>> FilterRequestsByCourseRelationshipAsync(
+        IReadOnlyCollection<CompensationRequest> requests,
+        string actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var allowedRequests = new List<CompensationRequest>();
+        var coordinatedCourseIds = (await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken))
+            .Where(a => a.IsCoordinator)
+            .Select(a => a.CourseId)
+            .ToList();
+
+        // Also include courses where user is the main coordinator
+        var coursesWhereMainCoordinator = await _courseRepository.ListCoordinatedByAsync(actorUserId, cancellationToken);
+        coordinatedCourseIds.AddRange(coursesWhereMainCoordinator.Select(c => c.Id));
+
+        var distinctCourseIds = coordinatedCourseIds.Distinct().ToList();
+
+        foreach (var request in requests)
+        {
+            if (request.CourseId.HasValue && distinctCourseIds.Contains(request.CourseId.Value))
+            {
+                allowedRequests.Add(request);
+            }
+            // If user is the teacher of the request, they can always see it (handled before this call in ListAsync usually, but for safety:)
+            else if (request.TeacherUserId == actorUserId)
+            {
+                allowedRequests.Add(request);
+            }
+        }
+
+        return allowedRequests;
     }
 
     private static void ValidateSchedule(TimeOnly startTime, TimeOnly endTime, string label)
@@ -253,6 +723,26 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
         if (!canCreateForOthers && request.TeacherUserId != actorUserId)
             throw new InvalidOperationException("Teachers can only create compensation requests for themselves.");
+    }
+
+    private async Task EnsureCanCreateRequestInCourseAsync(
+        CreateCompensationRequestRequest request,
+        Course course,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken)
+    {
+        if (isAdmin)
+            return;
+
+        if (request.TeacherUserId == actorUserId)
+            return;
+
+        if (isCoordinator && await CanCoordinateCourseAsync(actorUserId, course, request.AcademicYearId, cancellationToken))
+            return;
+
+        throw new ForbiddenException("You don't have permission to create requests for this course.");
     }
 
     private static void ValidateOriginalSchedule(
@@ -298,9 +788,14 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (roomConflict.Schedule != null)
             throw new InvalidOperationException("The selected classroom is already occupied in the proposed time interval.");
 
-        var teacherConflict = overlaps.FirstOrDefault(item => item.ClassGroup.TeacherId == classGroup.TeacherId);
-        if (teacherConflict.Schedule != null)
-            throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a class in the proposed time interval.");
+        if (!string.IsNullOrWhiteSpace(request.TeacherUserId))
+        {
+            var teacherConflict = overlaps.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.ClassGroup.TeacherId) &&
+                item.ClassGroup.TeacherId == request.TeacherUserId);
+            if (teacherConflict.Schedule != null)
+                throw new InvalidOperationException($"Teacher '{request.TeacherUserId}' already has a class in the proposed time interval.");
+        }
 
         var requestOverlaps = await _repository.ListOverlappingActiveAsync(
             originalSchedule.AcademicYearId,
@@ -319,9 +814,14 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (requestedRoomConflict != null)
             throw new InvalidOperationException("The selected classroom already has a compensation request in the proposed time interval.");
 
-        var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item => item.TeacherUserId == classGroup.TeacherId);
-        if (requestedTeacherConflict != null)
-            throw new InvalidOperationException($"Teacher '{classGroup.TeacherId}' already has a compensation request in the proposed time interval.");
+        if (!string.IsNullOrWhiteSpace(request.TeacherUserId))
+        {
+            var requestedTeacherConflict = requestOverlaps.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(item.TeacherUserId) &&
+                item.TeacherUserId == request.TeacherUserId);
+            if (requestedTeacherConflict != null)
+                throw new InvalidOperationException($"Teacher '{request.TeacherUserId}' already has a compensation request in the proposed time interval.");
+        }
     }
 
     private async Task EnsureTeacherCanUseClassAsync(
@@ -336,8 +836,8 @@ public sealed class CompensationRequestService : ICompensationRequestService
         if (classGroup.TeacherId == request.TeacherUserId)
             return;
 
-        var assignments = await _assignmentRepository.ListByUserAsync(request.TeacherUserId, cancellationToken);
-        if (assignments.Any(assignment => assignment.CurricularUnitId == classGroup.CurricularUnitId))
+        var assignments = await _assignmentRepository.ListByUserAsync(request.TeacherUserId, cancellationToken: cancellationToken);
+        if (assignments.Any(assignment => assignment.CurricularUnitId == request.CurricularUnitId))
             return;
 
         throw new InvalidOperationException("Teacher is not assigned to the selected curricular unit or class group.");
@@ -362,10 +862,11 @@ public sealed class CompensationRequestService : ICompensationRequestService
         var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken)
             ?? throw new NotFoundException($"Course '{request.CourseId}' was not found.");
 
-        if (course.CoordinatorUserId == actorUserId)
+        var offering = await _courseRepository.GetOfferingAsync(course.Id, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+        if (offering?.CoordinatorUserId == actorUserId)
             return;
 
-        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken);
+        var courseAssignments = await _assignmentRepository.ListCoursesByUserAsync(actorUserId, cancellationToken: cancellationToken);
         if (courseAssignments.Any(assignment => assignment.CourseId == request.CourseId && assignment.IsCoordinator))
             return;
 
@@ -374,6 +875,7 @@ public sealed class CompensationRequestService : ICompensationRequestService
 
     private async Task<string[]> GetCourseCoordinatorUserIdsAsync(
         Course course,
+        Guid academicYearId,
         CancellationToken cancellationToken)
     {
         var assignmentCoordinatorIds = (await _courseRepository.ListCourseAssignmentsAsync(course.Id, cancellationToken))
@@ -381,8 +883,10 @@ public sealed class CompensationRequestService : ICompensationRequestService
             .Select(assignment => assignment.UserId)
             .Where(userId => !string.IsNullOrWhiteSpace(userId));
 
+        var offering = await _courseRepository.GetOfferingAsync(course.Id, academicYearId, cancellationToken);
+
         return assignmentCoordinatorIds
-            .Concat(string.IsNullOrWhiteSpace(course.CoordinatorUserId) ? [] : [course.CoordinatorUserId])
+            .Concat(string.IsNullOrWhiteSpace(offering?.CoordinatorUserId) ? [] : [offering!.CoordinatorUserId])
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -429,6 +933,127 @@ public sealed class CompensationRequestService : ICompensationRequestService
             request.HasConflict,
             request.SubmittedAt,
             request.CreatedAt,
-            request.UpdatedAt);
+            request.UpdatedAt,
+            request.Documents.Select(ToDocumentResponse).ToArray(),
+            request.Comments != null
+                ? request.Comments.Select(ToCommentResponse).OrderBy(c => c.CreatedAt).ToArray()
+                : Array.Empty<CompensationRequestCommentResponse>());
+    }
+
+    private static CompensationRequestDocumentResponse ToDocumentResponse(CompensationRequestDocument doc)
+    {
+        return new CompensationRequestDocumentResponse(
+            doc.Id,
+            doc.CompensationRequestId,
+            doc.FileName,
+            doc.SizeInBytes,
+            doc.ContentType,
+            doc.CreatedAt);
+    }
+
+    private static CompensationRequestCommentResponse ToCommentResponse(CompensationRequestComment c)
+    {
+        return new CompensationRequestCommentResponse(
+            c.Id,
+            c.CompensationRequestId,
+            c.AuthorUserId,
+            c.AuthorName,
+            c.Role,
+            c.Text,
+            c.CreatedAt);
+    }
+
+    public async Task<CompensationRequestCommentResponse> AddCommentAsync(
+        Guid requestId,
+        string text,
+        string actorUserId,
+        string actorName,
+        string role,
+        CancellationToken cancellationToken = default)
+    {
+        var request = await _repository.GetByIdAsync(requestId, includeDocuments: true, cancellationToken)
+            ?? throw new NotFoundException($"Compensation request '{requestId}' was not found.");
+
+        var (isCoordinator, isAdmin) = (role == "coordinator", role == "admin");
+        if (!await CanViewRequestAsync(request, actorUserId, isCoordinator, isAdmin, cancellationToken))
+        {
+            throw new ForbiddenException("You don't have permission to comment on this request.");
+        }
+
+        var comment = new CompensationRequestComment
+        {
+            CompensationRequestId = requestId,
+            AuthorUserId = actorUserId,
+            AuthorName = actorName,
+            Role = role,
+            Text = text.Trim(),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        request.Comments.Add(comment);
+        request.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _repository.SaveChangesAsync(cancellationToken);
+
+        // Publish comments integration event for notification service
+        try
+        {
+            if (role == "teacher" && request.CourseId.HasValue)
+            {
+                var course = await _courseRepository.GetByIdAsync(request.CourseId.Value, cancellationToken);
+                if (course != null)
+                {
+                    var coordinatorUserIds = await GetCourseCoordinatorUserIdsAsync(course, request.AcademicYearId ?? Guid.Empty, cancellationToken);
+                    foreach (var coordinatorUserId in coordinatorUserIds)
+                    {
+                        await _publishEndpoint.Publish(new RequestCommentAddedEvent
+                        {
+                            RequestId = request.Id,
+                            TeacherUserId = request.TeacherUserId,
+                            CoordinatorUserId = coordinatorUserId,
+                            AuthorUserId = actorUserId,
+                            AuthorName = actorName,
+                            Role = role,
+                            CommentText = comment.Text,
+                            CreatedAt = comment.CreatedAt.UtcDateTime
+                        }, cancellationToken);
+                    }
+                }
+            }
+            else if (role == "coordinator" || role == "admin")
+            {
+                await _publishEndpoint.Publish(new RequestCommentAddedEvent
+                {
+                    RequestId = request.Id,
+                    TeacherUserId = request.TeacherUserId,
+                    CoordinatorUserId = actorUserId,
+                    AuthorUserId = actorUserId,
+                    AuthorName = actorName,
+                    Role = role,
+                    CommentText = comment.Text,
+                    CreatedAt = comment.CreatedAt.UtcDateTime
+                }, cancellationToken);
+            }
+        }
+        catch (System.Exception ex)
+        {
+            // Logging warning or swallowing integration event fail to keep request logic working
+        }
+
+        return ToCommentResponse(comment);
+    }
+
+    private async Task InvalidateDashboardCacheAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var version = await _cache.GetStringAsync(CacheKeys.DashboardSummaryVersion, cancellationToken) ?? "0";
+            var nextVersion = (int.TryParse(version, out var v) ? v : 0) + 1;
+            await _cache.SetStringAsync(CacheKeys.DashboardSummaryVersion, nextVersion.ToString(), cancellationToken);
+        }
+        catch (System.Exception)
+        {
+            // Ignore cache errors
+        }
     }
 }

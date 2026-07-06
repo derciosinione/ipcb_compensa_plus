@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compensa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-compensa}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -45,7 +45,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-info@kiaricode.com}
       Email__FromName: ${EMAIL_FROM_NAME:-Compensa+}
       Email__SmtpHost: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}
@@ -59,7 +59,7 @@ services:
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
       Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-60}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}

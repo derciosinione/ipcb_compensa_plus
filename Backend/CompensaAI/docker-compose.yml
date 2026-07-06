@@ -6,7 +6,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compensa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-compensa}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -27,8 +27,13 @@ services:
     restart: unless-stopped
     environment:
       COMPENSA_AI_ENVIRONMENT: ${COMPENSA_AI_ENVIRONMENT:-development}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${AI_DB:-CompensaAiDB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${AI_DB:-CompensaAiDB}
       CORE_API_URL: ${CORE_API_URL:-http://host.docker.internal:5001}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
     ports:
       - "${COMPENSA_AI_PORT:-8000}:8000"
     depends_on:

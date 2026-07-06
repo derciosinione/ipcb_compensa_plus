@@ -2,6 +2,7 @@
 
 namespace CompensaCoreApi.Tests;
 
+[Trait("Category", "Unit")]
 public sealed class ScheduleConflictRuleTests
 {
     [Fact]

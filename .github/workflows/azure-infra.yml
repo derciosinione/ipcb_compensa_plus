@@ -1,0 +1,85 @@
+name: Azure Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply Terraform changes"
+        required: true
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/azure/**"
+      - ".github/workflows/azure-infra.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: infra/terraform/azure
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: true
+      TF_TOKEN_app_terraform_io: ${{ secrets.HCP_TERRAFORM_TOKEN }}
+      TF_VAR_ssh_public_key: ${{ secrets.AZURE_VM_SSH_PUBLIC_KEY }}
+      TF_VAR_admin_source_cidrs: ${{ vars.ADMIN_SOURCE_CIDRS || '["0.0.0.0/0"]' }}
+      TF_VAR_location: ${{ vars.AZURE_LOCATION || 'westeurope' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: |
+          cat > backend.hcl <<'EOF'
+          organization = "${{ vars.HCP_TERRAFORM_ORGANIZATION }}"
+          workspaces {
+            name = "${{ vars.HCP_TERRAFORM_WORKSPACE || 'compensa-prod' }}"
+          }
+          EOF
+          terraform init -backend-config=backend.hcl
+
+      - name: Terraform format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform apply
+        if: github.event_name == 'workflow_dispatch' && inputs.apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Export Ansible inventory
+        if: github.event_name == 'workflow_dispatch' && inputs.apply
+        run: terraform output -raw ansible_inventory > ../../ansible/inventory/azure.ini
+
+      - name: Upload Ansible inventory
+        if: github.event_name == 'workflow_dispatch' && inputs.apply
+        uses: actions/upload-artifact@v4
+        with:
+          name: ansible-inventory
+          path: infra/ansible/inventory/azure.ini

@@ -23,7 +23,16 @@ public interface ICompensationRequestService
     Task<CompensationRequestResponse> CreateAsync(
         CreateCompensationRequestRequest request,
         string actorUserId,
-        bool canCreateForOthers,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<CompensationRequestResponse> UpdateAsync(
+        Guid id,
+        UpdateCompensationRequestRequest request,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
         CancellationToken cancellationToken = default);
 
     Task<CompensationRequestResponse> UpdateStatusAsync(
@@ -32,5 +41,57 @@ public interface ICompensationRequestService
         string actorUserId,
         bool isCoordinator,
         bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        Guid id,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<CompensationRequestDocumentResponse> UploadDocumentAsync(
+        Guid requestId,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        long sizeInBytes,
+        string actorUserId,
+        string actorName,
+        string role,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyCollection<CompensationRequestDocumentResponse>> ListDocumentsAsync(
+        Guid requestId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task<(Stream Stream, string FileName, string ContentType)> GetDocumentFileAsync(
+        Guid requestId,
+        Guid documentId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteDocumentAsync(
+        Guid requestId,
+        Guid documentId,
+        string actorUserId,
+        bool isCoordinator,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
+
+    // Comment methods
+    Task<CompensationRequestCommentResponse> AddCommentAsync(
+        Guid requestId,
+        string text,
+        string actorUserId,
+        string actorName,
+        string role,
         CancellationToken cancellationToken = default);
 }

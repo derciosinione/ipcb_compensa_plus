@@ -1,6 +1,4 @@
-export type { UserRole } from '../mocks/data';
-
-import type { UserRole } from '../mocks/data';
+export type UserRole = "teacher" | "coordinator" | "admin" | "student";
 
 export interface AuthenticatedUser {
   id: string;
@@ -8,5 +6,14 @@ export interface AuthenticatedUser {
   email: string;
   role: UserRole;
   roles: UserRole[];
+  avatarUrl?: string;
+}
+
+export type User = AuthenticatedUser;
+
+export interface ImportedUser {
+  name: string;
+  email: string;
+  role: UserRole;
   avatarUrl?: string;
 }

@@ -1,0 +1,6 @@
+{
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/Backend/CompensaAI/venv/lib/python3.14/site-packages",
+    "${workspaceFolder}/Backend/Compensa.Notifications/venv/lib/python3.14/site-packages"
+  ]
+}

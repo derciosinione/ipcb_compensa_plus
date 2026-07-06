@@ -1,26 +1,34 @@
-import type { AuthenticatedUser, UserRole } from '../../types/user';
-import type { AuthSession, VerifyMagicLinkResponse } from './authTypes';
+import type { AuthenticatedUser, UserRole } from "../../types/user";
+import type { AuthSession, VerifyMagicLinkResponse } from "./authTypes";
 
-const authSessionStorageKey = 'compensa.auth.session';
-const activeRoleStorageKey = 'compensa.auth.activeRole';
+const authSessionStorageKey = "compensa.auth.session";
+const activeRoleStorageKey = "compensa.auth.activeRole";
 
 const normalizeRole = (role: string): UserRole => {
   const normalized = role.toLowerCase();
 
-  if (normalized === 'coordinator' || normalized === 'admin' || normalized === 'student') {
+  if (
+    normalized === "coordinator" ||
+    normalized === "admin" ||
+    normalized === "student"
+  ) {
     return normalized;
   }
 
-  return 'teacher';
+  return "teacher";
 };
 
-export const mapVerifyResponseToSession = (response: VerifyMagicLinkResponse): AuthSession => ({
+export const mapVerifyResponseToSession = (
+  response: VerifyMagicLinkResponse,
+): AuthSession => ({
   accessToken: response.accessToken,
   accessTokenExpiresAt: response.accessTokenExpiresAt,
+  refreshToken: response.refreshToken,
+  refreshTokenExpiresAt: response.refreshTokenExpiresAt,
   user: {
     id: response.userId,
-    email: response.email ?? '',
-    name: response.fullName || response.email || 'Compensa User',
+    email: response.email ?? "",
+    name: response.fullName || response.email || "Compensa User",
     roles: response.roles,
   },
 });
@@ -28,9 +36,13 @@ export const mapVerifyResponseToSession = (response: VerifyMagicLinkResponse): A
 export const mapSessionToUser = (session: AuthSession): AuthenticatedUser => {
   const roles = session.user.roles.map(normalizeRole);
   const storedActiveRole = getStoredActiveRole();
-  const activeRole = storedActiveRole && roles.includes(storedActiveRole)
-    ? storedActiveRole
-    : roles[0] ?? 'teacher';
+  let activeRole = storedActiveRole;
+  
+  if (!activeRole || !roles.includes(activeRole)) {
+    activeRole = roles[0] ?? "teacher";
+    // Persist the default role so headers are sent correctly even on first load
+    saveActiveRole(activeRole);
+  }
 
   return {
     id: session.user.id,
@@ -54,9 +66,16 @@ export const getStoredAuthSession = (): AuthSession | null => {
 
   try {
     const session = JSON.parse(rawSession) as AuthSession;
-    const expiresAt = new Date(session.accessTokenExpiresAt).getTime();
+    const refreshTokenExpiresAt = new Date(
+      session.refreshTokenExpiresAt,
+    ).getTime();
 
-    if (!session.accessToken || Number.isNaN(expiresAt) || expiresAt <= Date.now()) {
+    // Only clear if the refresh token itself is expired or missing
+    if (
+      !session.refreshToken ||
+      Number.isNaN(refreshTokenExpiresAt) ||
+      refreshTokenExpiresAt <= Date.now()
+    ) {
       clearAuthSession();
       return null;
     }
@@ -69,7 +88,17 @@ export const getStoredAuthSession = (): AuthSession | null => {
 };
 
 export const getStoredAccessToken = (): string | null => {
-  return getStoredAuthSession()?.accessToken ?? null;
+  const session = getStoredAuthSession();
+  if (!session) return null;
+
+  const accessTokenExpiresAt = new Date(session.accessTokenExpiresAt).getTime();
+  if (accessTokenExpiresAt <= Date.now()) {
+    // Access token is expired, but session is returned because refresh token is valid.
+    // The interceptor will handle the refresh.
+    return null;
+  }
+
+  return session.accessToken;
 };
 
 export const clearAuthSession = () => {
@@ -81,7 +110,7 @@ export const saveActiveRole = (role: UserRole) => {
   localStorage.setItem(activeRoleStorageKey, role);
 };
 
-const getStoredActiveRole = (): UserRole | null => {
+export const getStoredActiveRole = (): UserRole | null => {
   const role = localStorage.getItem(activeRoleStorageKey);
 
   if (!role) {

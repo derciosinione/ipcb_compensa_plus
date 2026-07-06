@@ -1,7 +1,7 @@
-import { Outlet } from 'react-router';
-import { FloatingAIChat } from './FloatingAIChat';
-import { Layout } from './Layout';
-import type { User, UserRole } from '../mocks/data';
+import { Outlet } from "react-router";
+import { FloatingAIChat } from "./FloatingAIChat";
+import { Layout } from "./Layout";
+import type { User, UserRole } from "../types/user";
 
 interface AppShellProps {
   user: User;
@@ -15,7 +15,7 @@ export const AppShell = ({ user, onLogout, onRoleChange }: AppShellProps) => {
       <Layout user={user} onLogout={onLogout} onRoleChange={onRoleChange}>
         <Outlet />
       </Layout>
-      <FloatingAIChat />
+      <FloatingAIChat userRole={user.role} />
     </>
   );
 };

@@ -12,4 +12,8 @@ public interface IAuthService
     Task<VerifyMagicLinkResponse?> VerifyMagicLinkAsync(
         string token,
         CancellationToken cancellationToken = default);
+
+    Task<VerifyMagicLinkResponse?> RefreshTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken = default);
 }

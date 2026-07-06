@@ -189,23 +189,19 @@ export function MyComponent({ title, description, className }: MyComponentProps)
 
 ## Data Layer
 
-### Mock Data (data.ts)
-All mock data and types are centralized:
+The production frontend reads from the backend APIs through `src/app/services`.
+Shared presentation types live in `src/app/types`, while API DTOs live beside their service modules.
 
 ```typescript
-import { User, Request, Course, Classroom } from './data';
+import type { ClassRequest } from '../types/requests';
+import { listCompensationRequests } from '../services/compensationRequests/compensationRequestsApi';
 ```
 
-Available exports:
-- Types: `User`, `UserRole`, `Request`, `RequestStatus`, `Course`, `Classroom`, etc.
-- Mock data: `mockUser`, `mockRequests`, `mockCourses`, `mockClassrooms`, etc.
-- KPI data: `kpiData`
-
 ### Adding New Data Types
-1. Define interface in `data.ts`
-2. Export the interface
-3. Create mock data array
-4. Export mock data
+1. Define API DTOs beside the relevant service module.
+2. Define presentation-only types in `src/app/types` when a UI model differs from the API shape.
+3. Map API responses explicitly at page or feature boundaries.
+4. Do not add production flows that depend on static mock data.
 
 ## Common Patterns
 

@@ -48,4 +48,21 @@ public class AuthController : ControllerBase
 
         return Ok(ApiResponse<VerifyMagicLinkResponse>.Ok("Magic link verified.", response));
     }
+
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(ApiResponse<VerifyMagicLinkResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiResponse<VerifyMagicLinkResponse>>> Refresh(
+        [FromBody] RefreshRequest request,
+        CancellationToken cancellationToken)
+    {
+        var response = await _authService.RefreshTokenAsync(request.RefreshToken, cancellationToken);
+        
+        if (response == null)
+        {
+            return BadRequest(ApiResponse<object>.Fail("Invalid or expired refresh token."));
+        }
+
+        return Ok(ApiResponse<VerifyMagicLinkResponse>.Ok("Token refreshed.", response));
+    }
 }

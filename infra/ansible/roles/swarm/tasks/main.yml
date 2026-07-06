@@ -1,0 +1,41 @@
+- name: Read local Swarm state
+  ansible.builtin.command: docker info --format '{{ "{{" }}.Swarm.LocalNodeState{{ "}}" }}'
+  register: swarm_state
+  changed_when: false
+
+- name: Initialize Swarm manager
+  ansible.builtin.command: docker swarm init --advertise-addr {{ private_ip }}
+  when:
+    - inventory_hostname in groups['manager']
+    - swarm_state.stdout != 'active'
+
+- name: Read worker join token
+  ansible.builtin.command: docker swarm join-token -q worker
+  register: worker_join_token
+  changed_when: false
+  delegate_to: "{{ groups['manager'][0] }}"
+  run_once: true
+
+- name: Join Swarm workers
+  ansible.builtin.command: docker swarm join --token {{ worker_join_token.stdout }} {{ hostvars[groups['manager'][0]].private_ip }}:2377 --advertise-addr {{ private_ip }}
+  when:
+    - inventory_hostname not in groups['manager']
+    - swarm_state.stdout != 'active'
+
+- name: Wait until all nodes are visible from the manager
+  ansible.builtin.command: docker node ls --format '{{ "{{" }}.Hostname{{ "}}" }}'
+  register: swarm_nodes
+  changed_when: false
+  until: item in swarm_nodes.stdout_lines
+  retries: 20
+  delay: 3
+  loop: "{{ groups['swarm'] }}"
+  delegate_to: "{{ groups['manager'][0] }}"
+  run_once: true
+
+- name: Apply Compensa placement labels
+  ansible.builtin.command: docker node update --label-add compensa.{{ hostvars[item].compensa_role }}=true {{ item }}
+  changed_when: true
+  loop: "{{ groups['swarm'] }}"
+  delegate_to: "{{ groups['manager'][0] }}"
+  run_once: true

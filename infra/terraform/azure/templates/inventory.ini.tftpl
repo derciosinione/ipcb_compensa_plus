@@ -1,0 +1,31 @@
+[manager]
+${vms.manager.name} ansible_host=${manager_public_ip} private_ip=${private_ips.manager} compensa_role=manager
+
+[backend]
+${vms.backend.name} ansible_host=${private_ips.backend} private_ip=${private_ips.backend} compensa_role=backend
+
+[db]
+${vms.db.name} ansible_host=${private_ips.db} private_ip=${private_ips.db} compensa_role=db
+
+[cache]
+${vms.cache.name} ansible_host=${private_ips.cache} private_ip=${private_ips.cache} compensa_role=cache
+
+[ops]
+${vms.ops.name} ansible_host=${private_ips.ops} private_ip=${private_ips.ops} compensa_role=ops
+
+[workers:children]
+backend
+db
+cache
+ops
+
+[swarm:children]
+manager
+workers
+
+[swarm:vars]
+ansible_user=${admin_username}
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyJump=${admin_username}@${manager_public_ip}'
+
+[manager:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'

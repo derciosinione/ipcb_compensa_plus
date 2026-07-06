@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog@1.1.6";
-import { XIcon } from "lucide-react@0.487.0";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { XIcon } from "lucide-react";
 
 import { cn } from "./utils";
 
@@ -16,11 +16,11 @@ const DialogTrigger = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Trigger>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Trigger 
+  <DialogPrimitive.Trigger
     ref={ref}
-    data-slot="dialog-trigger" 
-    className={className} 
-    {...props} 
+    data-slot="dialog-trigger"
+    className={className}
+    {...props}
   />
 ));
 DialogTrigger.displayName = DialogPrimitive.Trigger.displayName;
@@ -35,11 +35,11 @@ const DialogClose = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Close>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Close>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Close 
+  <DialogPrimitive.Close
     ref={ref}
-    data-slot="dialog-close" 
-    className={className} 
-    {...props} 
+    data-slot="dialog-close"
+    className={className}
+    {...props}
   />
 ));
 DialogClose.displayName = DialogPrimitive.Close.displayName;
@@ -63,7 +63,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal data-slot="dialog-portal">
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -73,6 +73,32 @@ const DialogContent = React.forwardRef<
         "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
         className,
       )}
+      onPointerDownOutside={(e) => {
+        const target = e.target as HTMLElement;
+        if (
+          target?.closest?.("[data-sonner-toast]") ||
+          target?.closest?.(".sonner") ||
+          target?.closest?.("[data-toast]") ||
+          target?.closest?.(".toast")
+        ) {
+          e.preventDefault();
+        } else {
+          onPointerDownOutside?.(e);
+        }
+      }}
+      onInteractOutside={(e) => {
+        const target = e.target as HTMLElement;
+        if (
+          target?.closest?.("[data-sonner-toast]") ||
+          target?.closest?.(".sonner") ||
+          target?.closest?.("[data-toast]") ||
+          target?.closest?.(".toast")
+        ) {
+          e.preventDefault();
+        } else {
+          onInteractOutside?.(e);
+        }
+      }}
       {...props}
     >
       {children}

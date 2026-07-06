@@ -59,3 +59,111 @@ groups:
           description: "Service {{ $labels.service_name }} has an error rate above 5% over the last 5 minutes."
         labels:
           severity: "warning"
+
+      - uid: "magic_link_invalid_spike"
+        title: "Magic Link Invalid Verification Spike"
+        condition: "C"
+        data:
+          - refId: "A"
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "prom-ds"
+            model:
+              expr: 'sum(rate(compensa_identity_magic_links_verified_total{outcome="invalid"}[5m]))'
+              instant: true
+              range: false
+          - refId: "C"
+            datasourceUid: "__expr__"
+            model:
+              type: "threshold"
+              expression: "A"
+              conditions:
+                - evaluator: { params: [0.1], type: "gt" }
+                  operator: { type: "and" }
+                  reducer: { type: "last" }
+        for: 2m
+        annotations:
+          summary: "Invalid magic link verifications are elevated"
+          description: "Invalid magic link verifications are above 0.1 requests/second over the last 5 minutes."
+        labels:
+          severity: "warning"
+
+      - uid: "notification_event_failures"
+        title: "Notification Event Failures"
+        condition: "C"
+        data:
+          - refId: "A"
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "prom-ds"
+            model:
+              expr: "sum(increase(compensa_notifications_event_failures_total[5m]))"
+              instant: true
+              range: false
+          - refId: "C"
+            datasourceUid: "__expr__"
+            model:
+              type: "threshold"
+              expression: "A"
+              conditions:
+                - evaluator: { params: [0], type: "gt" }
+                  operator: { type: "and" }
+                  reducer: { type: "last" }
+        for: 1m
+        annotations:
+          summary: "Notification event processing failed"
+          description: "At least one notification integration event failed in the last 5 minutes."
+        labels:
+          severity: "warning"
+
+      - uid: "ai_chat_failure_rate_high"
+        title: "AI Chat Failure Rate High"
+        condition: "C"
+        data:
+          - refId: "A"
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "prom-ds"
+            model:
+              expr: "sum(rate(compensa_ai_chat_failures_total[5m])) / clamp_min(sum(rate(compensa_ai_chat_requests_total[5m])) + sum(rate(compensa_ai_chat_failures_total[5m])), 0.001)"
+              instant: true
+              range: false
+          - refId: "C"
+            datasourceUid: "__expr__"
+            model:
+              type: "threshold"
+              expression: "A"
+              conditions:
+                - evaluator: { params: [0.2], type: "gt" }
+                  operator: { type: "and" }
+                  reducer: { type: "last" }
+        for: 2m
+        annotations:
+          summary: "AI chat failure rate is high"
+          description: "AI chat failures are above 20% over the last 5 minutes."
+        labels:
+          severity: "warning"
+
+      - uid: "ai_chat_latency_high"
+        title: "AI Chat Latency High"
+        condition: "C"
+        data:
+          - refId: "A"
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: "prom-ds"
+            model:
+              expr: "sum(rate(compensa_ai_chat_latency_seconds_sum[5m])) / clamp_min(sum(rate(compensa_ai_chat_latency_seconds_count[5m])), 0.001)"
+              instant: true
+              range: false
+          - refId: "C"
+            datasourceUid: "__expr__"
+            model:
+              type: "threshold"
+              expression: "A"
+              conditions:
+                - evaluator: { params: [15], type: "gt" }
+                  operator: { type: "and" }
+                  reducer: { type: "last" }
+        for: 3m
+        annotations:
+          summary: "AI chat latency is high"
+          description: "Average AI chat latency is above 15 seconds."
+        labels:
+          severity: "warning"

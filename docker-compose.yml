@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-compensa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compensa_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-compensa}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
@@ -39,6 +39,20 @@ services:
     networks:
       - compensa
 
+  redis:
+    image: redis:7-alpine
+    container_name: compensa-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - compensa
+
   identity-api:
     build:
       context: .
@@ -48,7 +62,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${IDENTITY_DB:-CompensaIdentityDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       Email__FromAddress: ${EMAIL_FROM_ADDRESS:-info@kiaricode.com}
       Email__FromName: ${EMAIL_FROM_NAME:-Compensa+}
       Email__SmtpHost: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}
@@ -62,11 +76,12 @@ services:
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
-      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-60}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      Jwt__AccessTokenMinutes: ${JWT_ACCESS_TOKEN_MINUTES:-1440}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       IdentitySeed__AdminEmail: ${IDENTITY_SEED_ADMIN_EMAIL:-}
       IdentitySeed__AdminFullName: ${IDENTITY_SEED_ADMIN_FULL_NAME:-Compensa Admin}
+      Redis__ConnectionString: compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${IDENTITY_API_PORT:-5002}:8080"
@@ -74,6 +89,8 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
@@ -92,14 +109,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${CORE_DB:-CompensaCoreDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:-compensa_dev_password}
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=${CORE_DB:-CompensaCoreDB};Username=${POSTGRES_USER:-compensa};Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       Services__IdentityApi: http://identity-api:8080
       Services__CompensaAI: http://compensa-ai:8000
       Jwt__Issuer: ${JWT_ISSUER:-Compensa.Identity}
       Jwt__Audience: ${JWT_AUDIENCE:-Compensa.Api}
-      Jwt__SigningKey: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
       RabbitMq__Url: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
       Cors__AllowedOrigins__0: ${FRONTEND_PUBLIC_URL:-http://localhost:5173}
+      Redis__ConnectionString: compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${CORE_API_PORT:-5001}:8080"
@@ -110,6 +128,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
       interval: 15s
@@ -117,6 +137,8 @@ services:
       retries: 5
     networks:
       - compensa
+    volumes:
+      - compensa_core_uploads:/app/uploads
 
   compensa-ai:
     build:
@@ -126,15 +148,21 @@ services:
     restart: unless-stopped
     environment:
       COMPENSA_AI_ENVIRONMENT: ${COMPENSA_AI_ENVIRONMENT:-development}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${AI_DB:-CompensaAiDB}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${AI_DB:-CompensaAiDB}
       CORE_API_URL: http://core-api:8080
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-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}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-AIzaSyC1M8SJGAjrp5wMUQaCSFesHQK7Ajd0IVU}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
+      REDIS_URL: redis://compensa-redis:6379
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
       - "${COMPENSA_AI_PORT:-8000}:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\""]
@@ -152,8 +180,8 @@ services:
     restart: unless-stopped
     environment:
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:-compensa_dev_password}@postgres:5432/${NOTIFICATIONS_DB:-CompensaNotificationsDB}
-      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-CHANGE_ME_DEVELOPMENT_SIGNING_KEY_32_CHARS_MINIMUM}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-compensa}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${NOTIFICATIONS_DB:-CompensaNotificationsDB}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
       JWT_ISSUER: ${JWT_ISSUER:-Compensa.Identity}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-Compensa.Api}
       EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-smtp.privateemail.com}
@@ -213,19 +241,14 @@ services:
       context: ./Frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:5005}
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_ENABLE_DEV_LOGIN: ${VITE_ENABLE_DEV_LOGIN:-false}
     container_name: compensa-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-5173}:80"
     depends_on:
-      core-api:
-        condition: service_healthy
-      identity-api:
-        condition: service_healthy
-      compensa-ai:
-        condition: service_healthy
-      notifications-api:
+      api-gateway:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
@@ -338,6 +361,9 @@ services:
 
 volumes:
   compensa_postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-compensaproject_compensa_postgres_data}
+  compensa_core_uploads:
+    name: ${CORE_UPLOADS_VOLUME_NAME:-compensaproject_compensa_core_uploads}
 
 networks:
   compensa:

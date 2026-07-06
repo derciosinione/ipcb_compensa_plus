@@ -6,6 +6,7 @@ public sealed record CurricularUnitResponse(
     Guid Id,
     Guid CourseId,
     string Name,
+    string Abbreviation,
     int Year,
     int Semester,
     int Ects,

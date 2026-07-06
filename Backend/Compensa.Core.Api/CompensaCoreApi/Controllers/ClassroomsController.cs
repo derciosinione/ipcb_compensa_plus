@@ -78,4 +78,36 @@ public sealed class ClassroomsController : ControllerBase
         await _service.DeleteAsync(id, cancellationToken);
         return NoContent();
     }
+
+    [HttpDelete("bulk")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DeleteBulk([FromBody] List<Guid> ids, CancellationToken cancellationToken)
+    {
+        await _service.DeleteBulkAsync(ids, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/usage")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<ClassroomUsageResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<ClassroomUsageResponse>>> GetUsage(Guid id, CancellationToken cancellationToken)
+    {
+        var count = await _service.GetSchedulesCountAsync(id, cancellationToken);
+        return Ok(ApiResponse<ClassroomUsageResponse>.Ok("Classroom usage loaded.", new ClassroomUsageResponse(id, count)));
+    }
+
+    [HttpPost("usage-bulk")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<ClassroomsUsageBulkResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiResponse<ClassroomsUsageBulkResponse>>> GetUsageBulk([FromBody] List<Guid> ids, CancellationToken cancellationToken)
+    {
+        var usages = new List<ClassroomUsageResponse>();
+        foreach (var id in ids)
+        {
+            var count = await _service.GetSchedulesCountAsync(id, cancellationToken);
+            usages.Add(new ClassroomUsageResponse(id, count));
+        }
+        return Ok(ApiResponse<ClassroomsUsageBulkResponse>.Ok("Classrooms usage loaded.", new ClassroomsUsageBulkResponse(usages)));
+    }
 }

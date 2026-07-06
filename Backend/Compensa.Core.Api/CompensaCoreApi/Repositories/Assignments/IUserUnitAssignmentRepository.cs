@@ -5,8 +5,8 @@ namespace CompensaCoreApi.Repositories.Assignments;
 
 public interface IUserUnitAssignmentRepository
 {
-    Task<IReadOnlyCollection<UserUnitAssignment>> ListByUserAsync(string userId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCoursesByUserAsync(string userId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<UserUnitAssignment>> ListByUserAsync(string userId, string userEmail = "", CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCoursesByUserAsync(string userId, string userEmail = "", CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<Course>> ListCoursesByIdsAsync(IReadOnlyCollection<Guid> courseIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyCollection<CurricularUnit>> ListUnitsByIdsAsync(IReadOnlyCollection<Guid> unitIds, CancellationToken cancellationToken = default);
     Task ReplaceUserAssignmentsAsync(

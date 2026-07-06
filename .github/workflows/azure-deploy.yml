@@ -1,0 +1,210 @@
+name: Azure Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag to deploy"
+        required: false
+        default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - "Backend/**"
+      - "Frontend/**"
+      - "Database/**"
+      - "docker/**"
+      - "docker-stack.yml"
+      - "infra/ansible/**"
+      - ".github/workflows/azure-deploy.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: true
+      TF_TOKEN_app_terraform_io: ${{ secrets.HCP_TERRAFORM_TOKEN }}
+      IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        working-directory: infra/terraform/azure
+        run: |
+          cat > backend.hcl <<'EOF'
+          organization = "${{ vars.HCP_TERRAFORM_ORGANIZATION }}"
+          workspaces {
+            name = "${{ vars.HCP_TERRAFORM_WORKSPACE || 'compensa-prod' }}"
+          }
+          EOF
+          terraform init -backend-config=backend.hcl
+
+      - name: Read Terraform outputs
+        working-directory: infra/terraform/azure
+        run: |
+          ACR_LOGIN_SERVER="$(terraform output -raw acr_login_server)"
+          echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$GITHUB_ENV"
+          echo "ACR_NAME=${ACR_LOGIN_SERVER%%.*}" >> "$GITHUB_ENV"
+          terraform output -raw ansible_inventory > ../../ansible/inventory/azure.ini
+
+      - name: Login to Azure Container Registry
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push PostgreSQL image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Database
+          file: ./Database/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-postgres:${{ env.IMAGE_TAG }}
+
+      - name: Build and push Gateway image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Backend/Compensa.Gateway/CompensaGateway/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-gateway:${{ env.IMAGE_TAG }}
+
+      - name: Build and push Identity API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Backend/Compensa.Identity.Api/CompensaIdentityApi/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-identity-api:${{ env.IMAGE_TAG }}
+
+      - name: Build and push Core API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Backend/Compensa.Core.Api/CompensaCoreApi/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-core-api:${{ env.IMAGE_TAG }}
+
+      - name: Build and push Compensa AI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Backend/CompensaAI/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-ai:${{ env.IMAGE_TAG }}
+
+      - name: Build and push Notifications image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Backend/Compensa.Notifications
+          file: ./Backend/Compensa.Notifications/Dockerfile
+          push: true
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-notifications:${{ env.IMAGE_TAG }}
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Frontend
+          file: ./Frontend/Dockerfile
+          push: true
+          build-args: |
+            VITE_API_URL=/api
+            VITE_ENABLE_DEV_LOGIN=false
+          tags: ${{ env.ACR_LOGIN_SERVER }}/compensa-frontend:${{ env.IMAGE_TAG }}
+
+      - name: Prepare SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.AZURE_VM_SSH_PRIVATE_KEY }}" > ~/.ssh/compensa_azure
+          chmod 600 ~/.ssh/compensa_azure
+
+      - name: Install Ansible
+        run: |
+          python3 -m pip install --user ansible
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Ansible collections
+        working-directory: infra/ansible
+        run: ansible-galaxy collection install -r requirements.yml
+
+      - name: Get ACR access token for remote Docker login
+        run: |
+          ACR_TOKEN="$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)"
+          echo "::add-mask::$ACR_TOKEN"
+          echo "ACR_TOKEN=$ACR_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Deploy with Ansible
+        working-directory: infra/ansible
+        env:
+          ANSIBLE_PRIVATE_KEY_FILE: /home/runner/.ssh/compensa_azure
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SIGNING_KEY: ${{ secrets.JWT_SIGNING_KEY }}
+          RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          EMAIL_FROM_ADDRESS: ${{ vars.EMAIL_FROM_ADDRESS }}
+          EMAIL_FROM_NAME: ${{ vars.EMAIL_FROM_NAME || 'Compensa+' }}
+          EMAIL_SMTP_HOST: ${{ vars.EMAIL_SMTP_HOST }}
+          EMAIL_SMTP_PORT: ${{ vars.EMAIL_SMTP_PORT || '587' }}
+          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          IDENTITY_SEED_ADMIN_EMAIL: ${{ vars.IDENTITY_SEED_ADMIN_EMAIL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          jq -n \
+            --arg acr_login_server "$ACR_LOGIN_SERVER" \
+            --arg acr_username "00000000-0000-0000-0000-000000000000" \
+            --arg acr_password "$ACR_TOKEN" \
+            --arg image_tag "$IMAGE_TAG" \
+            --arg postgres_password "$POSTGRES_PASSWORD" \
+            --arg jwt_signing_key "$JWT_SIGNING_KEY" \
+            --arg rabbitmq_pass "$RABBITMQ_PASS" \
+            --arg email_from_address "$EMAIL_FROM_ADDRESS" \
+            --arg email_from_name "$EMAIL_FROM_NAME" \
+            --arg email_smtp_host "$EMAIL_SMTP_HOST" \
+            --arg email_smtp_port "$EMAIL_SMTP_PORT" \
+            --arg email_username "$EMAIL_USERNAME" \
+            --arg email_password "$EMAIL_PASSWORD" \
+            --arg identity_seed_admin_email "$IDENTITY_SEED_ADMIN_EMAIL" \
+            --arg openai_api_key "$OPENAI_API_KEY" \
+            --arg gemini_api_key "$GEMINI_API_KEY" \
+            '{
+              acr_login_server: $acr_login_server,
+              acr_username: $acr_username,
+              acr_password: $acr_password,
+              image_tag: $image_tag,
+              postgres_password: $postgres_password,
+              jwt_signing_key: $jwt_signing_key,
+              rabbitmq_pass: $rabbitmq_pass,
+              email_from_address: $email_from_address,
+              email_from_name: $email_from_name,
+              email_smtp_host: $email_smtp_host,
+              email_smtp_port: $email_smtp_port,
+              email_username: $email_username,
+              email_password: $email_password,
+              identity_seed_admin_email: $identity_seed_admin_email,
+              openai_api_key: $openai_api_key,
+              gemini_api_key: $gemini_api_key
+            }' > extra-vars.json
+
+          ansible-playbook playbooks/site.yml --extra-vars @extra-vars.json

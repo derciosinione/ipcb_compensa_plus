@@ -1,9 +1,9 @@
 using CompensaCoreApi.Contracts;
 using CompensaCoreApi.Dtos.Courses;
 using CompensaCoreApi.Services.Courses;
+using CompensaCoreApi.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace CompensaCoreApi.Controllers;
 
@@ -24,13 +24,17 @@ public sealed class CoursesController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyCollection<CourseResponse>>), StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiResponse<IReadOnlyCollection<CourseResponse>>>> List(
         [FromQuery] string? search,
+        [FromQuery] Guid? academicYearId,
         CancellationToken cancellationToken)
     {
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
         var courses = await _service.ListAsync(
             search,
-            GetCurrentUserId(),
-            User.IsInRole("Coordinator"),
-            User.IsInRole("Admin"),
+            academicYearId,
+            this.GetCurrentUserId(),
+            this.GetCurrentUserEmail(),
+            isCoordinator,
+            isAdmin,
             cancellationToken);
         return Ok(ApiResponse<IReadOnlyCollection<CourseResponse>>.Ok("Courses loaded.", courses));
     }
@@ -41,9 +45,18 @@ public sealed class CoursesController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<CourseResponse>>> GetById(
         Guid id,
+        [FromQuery] Guid? academicYearId,
         CancellationToken cancellationToken)
     {
-        var course = await _service.GetByIdAsync(id, cancellationToken);
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
+        var course = await _service.GetByIdAsync(
+            id,
+            academicYearId,
+            this.GetCurrentUserId(),
+            this.GetCurrentUserEmail(),
+            isCoordinator,
+            isAdmin,
+            cancellationToken);
         return Ok(ApiResponse<CourseResponse>.Ok("Course loaded.", course));
     }
 
@@ -53,9 +66,18 @@ public sealed class CoursesController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<CourseDetailsResponse>>> GetDetails(
         Guid id,
+        [FromQuery] Guid? academicYearId,
         CancellationToken cancellationToken)
     {
-        var details = await _service.GetDetailsAsync(id, cancellationToken);
+        var (isCoordinator, isAdmin) = this.GetEffectiveRoles();
+        var details = await _service.GetDetailsAsync(
+            id,
+            academicYearId,
+            this.GetCurrentUserId(),
+            this.GetCurrentUserEmail(),
+            isCoordinator,
+            isAdmin,
+            cancellationToken);
         return Ok(ApiResponse<CourseDetailsResponse>.Ok("Course details loaded.", details));
     }
 
@@ -283,10 +305,4 @@ public sealed class CoursesController : ControllerBase
         return NoContent();
     }
     
-    private string GetCurrentUserId()
-    {
-        return User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User.FindFirstValue("sub")
-            ?? throw new InvalidOperationException("Authenticated user id was not found.");
-    }
 }

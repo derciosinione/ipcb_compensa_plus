@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Http.Resilience;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using CompensaIdentityApi.Data;
@@ -10,6 +11,7 @@ using CompensaIdentityApi.Infrastructure.MagicLinks;
 using CompensaIdentityApi.Infrastructure.OpenApi;
 using CompensaIdentityApi.Middleware;
 using CompensaIdentityApi.Models;
+using CompensaIdentityApi.Observability;
 using CompensaIdentityApi.Repositories.AuthTokens;
 using CompensaIdentityApi.Repositories.Users;
 using CompensaIdentityApi.Services;
@@ -23,10 +25,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MassTransit;
 using OpenTelemetry.Resources;
-using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Serilog;
+using Serilog.Formatting.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,6 +37,13 @@ var serviceName = "Compensa.Identity.Api";
 var otelEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://otel-collector:4317";
 
 // Add OpenTelemetry
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new JsonFormatter())
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithTracing(tracing =>
@@ -48,16 +58,9 @@ builder.Services.AddOpenTelemetry()
         metrics.AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation()
+            .AddMeter(CompensaIdentityMetrics.MeterName)
             .AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
     });
-
-builder.Logging.AddOpenTelemetry(options =>
-{
-    options.IncludeFormattedMessage = true;
-    options.IncludeScopes = true;
-    options.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
-    options.AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
-});
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
@@ -141,6 +144,9 @@ builder.Services.AddMassTransit(x =>
     });
 });
 
+builder.Services.AddHttpClient("IdentityClient")
+    .AddStandardResilienceHandler();
+
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IMagicLinkUrlBuilder, HttpContextMagicLinkUrlBuilder>();
@@ -174,6 +180,7 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseMiddleware<StructuredLoggingMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

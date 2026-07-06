@@ -1,9 +1,10 @@
+using Serilog;
+using Serilog.Formatting.Json;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.Logs;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -23,6 +24,13 @@ var serviceName = "Compensa.Gateway";
 var otelEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://otel-collector:4317";
 
 // Add OpenTelemetry
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(new JsonFormatter())
+    .Enrich.FromLogContext()
+    .CreateLogger();
+
+builder.Host.UseSerilog();
+
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(serviceName))
     .WithTracing(tracing =>
@@ -38,14 +46,6 @@ builder.Services.AddOpenTelemetry()
             .AddRuntimeInstrumentation()
             .AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
     });
-
-builder.Logging.AddOpenTelemetry(logging =>
-{
-    logging.IncludeFormattedMessage = true;
-    logging.IncludeScopes = true;
-    logging.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService(serviceName));
-    logging.AddOtlpExporter(options => options.Endpoint = new Uri(otelEndpoint));
-});
 
 // Add YARP
 builder.Services.AddReverseProxy()
@@ -80,14 +80,16 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors("GatewayPolicy");
+app.UseMiddleware<Compensa.Gateway.Middleware.StructuredLoggingMiddleware>();
 app.UseRateLimiter();
 
 // Centralized Swagger UI
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/api/identity/swagger/v1/swagger.json", "Identity API");
-    options.SwaggerEndpoint("/api/core/swagger/v1/swagger.json", "Core API");
-    options.SwaggerEndpoint("/api/notifications/swagger.json", "Notifications API");
+    options.SwaggerEndpoint("/api/identity/openapi/v1.json", "Identity API");
+    options.SwaggerEndpoint("/api/core/openapi/v1.json", "Core API");
+    options.SwaggerEndpoint("/api/notifications/openapi.json", "Notifications API");
+    options.SwaggerEndpoint("/api/ai/openapi.json", "AI API");
     options.RoutePrefix = "swagger";
 });
 

@@ -1,0 +1,23 @@
+- name: Check Azure data disk filesystem
+  ansible.builtin.command: blkid /dev/disk/azure/scsi1/lun0
+  register: db_disk_blkid
+  changed_when: false
+  failed_when: false
+
+- name: Format Azure data disk
+  ansible.builtin.command: mkfs.ext4 -F /dev/disk/azure/scsi1/lun0
+  when: db_disk_blkid.rc != 0
+
+- name: Ensure Docker data root exists
+  ansible.builtin.file:
+    path: "{{ docker_data_root }}"
+    state: directory
+    mode: "0711"
+
+- name: Mount Azure data disk for Docker volumes
+  ansible.posix.mount:
+    path: "{{ docker_data_root }}"
+    src: /dev/disk/azure/scsi1/lun0
+    fstype: ext4
+    opts: defaults,nofail
+    state: mounted

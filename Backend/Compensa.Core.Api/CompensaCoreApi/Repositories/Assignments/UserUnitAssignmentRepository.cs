@@ -16,11 +16,23 @@ public sealed class UserUnitAssignmentRepository : IUserUnitAssignmentRepository
 
     public async Task<IReadOnlyCollection<UserUnitAssignment>> ListByUserAsync(
         string userId,
+        string userEmail = "",
         CancellationToken cancellationToken = default)
     {
-        return await _context.UserUnitAssignments
-            .AsNoTracking()
-            .Where(assignment => assignment.UserId == userId)
+        var query = _context.UserUnitAssignments.AsNoTracking();
+
+        if (string.IsNullOrWhiteSpace(userEmail))
+        {
+            query = query.Where(assignment => assignment.UserId == userId);
+        }
+        else
+        {
+            query = query.Where(assignment => 
+                assignment.UserId == userId || 
+                (assignment.UserEmail != "" && assignment.UserEmail.ToLower() == userEmail.ToLower()));
+        }
+
+        return await query
             .OrderBy(assignment => assignment.CourseId)
             .ThenBy(assignment => assignment.CurricularUnitId)
             .ToArrayAsync(cancellationToken);
@@ -37,11 +49,23 @@ public sealed class UserUnitAssignmentRepository : IUserUnitAssignmentRepository
 
     public async Task<IReadOnlyCollection<CourseTeacherAssignment>> ListCoursesByUserAsync(
         string userId,
+        string userEmail = "",
         CancellationToken cancellationToken = default)
     {
-        return await _context.CourseTeacherAssignments
-            .AsNoTracking()
-            .Where(assignment => assignment.UserId == userId)
+        var query = _context.CourseTeacherAssignments.AsNoTracking();
+
+        if (string.IsNullOrWhiteSpace(userEmail))
+        {
+            query = query.Where(assignment => assignment.UserId == userId);
+        }
+        else
+        {
+            query = query.Where(assignment => 
+                assignment.UserId == userId || 
+                (assignment.UserEmail != "" && assignment.UserEmail.ToLower() == userEmail.ToLower()));
+        }
+
+        return await query
             .OrderBy(assignment => assignment.CourseId)
             .ToArrayAsync(cancellationToken);
     }

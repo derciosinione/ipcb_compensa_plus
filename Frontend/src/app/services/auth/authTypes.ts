@@ -11,11 +11,15 @@ export interface VerifyMagicLinkResponse {
   roles: string[];
   accessToken: string;
   accessTokenExpiresAt: string;
+  refreshToken: string;
+  refreshTokenExpiresAt: string;
 }
 
 export interface AuthSession {
   accessToken: string;
   accessTokenExpiresAt: string;
+  refreshToken: string;
+  refreshTokenExpiresAt: string;
   user: {
     id: string;
     email: string;

@@ -1,0 +1,1490 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router";
+import {
+  ArrowLeft,
+  CalendarRange,
+  BookOpen,
+  GraduationCap,
+  MoreHorizontal,
+  Plus,
+  Users,
+  Layers,
+  Search,
+  BookCopy,
+  Trash2,
+  Edit,
+  Eye,
+  MoreVertical,
+  UserPlus,
+  Briefcase,
+  Calendar,
+  Upload,
+} from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Badge } from "../../components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "../../components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../components/ui/tabs";
+import { Input } from "../../components/ui/input";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "../../components/ui/avatar";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "../../components/ui/accordion";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../components/ui/alert-dialog";
+import { Separator } from "../../components/ui/separator";
+import {
+  Course as ViewCourse,
+  CurricularUnit,
+  ClassGroup,
+  TimeSlot,
+} from "../../types/academic";
+import { cn } from "../../components/ui/utils";
+import { toast } from "sonner";
+import { AddCurricularUnitModal } from "./components/AddCurricularUnitModal";
+import { AddClassModal } from "./components/AddClassModal";
+import { AssignTeachersModal } from "./components/AssignTeachersModal";
+import { AssignTeacherToCourseModal } from "./components/AssignTeacherToCourseModal";
+import { ClassDetailsView } from "../../components/domain/requests/ClassDetailsView";
+import { BulkImportSchedulesSheet } from "./components/BulkImportSchedulesSheet";
+import {
+  createClassGroup,
+  createClassSchedule,
+  createCurricularUnit,
+  createCurricularUnitComponent,
+  deleteClassGroup,
+  deleteClassSchedule,
+  deleteCurricularUnit,
+  getCourseDetails,
+  updateClassSchedule,
+  updateCurricularUnit,
+  updateCurricularUnitComponent,
+} from "../../services/courses/coursesApi";
+import { getErrorMessage } from "../../utils/errors";
+import type {
+  Course as ApiCourse,
+  ClassGroup as ApiClassGroup,
+  ClassSchedule as ApiClassSchedule,
+  CurricularUnit as ApiCurricularUnit,
+} from "../../services/courses/courseTypes";
+import { listUsers } from "../../services/users/usersApi";
+import type { PlatformUser } from "../../services/users/userTypes";
+import { listClassrooms } from "../../services/classrooms/classroomsApi";
+import type { Classroom } from "../../services/classrooms/classroomTypes";
+import type { AcademicYear } from "../../services/academicYears/academicYearTypes";
+import { useAcademicYear } from "../../providers/AcademicYearContext";
+import { useLanguage } from "../../providers/LanguageContext";
+import type { User } from "../../types/user";
+
+interface CourseDetailsPageProps {
+  user: User;
+}
+
+const toDetailsCourse = (course: ApiCourse): ViewCourse => ({
+  id: course.id,
+  name: course.name,
+  abbreviation: course.abbreviation,
+  description: course.description,
+  type: course.type,
+  durationYears: course.durationYears,
+  totalCredits: course.totalCredits,
+  coordinatorId: course.coordinatorUserId ?? "",
+  image: course.imageUrl,
+});
+
+const toDetailsUnit = (unit: ApiCurricularUnit): CurricularUnit => ({
+  id: unit.id,
+  name: unit.name,
+  abbreviation: unit.abbreviation ?? "",
+  courseId: unit.courseId,
+  year: unit.year,
+  semester: unit.semester,
+  ects: unit.ects,
+  teacherIds: unit.teacherIds || [],
+  regentId: unit.responsibleTeacherId,
+  theoreticalTeacherId: (unit.components || []).find(
+    (component) => component.type === "Theoretical",
+  )?.responsibleTeacherId,
+  practicalTeacherId: (unit.components || []).find(
+    (component) => component.type === "Practical",
+  )?.responsibleTeacherId,
+  component:
+    (unit.components || []).length > 1 ? "All" : (unit.components?.[0]?.type ?? "All"),
+});
+
+type CourseUnit = CurricularUnit & {
+  responsibleTeacherEmail: string;
+  components: ApiCurricularUnit["components"];
+};
+
+const toCourseUnit = (unit: ApiCurricularUnit): CourseUnit => ({
+  ...toDetailsUnit(unit),
+  responsibleTeacherEmail: unit.responsibleTeacherEmail,
+  components: unit.components || [],
+});
+
+const toDetailsClassGroup = (group: ApiClassGroup): ClassGroup => ({
+  id: group.id,
+  name: group.name,
+  year: group.year,
+  teacherId: group.teacherId,
+  academicYearId: group.academicYearId,
+});
+
+const toTimeSlot = (
+  schedule: ApiClassSchedule,
+  classes: ClassGroup[],
+  units: CourseUnit[],
+  classrooms: Classroom[],
+): TimeSlot => {
+  const classGroup = classes.find(
+    (group) => group.id === schedule.classGroupId,
+  );
+  const unit = units.find((item) => item.id === schedule.curricularUnitId);
+  const classroom = classrooms.find((room) => room.id === schedule.classroomId);
+
+  return {
+    id: schedule.id,
+    dayOfWeek: schedule.dayOfWeek,
+    startTime: schedule.startTime ? schedule.startTime.slice(0, 5) : "",
+    endTime: schedule.endTime ? schedule.endTime.slice(0, 5) : "",
+    unit: unit?.name ?? schedule.curricularUnitId,
+    curricularUnitId: schedule.curricularUnitId,
+    type: schedule.componentType === "Practical" ? "practical" : "theoretical",
+    room: classroom?.name ?? schedule.classroomId,
+    course: schedule.courseId,
+    yearGroup: `Year ${unit?.year ?? "?"}`,
+    classGroup: classGroup?.name ?? schedule.classGroupId,
+  };
+};
+
+export const CourseDetailsPage = ({
+  user,
+}: CourseDetailsPageProps) => {
+  const { id: courseId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  if (!courseId) {
+    throw new Error("Course ID is required");
+  }
+
+  const userRole = user.role as "coordinator" | "teacher" | "admin";
+  const userId = user.id;
+  const userEmail = user.email;
+
+  const [course, setCourse] = useState<ViewCourse | undefined>(undefined);
+
+  const [localUnits, setLocalUnits] = useState<CourseUnit[]>([]);
+  const [localClasses, setLocalClasses] = useState<ClassGroup[]>([]);
+  const [localTimetable, setLocalTimetable] = useState<TimeSlot[]>([]);
+  const [courseAssignmentTeacherIds, setCourseAssignmentTeacherIds] = useState<
+    string[]
+  >([]);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [activeAcademicYear, setActiveAcademicYear] = useState<
+    AcademicYear | undefined
+  >(undefined);
+  const [teachers, setTeachers] = useState<PlatformUser[]>([]);
+  const [coordinators, setCoordinators] = useState<PlatformUser[]>([]);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(true);
+  const { selectedYear: currentAcademicYear } = useAcademicYear();
+
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Modal State
+  const [isUnitModalOpen, setIsUnitModalOpen] = useState(false);
+  const [isClassDetailsOpen, setIsClassDetailsOpen] = useState(false);
+  const [deleteConfig, setDeleteConfig] = useState<{
+    type: "unit" | "class" | "schedule";
+    id: string;
+    title: string;
+    description: string;
+  } | null>(null);
+  const [isClassModalOpen, setIsClassModalOpen] = useState(false);
+  const [isAssignTeacherModalOpen, setIsAssignTeacherModalOpen] =
+    useState(false);
+  const [isAddTeacherToCourseModalOpen, setIsAddTeacherToCourseModalOpen] =
+    useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
+  const [editingUnit, setEditingUnit] = useState<CourseUnit | undefined>(
+    undefined,
+  );
+  const [assigningUnit, setAssigningUnit] = useState<CourseUnit | undefined>(
+    undefined,
+  );
+
+  // Navigation State
+  const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
+
+  const [selectedYear, setSelectedYear] = useState<number>(1);
+
+  const loadCourseDetails = useCallback(async () => {
+    if (!currentAcademicYear) return;
+
+    const [details, loadedUsers, loadedClassrooms] =
+      await Promise.all([
+        getCourseDetails(courseId, currentAcademicYear.id),
+        listUsers(),
+        listClassrooms(),
+      ]);
+
+    if (!details) {
+      return;
+    }
+
+    const mappedUnits = (details.units || []).map(toCourseUnit);
+    const mappedClasses = (details.classes || []).map(toDetailsClassGroup);
+
+    setCourse(toDetailsCourse(details.course));
+    setLocalUnits(mappedUnits);
+    setLocalClasses(mappedClasses);
+    setLocalTimetable(
+      (details.schedules || []).map((schedule) =>
+        toTimeSlot(schedule, mappedClasses, mappedUnits, loadedClassrooms),
+      ),
+    );
+    setCourseAssignmentTeacherIds(
+      (details.courseAssignments ?? []).map((assignment) => assignment.userId),
+    );
+    
+    // Find all coordinators for this course
+    const courseCoordinators = (details.courseAssignments ?? [])
+      .filter((assignment) => assignment.isCoordinator)
+      .map((assignment) => loadedUsers.find((user) => user.id === assignment.userId))
+      .filter((user): user is PlatformUser => !!user);
+
+    if (details.course.coordinatorUserId) {
+      const mainCoordinator = loadedUsers.find((user) => user.id === details.course.coordinatorUserId);
+      if (mainCoordinator && !courseCoordinators.some((c) => c.id === mainCoordinator.id)) {
+        courseCoordinators.push(mainCoordinator);
+      }
+    }
+    setCoordinators(courseCoordinators);
+
+    setTeachers(loadedUsers.filter((user) => user.roles.includes("Teacher")));
+    setClassrooms(loadedClassrooms);
+    setActiveAcademicYear(currentAcademicYear ?? undefined);
+  }, [courseId, currentAcademicYear]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDetails = async () => {
+      try {
+        setIsLoadingDetails(true);
+        await loadCourseDetails();
+
+        if (!isMounted) {
+          return;
+        }
+      } catch (error) {
+        toast.error(getErrorMessage(error, "Unable to load course details."));
+      } finally {
+        if (isMounted) {
+          setIsLoadingDetails(false);
+        }
+      }
+    };
+
+    loadDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [loadCourseDetails]);
+
+  if (isLoadingDetails && !course) {
+    return (
+      <div className="flex min-h-[360px] items-center justify-center text-slate-500">
+        {t("courses.load_details_loading")}
+      </div>
+    );
+  }
+
+  if (!course) return <div>{t("courses.not_found")}</div>;
+
+  // --- Filter Logic ---
+
+  // 1. Get Units for this course
+  const courseUnits = localUnits.filter((u) => u.courseId === courseId);
+
+  // 2. Filter Units based on Role
+  const visibleUnits = courseUnits.filter((unit) => {
+    if (userRole === "coordinator" || userRole === "admin") return true;
+    return (unit.teacherIds || []).includes(userId);
+  });
+
+  // 3. Get Classes for visible units
+  const visibleClasses = localClasses.filter((cls) => {
+    if (userRole === "coordinator" || userRole === "admin") return true;
+    return cls.teacherId === userId;
+  });
+
+  // 4. Get Teachers involved in this course
+  const courseTeacherIds = Array.from(
+    new Set(courseUnits.flatMap((u) => u.teacherIds || [])),
+  );
+  const courseTeachers = teachers.filter(
+    (teacher) =>
+      courseTeacherIds.includes(teacher.id) ||
+      courseAssignmentTeacherIds.includes(teacher.id),
+  );
+
+  const getTeacher = (teacherId?: string) => {
+    if (!teacherId) return undefined;
+    return teachers.find((teacher) => teacher.id === teacherId);
+  };
+
+  const getTeacherName = (teacher: PlatformUser) =>
+    teacher.fullName || teacher.email || "Unknown Teacher";
+
+  const getTeacherInitial = (teacher: PlatformUser) => {
+    const name = getTeacherName(teacher);
+    return name ? name.charAt(0).toUpperCase() : "?";
+  };
+
+  const getTeacherAvatarUrl = (teacher: PlatformUser) => {
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(getTeacherName(teacher))}&background=random`;
+  };
+
+  // --- Handlers ---
+
+  const handleAddUnitClick = (year: number) => {
+    setSelectedYear(year);
+    setEditingUnit(undefined);
+    setIsUnitModalOpen(true);
+  };
+
+  const handleEditUnitClick = (unit: CurricularUnit) => {
+    setSelectedYear(unit.year);
+    setEditingUnit(unit);
+    setIsUnitModalOpen(true);
+  };
+
+  const handleDeleteUnit = (unit: CurricularUnit) => {
+    setDeleteConfig({
+      type: "unit",
+      id: unit.id,
+      title: "Delete Curricular Unit",
+      description: `Are you sure you want to delete "${unit.name}"? This action cannot be undone and may affect associated classes and schedules.`,
+    });
+  };
+
+  const handleViewUnit = (unit: CurricularUnit) => {
+    toast.info(`Viewing details for ${unit.name}`);
+    // Future: Navigate to dedicated unit page
+  };
+
+  const handleAssignTeachersClick = (unit: CurricularUnit) => {
+    setAssigningUnit(unit);
+    setIsAssignTeacherModalOpen(true);
+  };
+
+  const handleSaveUnit = async (unitData: Omit<CurricularUnit, "id">) => {
+    const responsibleTeacherId =
+      unitData.regentId || editingUnit?.regentId || userId;
+    const request = {
+      name: unitData.name,
+      abbreviation: unitData.abbreviation || "",
+      year: unitData.year,
+      semester: unitData.semester,
+      ects: unitData.ects,
+      responsibleTeacherId,
+      responsibleTeacherEmail: userEmail,
+      isActive: true,
+    };
+
+    try {
+      const saved = editingUnit
+        ? await updateCurricularUnit(courseId, editingUnit.id, request)
+        : await createCurricularUnit(courseId, request);
+
+      if (!saved) {
+        throw new Error("Curricular unit response was empty.");
+      }
+
+      const nextUnit = toCourseUnit(saved);
+
+      if (editingUnit) {
+        setLocalUnits((prev) =>
+          prev.map((u) => (u.id === editingUnit.id ? nextUnit : u)),
+        );
+      } else {
+        setLocalUnits((prev) => [...prev, nextUnit]);
+      }
+
+      setIsUnitModalOpen(false);
+      toast.success(
+        editingUnit
+          ? "Curricular unit updated successfully"
+          : "Curricular unit created successfully",
+      );
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to save curricular unit."));
+    }
+  };
+
+  const handleSaveTeacherAssignment = async (
+    unitId: string,
+    assignments: {
+      regentId: string;
+      theoreticalTeacherId?: string;
+      practicalTeacherId?: string;
+    },
+  ) => {
+    const unit = localUnits.find((item) => item.id === unitId);
+    const regent = getTeacher(assignments.regentId);
+
+    if (!unit || !regent) {
+      toast.error("Select a responsible teacher for the curricular unit.");
+      return;
+    }
+
+    try {
+      await updateCurricularUnit(courseId, unitId, {
+        name: unit.name,
+        abbreviation: unit.abbreviation,
+        year: unit.year,
+        semester: unit.semester,
+        ects: unit.ects,
+        responsibleTeacherId: regent.id,
+        responsibleTeacherEmail: regent.email,
+        isActive: true,
+      });
+
+      const saveComponentResponsible = async (
+        type: "Theoretical" | "Practical",
+        teacherId?: string,
+      ) => {
+        if (!teacherId) {
+          return;
+        }
+
+        const teacher = getTeacher(teacherId);
+
+        if (!teacher) {
+          throw new Error(`Teacher"${teacherId}" was not found.`);
+        }
+
+        const existingComponent = unit.components.find(
+          (component) => component.type === type,
+        );
+        const request = {
+          name: type,
+          type,
+          responsibleTeacherId: teacher.id,
+          responsibleTeacherEmail: teacher.email,
+          isActive: true,
+        };
+
+        if (existingComponent) {
+          await updateCurricularUnitComponent(
+            courseId,
+            unitId,
+            existingComponent.id,
+            request,
+          );
+          return;
+        }
+
+        await createCurricularUnitComponent(courseId, unitId, request);
+      };
+
+      await Promise.all([
+        saveComponentResponsible(
+          "Theoretical",
+          assignments.theoreticalTeacherId,
+        ),
+        saveComponentResponsible("Practical", assignments.practicalTeacherId),
+      ]);
+
+      await loadCourseDetails();
+      setIsAssignTeacherModalOpen(false);
+      toast.success(`Teachers assigned to ${unit.name}`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to assign teachers."));
+    }
+  };
+
+  const handleAddTeacherToCourse = async (data: {
+    teacherId: string;
+    unitId: string;
+    roles: { regent: boolean; theoretical: boolean; practical: boolean };
+  }) => {
+    const unit = localUnits.find((item) => item.id === data.unitId);
+
+    if (!unit) {
+      toast.error("Curricular unit not found.");
+      return;
+    }
+
+    await handleSaveTeacherAssignment(data.unitId, {
+      regentId: data.roles.regent
+        ? data.teacherId
+        : unit.regentId || data.teacherId,
+      theoreticalTeacherId: data.roles.theoretical
+        ? data.teacherId
+        : unit.theoreticalTeacherId,
+      practicalTeacherId: data.roles.practical
+        ? data.teacherId
+        : unit.practicalTeacherId,
+    });
+
+    setIsAddTeacherToCourseModalOpen(false);
+  };
+
+  const handleAddClass = () => {
+    setIsClassModalOpen(true);
+  };
+
+  const handleSaveClass = async (classData: Omit<ClassGroup, "id">) => {
+    try {
+      if (!currentAcademicYear) {
+        toast.error("No academic year selected.");
+        return;
+      }
+
+      const created = await createClassGroup(courseId, {
+        year: classData.year,
+        name: classData.name,
+        teacherId: classData.teacherId,
+        academicYearId: currentAcademicYear.id,
+        isActive: true,
+      });
+
+      if (!created) {
+        throw new Error("Class group response was empty.");
+      }
+
+      setLocalClasses((prev) => [...prev, toDetailsClassGroup(created)]);
+      setIsClassModalOpen(false);
+      toast.success("Class created successfully");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to save class group."));
+    }
+  };
+
+  const handleDeleteClass = (classId: string) => {
+    const cls = localClasses.find((c) => c.id === classId);
+    setDeleteConfig({
+      type: "class",
+      id: classId,
+      title: "Delete Class Group",
+      description: `Are you sure you want to delete class "${cls?.name || "this class"}"? This will also remove all its schedules.`,
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfig) return;
+
+    const { type, id } = deleteConfig;
+    setDeleteConfig(null);
+
+    try {
+      if (type === "unit") {
+        await deleteCurricularUnit(courseId, id);
+        setLocalUnits((prev) => prev.filter((u) => u.id !== id));
+        toast.success("Curricular unit deleted");
+      } else if (type === "class") {
+        await deleteClassGroup(courseId, id);
+        setLocalClasses((prev) => prev.filter((c) => c.id !== id));
+        toast.success("Class deleted successfully");
+      } else if (type === "schedule") {
+        if (!selectedClass) return;
+        await deleteClassSchedule(courseId, selectedClass.id, id);
+        setLocalTimetable((prev) => prev.filter((s) => s.id !== id));
+        toast.success("Schedule deleted");
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error, `Unable to delete ${type}.`));
+    }
+  };
+
+  const handleBulkImportSchedules = (schedules: Omit<TimeSlot, "id">[]) => {
+    const newSlots = schedules.map((slot, index) => ({
+      ...slot,
+      id: `bulk_slot_${Date.now()}_${index}`,
+    }));
+    setLocalTimetable((prev) => [...prev, ...newSlots]);
+    toast.success(`Successfully imported ${newSlots.length} schedules.`);
+  };
+
+  // Schedule CRUD Handlers passed to ClassDetailsView
+  const handleAddSchedule = async (scheduleData: Omit<TimeSlot, "id">) => {
+    if (!selectedClass) return;
+
+    const room = classrooms.find(
+      (item) =>
+        item.name === scheduleData.room || item.id === scheduleData.room,
+    );
+
+    if (!room) {
+      toast.error("Select a valid classroom.");
+      return;
+    }
+
+    if (!activeAcademicYear) {
+      toast.error("Active academic year was not found.");
+      return;
+    }
+
+    try {
+      const created = await createClassSchedule(courseId, selectedClass.id, {
+        academicYearId: activeAcademicYear.id,
+        curricularUnitId: scheduleData.curricularUnitId,
+        semester: (localUnits.find(u => u.id === scheduleData.curricularUnitId)?.semester ?? 1) as 1 | 2,
+        componentType:
+          scheduleData.type === "practical" ? "Practical" : "Theoretical",
+        dayOfWeek: scheduleData.dayOfWeek,
+        startTime: scheduleData.startTime,
+        endTime: scheduleData.endTime,
+        classroomId: room.id,
+        isActive: true,
+      });
+
+      if (!created) {
+        throw new Error("Schedule response was empty.");
+      }
+
+      setLocalTimetable((prev) => [
+        ...prev,
+        toTimeSlot(created, localClasses, localUnits, classrooms),
+      ]);
+      toast.success("Schedule added successfully!");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to save schedule."));
+    }
+  };
+
+  const handleUpdateSchedule = async (
+    id: string,
+    scheduleData: Omit<TimeSlot, "id">,
+  ) => {
+    if (!selectedClass) return;
+
+    const room = classrooms.find(
+      (item) =>
+        item.name === scheduleData.room || item.id === scheduleData.room,
+    );
+
+    if (!room) {
+      toast.error("Select a valid classroom.");
+      return;
+    }
+
+    if (!activeAcademicYear) {
+      toast.error("Active academic year was not found.");
+      return;
+    }
+
+    try {
+      const updated = await updateClassSchedule(
+        courseId,
+        selectedClass.id,
+        id,
+        {
+          academicYearId: activeAcademicYear.id,
+          curricularUnitId: scheduleData.curricularUnitId,
+          semester: (localUnits.find(u => u.id === scheduleData.curricularUnitId)?.semester ?? 1) as 1 | 2,
+          componentType:
+            scheduleData.type === "practical" ? "Practical" : "Theoretical",
+          dayOfWeek: scheduleData.dayOfWeek,
+          startTime: scheduleData.startTime,
+          endTime: scheduleData.endTime,
+          classroomId: room.id,
+          isActive: true,
+        },
+      );
+
+      if (!updated) {
+        throw new Error("Schedule response was empty.");
+      }
+
+      setLocalTimetable((prev) =>
+        prev.map((slot) =>
+          slot.id === id
+            ? toTimeSlot(updated, localClasses, localUnits, classrooms)
+            : slot,
+        ),
+      );
+      toast.success("Schedule updated successfully!");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Unable to update schedule."));
+    }
+  };
+
+  const handleDeleteSchedule = (id: string) => {
+    setDeleteConfig({
+      type: "schedule",
+      id,
+      title: "Delete Schedule Slot",
+      description: "Are you sure you want to remove this weekly schedule slot?",
+    });
+  };
+
+  // --- Render Logic ---
+
+
+  const renderCurriculumByYear = () => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const searchableUnits = normalizedSearch
+      ? visibleUnits.filter((unit) =>
+          unit.name.toLowerCase().includes(normalizedSearch),
+        )
+      : visibleUnits;
+
+    const unitsByYearAndSemester = searchableUnits.reduce(
+      (acc, unit) => {
+        if (!acc[unit.year]) {
+          acc[unit.year] = { 1: [], 2: [] };
+        }
+
+        acc[unit.year][unit.semester].push(unit);
+        return acc;
+      },
+      {} as Record<number, Record<1 | 2, CurricularUnit[]>>,
+    );
+
+    if (Object.keys(unitsByYearAndSemester).length === 0) {
+      return (
+        <div className="text-center py-12 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+          <BookCopy className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p>{t("courses.units_empty_profile")}</p>
+          {(userRole === "coordinator" || userRole === "admin") && (
+            <Button variant="link" onClick={() => handleAddUnitClick(1)}>
+              {t("courses.add_first_unit")}
+            </Button>
+          )}
+        </div>
+      );
+    }
+
+    // Ensure we display years in order
+    const sortedYears = Object.keys(unitsByYearAndSemester)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    return (
+      <Accordion
+        type="multiple"
+        defaultValue={sortedYears.map((y) => `item-${y}`)}
+        className="w-full space-y-4"
+      >
+        {sortedYears.map((year) => (
+          <AccordionItem
+            key={year}
+            value={`item-${year}`}
+            className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 px-4 shadow-sm"
+          >
+            <AccordionTrigger className="hover:no-underline py-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm">
+                  {year}º
+                </div>
+                <span className="font-semibold text-lg text-slate-900 dark:text-slate-100">
+                  {t("courses.year_label").replace("{year}", year.toString())}
+                </span>
+                <Badge
+                  variant="secondary"
+                  className="ml-2 font-normal text-slate-500 bg-slate-100 dark:bg-slate-800"
+                >
+                  {t("courses.units_count").replace(
+                    "{count}",
+                    (
+                      unitsByYearAndSemester[year][1].length +
+                      unitsByYearAndSemester[year][2].length
+                    ).toString()
+                  )}
+                </Badge>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="pb-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 pt-2">
+                {([1, 2] as const).map((semester) => (
+                  <div
+                    key={semester}
+                    className="space-y-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/30 p-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        {t("courses.semester_label").replace("{semester}", semester.toString())}
+                      </h4>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-normal"
+                      >
+                        {t("courses.units_count").replace("{count}", unitsByYearAndSemester[year][semester].length.toString())}
+                      </Badge>
+                    </div>
+                    {unitsByYearAndSemester[year][semester].length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 py-8 text-center text-sm text-slate-400">
+                        {t("courses.semester_empty")}
+                      </div>
+                    ) : (
+                      unitsByYearAndSemester[year][semester].map((unit) => {
+                        // Find Regent
+                        const regent = getTeacher(unit.regentId);
+
+                        return (
+                          <div
+                            key={unit.id}
+                            className="group flex items-start justify-between p-3 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all cursor-pointer"
+                          >
+                            <div
+                              onClick={() => handleViewUnit(unit)}
+                              className="flex-1"
+                            >
+                              <div className="flex items-center gap-2">
+                                {unit.abbreviation && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 shrink-0">
+                                    {unit.abbreviation}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 transition-colors">
+                                  {unit.name}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-slate-500">
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] h-5 px-1.5 font-normal border-slate-200 dark:border-slate-700"
+                                >
+                                  {t("courses.ects_label").replace("{count}", unit.ects.toString())}
+                                </Badge>
+                                <span className="flex items-center gap-1">
+                                  <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                  S{unit.semester}
+                                </span>
+                                {regent && (
+                                  <div className="flex items-center gap-1.5 ml-1 pl-2 border-l border-slate-200 dark:border-slate-700">
+                                    <Avatar className="w-4 h-4">
+                                      <AvatarImage
+                                        src={getTeacherAvatarUrl(regent)}
+                                      />
+                                      <AvatarFallback>
+                                        {getTeacherInitial(regent)}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate max-w-[100px]">
+                                      {getTeacherName(regent)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions Menu */}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                className="w-48 rounded-xl shadow-xl border-slate-200 dark:border-slate-800 dark:bg-slate-900"
+                              >
+                                <DropdownMenuLabel>{t("actions.actions")}</DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  onClick={() => handleViewUnit(unit)}
+                                >
+                                  <Eye className="w-4 h-4 mr-2" /> {t("actions.view_details")}
+                                </DropdownMenuItem>
+                                {(userRole === "coordinator" ||
+                                  userRole === "admin") && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() =>
+                                        handleAssignTeachersClick(unit)
+                                      }
+                                    >
+                                      <UserPlus className="w-4 h-4 mr-2" />{" "}
+                                      {t("assign_teachers.title")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleEditUnitClick(unit)}
+                                    >
+                                      <Edit className="w-4 h-4 mr-2" /> {t("actions.edit_details")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-red-600 focus:text-red-600"
+                                      onClick={() => handleDeleteUnit(unit)}
+                                    >
+                                      <Trash2 className="w-4 h-4 mr-2" /> {t("classrooms.delete")}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                ))}
+              </div>
+              {(userRole === "coordinator" || userRole === "admin") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-3 border-dashed text-slate-500 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50"
+                  onClick={() => handleAddUnitClick(year)}
+                >
+                  <Plus className="w-4 h-4 mr-2" /> {t("courses.add_unit_to_year").replace("{year}", year.toString())}
+                </Button>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    );
+  };
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
+      <AddCurricularUnitModal
+        isOpen={isUnitModalOpen}
+        onClose={() => setIsUnitModalOpen(false)}
+        onSave={handleSaveUnit}
+        courseId={courseId}
+        year={selectedYear}
+        initialData={editingUnit}
+      />
+
+      <AddClassModal
+        isOpen={isClassModalOpen}
+        onClose={() => setIsClassModalOpen(false)}
+        onSave={handleSaveClass}
+        durationYears={course?.durationYears || 3}
+        teachers={teachers}
+      />
+
+      <AssignTeachersModal
+        isOpen={isAssignTeacherModalOpen}
+        onClose={() => setIsAssignTeacherModalOpen(false)}
+        onSave={handleSaveTeacherAssignment}
+        unit={assigningUnit}
+        teachers={teachers}
+      />
+
+      <AssignTeacherToCourseModal
+        isOpen={isAddTeacherToCourseModalOpen}
+        onClose={() => setIsAddTeacherToCourseModalOpen(false)}
+        onSave={handleAddTeacherToCourse}
+        courseUnits={courseUnits}
+        teachers={teachers}
+      />
+
+      <BulkImportSchedulesSheet
+        open={isBulkImportOpen}
+        onOpenChange={setIsBulkImportOpen}
+        onImport={handleBulkImportSchedules}
+        courseName={course.name}
+      />
+
+      {/* Navigation */}
+      <Button
+        variant="ghost"
+        onClick={() => navigate(-1)}
+        className="mb-4 pl-0 hover:pl-2 transition-all gap-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+      >
+        <ArrowLeft className="w-4 h-4" /> {t("courses.back_to_courses")}
+      </Button>
+
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-900 text-white mb-8 shadow-2xl shadow-slate-200 dark:shadow-none">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0">
+          <img
+            src={course.image}
+            alt={course.name}
+            className="w-full h-full object-cover opacity-30 mix-blend-overlay"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/80 to-slate-900/40" />
+        </div>
+
+        <div className="relative p-8 md:p-10">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            <div className="space-y-4 max-w-3xl">
+              <div className="flex items-center gap-3">
+                <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none px-3 py-1 text-sm font-semibold tracking-wide shadow-lg shadow-blue-900/20">
+                  {course.abbreviation}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className="text-slate-300 border-slate-600 bg-slate-800/50 backdrop-blur-md"
+                >
+                  {course.type}
+                </Badge>
+              </div>
+
+              <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight">
+                {course.name}
+              </h1>
+
+              <p className="text-slate-300 text-lg leading-relaxed font-light">
+                {course.description}
+              </p>
+
+              {/* Stats */}
+              <div className="flex flex-wrap items-center gap-6 pt-6 text-slate-300">
+                <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
+                  <CalendarRange className="w-4 h-4 text-blue-400" />
+                  <span className="font-medium text-sm">
+                    {t("courses.years_stat").replace("{count}", (course.durationYears ?? 0).toString())}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
+                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  <span className="font-medium text-sm">
+                    {t("courses.ects_stat").replace("{count}", (course.totalCredits ?? 0).toString())}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
+                  <GraduationCap className="w-4 h-4 text-blue-400" />
+                  <span className="font-medium text-sm">
+                    {t("courses.degree_stat").replace("{type}", course.type)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50 backdrop-blur-sm">
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <span className="font-medium text-sm">
+                    {t("courses.coordinator_stat").replace(
+                      "{name}",
+                      coordinators.length > 0
+                        ? coordinators.map((c) => c.fullName || c.email).join(", ")
+                        : t("courses.not_assigned")
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Content Tabs */}
+      <Tabs defaultValue="curriculum" className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-20 z-10 bg-slate-50 dark:bg-slate-950 py-2 -mx-2 px-2">
+          <TabsList className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 h-12 w-fit shadow-sm">
+            <TabsTrigger
+              value="curriculum"
+              className="h-10 px-4 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 font-medium"
+            >
+              <Layers className="w-4 h-4 mr-2" /> {t("courses.tab_curriculum")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="teachers"
+              className="h-10 px-4 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 font-medium"
+            >
+              <Briefcase className="w-4 h-4 mr-2" /> {t("courses.tab_faculty")}
+            </TabsTrigger>
+            <TabsTrigger
+              value="classes"
+              className="h-10 px-4 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 font-medium"
+            >
+              <Users className="w-4 h-4 mr-2" /> {t("courses.tab_classes")}
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder={t("courses.search_details_placeholder")}
+              className="pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus:ring-blue-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <TabsContent value="curriculum" className="mt-0 min-h-[400px]">
+          {renderCurriculumByYear()}
+        </TabsContent>
+
+        <TabsContent value="teachers" className="mt-0 min-h-[400px]">
+          {/* Action Bar for Teachers Tab */}
+          {(userRole === "coordinator" || userRole === "admin") && (
+            <div className="flex justify-end mb-4">
+              <Button
+                onClick={() => setIsAddTeacherToCourseModalOpen(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <UserPlus className="w-4 h-4 mr-2" /> {t("courses.assign_teacher_btn")}
+              </Button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {courseTeachers.length === 0 ? (
+              <div className="col-span-full text-center py-16 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                <Users className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-400" />
+                <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">
+                  {t("courses.faculty_empty")}
+                </h3>
+                <p className="max-w-xs mx-auto mt-1 mb-4">
+                  {t("courses.faculty_empty_desc")}
+                </p>
+                {(userRole === "coordinator" || userRole === "admin") && (
+                  <Button
+                    onClick={() => setIsAddTeacherToCourseModalOpen(true)}
+                  >
+                    {t("courses.assign_first_teacher")}
+                  </Button>
+                )}
+              </div>
+            ) : (
+              courseTeachers.map((teacher) => {
+                const unitsTaught = courseUnits.filter((u) =>
+                  u.teacherIds.includes(teacher.id),
+                );
+                return (
+                  <Card
+                    key={teacher.id}
+                    className="hover:shadow-lg transition-all duration-300 border-slate-200 dark:border-slate-800"
+                  >
+                    <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                      <Avatar className="w-14 h-14 border border-slate-100">
+                        <AvatarImage src={getTeacherAvatarUrl(teacher)} />
+                        <AvatarFallback>
+                          {getTeacherInitial(teacher)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <CardTitle className="text-base">
+                          {getTeacherName(teacher)}
+                        </CardTitle>
+                        <CardDescription>{teacher.email}</CardDescription>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-slate-500">
+                          {t("courses.teaching_units")}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {unitsTaught.map((u) => (
+                            <Badge
+                              key={u.id}
+                              variant="secondary"
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-700"
+                            >
+                              {u.name}
+                              {u.regentId === teacher.id && (
+                                <span className="ml-1 text-[10px] text-blue-600 font-bold">
+                                  (R)
+                                </span>
+                              )}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="classes" className="mt-0 min-h-[400px]">
+          {/* Action Bar for Classes Tab */}
+          {(userRole === "coordinator" || userRole === "admin") && (
+            <div className="flex justify-end gap-2 mb-4">
+              <Button
+                onClick={() => setIsBulkImportOpen(true)}
+                variant="outline"
+                className="bg-white hover:bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300 border-dashed"
+              >
+                <Upload className="w-4 h-4 mr-2" /> {t("courses.import_schedule_btn")}
+              </Button>
+              <Button
+                onClick={handleAddClass}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" /> {t("courses.add_class_btn")}
+              </Button>
+            </div>
+          )}
+
+          <div className="w-full space-y-4">
+            {(() => {
+              const normalizedSearch = searchTerm.trim().toLowerCase();
+              const searchableClasses = normalizedSearch
+                ? visibleClasses.filter((cls) =>
+                    cls.name.toLowerCase().includes(normalizedSearch),
+                  )
+                : visibleClasses;
+
+              // Group by Year
+              const classesByYear = searchableClasses.reduce(
+                (acc, cls) => {
+                  const year = cls.year || 0;
+                  if (!acc[year]) {
+                    acc[year] = [];
+                  }
+                  acc[year].push(cls);
+                  return acc;
+                },
+                {} as Record<number, ClassGroup[]>,
+              );
+
+              const sortedYears = Object.keys(classesByYear)
+                .map(Number)
+                .sort((a, b) => a - b);
+
+              if (sortedYears.length === 0) {
+                return (
+                  <div className="col-span-full text-center py-16 text-slate-500 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-20 text-slate-400" />
+                    <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">
+                      {t("courses.classes_empty")}
+                    </h3>
+                    <p className="max-w-xs mx-auto mt-1 mb-4">
+                      {userRole !== "teacher"
+                        ? t("courses.classes_empty_desc_coordinator")
+                        : t("courses.classes_empty_desc_teacher")}
+                    </p>
+                    {userRole !== "teacher" && (
+                      <Button
+                        onClick={handleAddClass}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-2" /> {t("courses.create_first_class")}
+                      </Button>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <Accordion
+                  type="multiple"
+                  defaultValue={sortedYears.map((y) => `class-year-${y}`)}
+                  className="w-full space-y-4"
+                >
+                  {sortedYears.map((year) => (
+                    <AccordionItem
+                      key={year}
+                      value={`class-year-${year}`}
+                      className="border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 px-4 shadow-sm"
+                    >
+                      <AccordionTrigger className="hover:no-underline py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shadow-sm">
+                            {year === 0 ? "?" : year}º
+                          </div>
+                          <span className="font-semibold text-lg text-slate-900 dark:text-slate-100">
+                            {year === 0 ? t("class_details.unknown") : t("courses.year_label").replace("{year}", year.toString())}
+                          </span>
+                          <Badge
+                            variant="secondary"
+                            className="ml-2 font-normal text-slate-500 bg-slate-100 dark:bg-slate-800"
+                          >
+                            {t("courses.classes_count").replace("{count}", classesByYear[year].length.toString())}
+                          </Badge>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4">
+                        <div className="pt-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {classesByYear[year].map((cls) => {
+                              const teacher = getTeacher(cls.teacherId);
+                                      const scheduleCount =
+                                        localTimetable.filter(
+                                          (t) => t.classGroup === cls.name,
+                                        ).length;
+
+                                      return (
+                                        <Card
+                                          key={cls.id}
+                                          onClick={() => {
+                                            navigate(`/courses/${courseId}/classes/${cls.id}`);
+                                          }}
+                                          className="hover:shadow-md transition-all duration-300 cursor-pointer group border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                                        >
+                                          <CardHeader className="pb-3 px-4 pt-4">
+                                            <div className="flex justify-between items-start">
+                                              <div className="flex items-center gap-2">
+                                                <Badge
+                                                  variant="default"
+                                                  className={cn(
+                                                    "capitalize bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300",
+                                                  )}
+                                                >
+                                                  {t("courses.class_group_badge")}
+                                                </Badge>
+                                              </div>
+
+                                              <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                    className="h-8 w-8 -mr-2 -mt-2 text-slate-400 hover:text-slate-600"
+                                                  >
+                                                    <MoreHorizontal className="w-4 h-4" />
+                                                  </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent
+                                                  align="end"
+                                                  className="w-48"
+                                                >
+                                                  <DropdownMenuLabel>
+                                                    {t("actions.actions")}
+                                                  </DropdownMenuLabel>
+                                                  <DropdownMenuItem
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      navigate(`/courses/${courseId}/classes/${cls.id}`);
+                                                    }}
+                                                  >
+                                                    <Calendar className="w-4 h-4 mr-2" />{" "}
+                                                    {t("class_details.weekly_schedule")}
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem
+                                                    onClick={(e) =>
+                                                      e.stopPropagation()
+                                                    }
+                                                  >
+                                                    {t("courses.view_students")}
+                                                  </DropdownMenuItem>
+                                                  {(userRole ===
+                                                    "coordinator" ||
+                                                    userRole === "admin") && (
+                                                    <>
+                                                      <DropdownMenuSeparator />
+                                                      <DropdownMenuItem
+                                                        className="text-red-600 focus:text-red-600"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleDeleteClass(
+                                                            cls.id,
+                                                          );
+                                                        }}
+                                                      >
+                                                        <Trash2 className="w-4 h-4 mr-2" />{" "}
+                                                        {t("classrooms.delete")}
+                                                      </DropdownMenuItem>
+                                                    </>
+                                                  )}
+                                                </DropdownMenuContent>
+                                              </DropdownMenu>
+                                            </div>
+                                            <CardTitle className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                                              {cls.name}
+                                            </CardTitle>
+                                          </CardHeader>
+                                          <CardContent className="px-4 pb-4">
+                                            {teacher && (
+                                              <div className="flex items-center gap-2 mb-3">
+                                                <Avatar className="w-5 h-5">
+                                                  <AvatarImage
+                                                    src={getTeacherAvatarUrl(
+                                                      teacher,
+                                                    )}
+                                                  />
+                                                  <AvatarFallback>
+                                                    {getTeacherInitial(teacher)}
+                                                  </AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 truncate">
+                                                  {getTeacherName(teacher)}
+                                                </span>
+                                              </div>
+                                            )}
+                                            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                              <span className="flex items-center gap-1">
+                                                <CalendarRange className="w-3 h-3" />
+                                                {t("courses.weekly_slots_count").replace("{count}", scheduleCount.toString())}
+                                              </span>
+                                              <span className="text-blue-600 font-medium">
+                                                {t("courses.manage_btn")}
+                                              </span>
+                                            </div>
+                                          </CardContent>
+                                        </Card>
+                                      );
+                                })}
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+              );
+            })()}
+          </div>
+        </TabsContent>
+      </Tabs>
+      <AlertDialog
+        open={deleteConfig !== null}
+        onOpenChange={(open) => !open && setDeleteConfig(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteConfig?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteConfig?.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {t("classrooms.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};

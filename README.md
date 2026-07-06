@@ -1,253 +1,118 @@
-# Compensa+ 🎓
+# Compensa+
 
-> Modern Educational Compensation Management System
+Compensa+ is an educational compensation management platform for teacher schedule compensation requests, course coordination, classroom planning, notifications, and AI-assisted workflows.
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18.3-61dafb)](https://reactjs.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38bdf8)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-6.3-646cff)](https://vitejs.dev/)
+## Current Status
 
-Compensa+ is a comprehensive web application designed to streamline teacher compensation requests, class scheduling, and administrative workflows for educational institutions.
+The project is now a full-stack distributed system, not a frontend-only prototype.
 
-## ✨ Features
+- React/Vite frontend served through Nginx in Docker
+- API Gateway built with YARP
+- Identity API with magic-link authentication, JWT access tokens, refresh tokens, roles, and user management
+- Core API with courses, curricular units, class groups, schedules, classrooms, compensation requests, dashboard data, global search, audit logs, caching, and RabbitMQ events
+- Notifications service with FastAPI, RabbitMQ consumers, PostgreSQL persistence, preferences, and email delivery support
+- CompensaAI service with OpenAI/Gemini orchestration and authenticated access to Core API tools
+- PostgreSQL, Redis, RabbitMQ, OpenTelemetry, Prometheus, Grafana, Loki, Tempo, Alertmanager, and Aspire dashboard in the root Docker Compose stack
 
-### 🤖 AI-Powered Document Processing
-- **Upload Mode:** Drag-and-drop interface with AI-powered data extraction
-- **Chat Mode:** Conversational AI for natural language document processing
-- **Floating Assistant:** Global access to AI features from any page
-- Supports PDF, Word, Excel, CSV, and text files
+## Architecture
 
-### 📋 Request Management
-- Submit and track compensation requests
-- Approval workflows for coordinators
-- Real-time status updates
-- Bulk operations and filtering
+```text
+Frontend -> API Gateway -> Identity API
+                       -> Core API
+                       -> Notifications API
+                       -> CompensaAI
 
-### 📅 Calendar & Scheduling
-- Personal and department calendars
-- Holiday and event management
-- Conflict detection
-- Multi-view layouts (day, week, month)
+Core API -> PostgreSQL
+Core API -> Redis
+Core API -> RabbitMQ -> Notifications API
+CompensaAI -> Core API
+Observability -> OpenTelemetry Collector -> Prometheus/Loki/Tempo/Grafana
+```
 
-### 🎓 Academic Management
-- Course catalog and management
-- Classroom inventory
-- Teacher assignments
-- Student enrollment tracking
+## Main Features
 
-### 👥 User Management
-- Role-based access control (Teacher, Coordinator, Admin)
-- Bulk user import from Excel/CSV
-- User profiles and permissions
-- Department organization
+- Magic-link login and refresh-token session handling
+- Role-based routing for teachers, coordinators, and administrators
+- Compensation request creation, listing, approval, rejection, and conflict checks
+- Course, curricular unit, class group, schedule, classroom, and user management
+- Dashboard and global search backed by API data
+- Notifications and notification preferences
+- AI chat with authenticated backend context and Core API tool access
+- Dockerized local environment with health checks and observability
 
-### 📊 Dashboard & Analytics
-- Real-time KPI metrics
-- Compensation trends visualization
-- Weekly calendar overview
-- Quick stats and insights
+## Repository Layout
 
-### 🌐 Internationalization
-- 🇺🇸 English
-- 🇵🇹 Portuguese
-- 🇪🇸 Spanish
-- 🇫🇷 French
+```text
+Backend/
+  Compensa.Core.Api/        # .NET Core domain API
+  Compensa.Identity.Api/    # .NET Identity/auth API
+  Compensa.Gateway/         # YARP API Gateway
+  Compensa.Notifications/   # FastAPI notifications service
+  CompensaAI/               # FastAPI AI orchestration service
+Database/                   # PostgreSQL image and init scripts
+Frontend/                   # React/Vite frontend
+docker/                     # Observability configs
+guidelines/                 # Product and technical documentation
+```
 
-### 🎨 Modern UI/UX
-- Light and dark mode
-- Responsive design (mobile, tablet, desktop)
-- Accessible components (WCAG 2.1)
-- Smooth animations and transitions
+## Prerequisites
 
-## 🚀 Quick Start
+- Docker and Docker Compose
+- Node.js 18+ and pnpm 8+
+- .NET SDK compatible with the target framework used by the backend projects
+- Python 3.11+ for local FastAPI service checks
 
-### Prerequisites
-- Node.js 18+ 
-- pnpm 8+ (recommended) or npm/yarn
+## Environment
 
-### Installation
+Start from the example file:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/compensa-plus.git
-cd compensa-plus
-
-# Install dependencies
-pnpm install
-
-# Start development server
-pnpm run dev
+cp .env.example .env
 ```
 
-The application will be available at `http://localhost:5173`
-
-### Build for Production
+Important variables:
 
 ```bash
-# Create production build
-pnpm run build
-
-# Preview production build
-pnpm run preview
+POSTGRES_PASSWORD=change_me_to_a_strong_local_password
+JWT_SIGNING_KEY=replace_with_a_secret_at_least_32_chars
+FRONTEND_PUBLIC_URL=http://localhost:5173
+VITE_API_URL=http://localhost:5005
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+EMAIL_PASSWORD=
 ```
 
-## 📁 Project Structure
+Do not commit real API keys, SMTP passwords, database passwords, or production JWT secrets. The Docker Compose files require `POSTGRES_PASSWORD` and `JWT_SIGNING_KEY` to come from `.env`; they intentionally do not include secret defaults.
 
-```
-compensa-plus/
-├── src/
-│   ├── app/
-│   │   ├── components/
-│   │   │   ├── common/          # Reusable components
-│   │   │   ├── ui/              # shadcn/ui components
-│   │   │   ├── compensa/        # Business components
-│   │   │   └── auth/            # Authentication
-│   │   ├── styles/              # Global styles
-│   │   └── App.tsx              # Root component
-│   ├── imports/                 # Figma imports
-│   └── public/                  # Static assets
-├── docs/                        # Documentation
-├── CLAUDE.md                    # AI agent instructions
-├── PROJECT_OVERVIEW.md          # Project overview
-├── DEVELOPMENT_GUIDELINES.md    # Development standards
-├── ARCHITECTURE.md              # Technical architecture
-├── COMPONENTIZATION_GUIDE.md    # Component reusability
-└── README.md                    # This file
-```
+## Run Locally
 
-## 🛠️ Technology Stack
-
-### Core
-- **React 18.3** - UI library
-- **TypeScript** - Type safety
-- **Vite 6.3** - Build tool
-- **Tailwind CSS v4** - Styling
-
-### UI Components
-- **shadcn/ui** - Component library
-- **Radix UI** - Accessible primitives
-- **Lucide Icons** - Icon system
-- **Motion** - Animations
-
-### Key Libraries
-- **date-fns** - Date utilities
-- **React Hook Form** - Forms
-- **Recharts** - Data visualization
-- **Sonner** - Notifications
-- **React DnD** - Drag & drop
-
-## 📖 Documentation
-
-Comprehensive documentation is available:
-
-### For Developers
-- **[CLAUDE.md](./CLAUDE.md)** - AI agent instructions and conventions
-- **[DEVELOPMENT_GUIDELINES.md](./DEVELOPMENT_GUIDELINES.md)** - Code style and best practices
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Technical architecture and system design
-- **[COMPONENTIZATION_GUIDE.md](./COMPONENTIZATION_GUIDE.md)** - Component reusability guide
-
-### For Product/Business
-- **[PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md)** - Product vision, features, and roadmap
-
-### For Backend Implementation
-- **[AI_BACKEND_IMPLEMENTATION.md](./AI_BACKEND_IMPLEMENTATION.md)** - Backend API specifications
-
-## 🎯 Key Concepts
-
-### Component Reusability
-This project follows DRY principles with reusable components in `/src/app/components/common/`:
-
-```typescript
-// Always check common components first!
-import { EmptyState, StatCard, PageHeader, LoadingSpinner } from '../common';
-
-// Empty states
-<EmptyState icon={FileText} title="No data" description="Get started" />
-
-// Statistics
-<StatCard title="Total" value={142} icon={FileText} trend="+12%" />
-
-// Page headers
-<PageHeader icon={Calendar} title="Calendar" action={<Button>New</Button>} />
-
-// Loading states
-<LoadingSpinner size="lg" text="Loading..." />
-```
-
-### Internationalization
-All user-facing text uses i18n:
-
-```typescript
-const { t } = useLanguage();
-
-return <h1>{t('dashboard.title')}</h1>;
-```
-
-### Theme Support
-Built-in light/dark mode:
-
-```typescript
-// Tailwind classes with dark variants
-<div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-The frontend expects the backend URLs below when they differ from local defaults:
+Full stack:
 
 ```bash
-VITE_IDENTITY_API_URL=http://localhost:5002
-VITE_CORE_API_URL=http://localhost:5001
-VITE_NOTIFICATIONS_API_URL=http://localhost:5003
+docker compose up --build
 ```
 
-### Backend Integration
-The product is split into backend services:
+Default local URLs:
 
-- **Compensa Core API** (`Backend/Compensa.Core.Api`) handles academic years, classrooms, courses, curricular units, schedules, compensation requests, dashboard aggregates, and global search.
-- **Compensa Identity API** (`Backend/Compensa.Identity.Api`) handles magic-link authentication, JWTs, users, and roles.
-- **Compensa Notifications** (`Backend/Compensa.Notifications`) handles notification delivery and preferences.
-- **CompensaAI** (`Backend/CompensaAI`) is the Python/FastAPI integration surface for AI workflows.
+- Frontend: `http://localhost:5173`
+- Gateway: `http://localhost:5005`
+- Identity API: `http://localhost:5002`
+- Core API: `http://localhost:5001`
+- CompensaAI: `http://localhost:8000`
+- Notifications API: `http://localhost:8001`
+- RabbitMQ Management: `http://localhost:15672`
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+- Aspire Dashboard: `http://localhost:18888`
 
-Important Core API endpoints currently used by the frontend:
-
-- `GET /api/dashboard/summary`
-- `GET /api/search?query=...`
-- `GET /api/courses`
-- `GET /api/courses/{id}/details`
-- `GET /api/classrooms`
-- `GET /api/compensation-requests`
-- `POST /api/compensation-requests`
-
-Academic scheduling rules are enforced in the backend service layer. For each academic year and semester, a class schedule cannot overlap for the same class group, classroom, or teacher.
-
-## 👥 User Roles
-
-### Teacher
-- View and submit compensation requests
-- Access personal calendar
-- View assigned courses
-
-### Coordinator
-- Approve/reject requests
-- Manage department schedules
-- Assign teachers to courses
-- View departmental analytics
-
-### Administrator
-- Full system access
-- User management
-- System configuration
-- Global calendar management
-
-## 🧪 Testing
-
-Backend tests are available for the Core API:
+Frontend only:
 
 ```bash
-dotnet test Backend/Compensa.Core.Api/Compensa.Core.Api.sln
+pnpm --dir Frontend install
+pnpm --dir Frontend dev
 ```
+
+## Verification
 
 Frontend production build:
 
@@ -255,129 +120,40 @@ Frontend production build:
 pnpm --dir Frontend build
 ```
 
-Core API build:
+Core API tests:
 
 ```bash
-dotnet build Backend/Compensa.Core.Api/CompensaCoreApi/CompensaCoreApi.csproj
+dotnet test Backend/Compensa.Core.Api/Compensa.Core.Api.sln
 ```
 
-See [DEVELOPMENT_GUIDELINES.md](./DEVELOPMENT_GUIDELINES.md#testing-strategy) for testing approach.
+Identity API build:
 
-## 📦 Deployment
-
-### Vercel (Recommended)
 ```bash
-# Install Vercel CLI
-pnpm add -g vercel
-
-# Deploy
-vercel
+dotnet build Backend/Compensa.Identity.Api/Compensa.Identity.Api.sln
 ```
 
-### Netlify
+Python syntax checks:
+
 ```bash
-# Install Netlify CLI
-pnpm add -g netlify-cli
-
-# Deploy
-netlify deploy --prod
+python3 -m py_compile Backend/CompensaAI/app/main.py Backend/Compensa.Notifications/app/main.py
 ```
 
-### Manual Deployment
-```bash
-# Build
-pnpm run build
+## Security Notes
 
-# Upload /dist folder to your hosting provider
-```
+- AI chat endpoints require a valid JWT Bearer token.
+- The AI service derives user identity from the JWT, not from client-provided request body data.
+- Core request visibility is restricted for teachers to their own requests.
+- Production deployments must override all development defaults for JWT, SMTP, database, Grafana, CORS, and AI provider keys.
 
-## 🤝 Contributing
+## Known Gaps
 
-Contributions are welcome! Please follow these guidelines:
+- Test coverage is still narrow; Core has schedule conflict tests, but broader service/controller/frontend/AI tests are still needed.
+- Coordinator request visibility should be tightened to only the courses they coordinate.
+- Production CI/CD, backup strategy, and deployment hardening still need to be finalized.
 
-1. **Read the docs** - Familiarize yourself with [DEVELOPMENT_GUIDELINES.md](./DEVELOPMENT_GUIDELINES.md)
-2. **Check existing components** - Use common components from `/src/app/components/common/`
-3. **Follow conventions** - TypeScript, i18n, dark mode support
-4. **Write clean code** - DRY, KISS, YAGNI principles
-5. **Test thoroughly** - No console errors, responsive design
-6. **Update documentation** - Keep docs in sync with changes
+## Useful Documentation
 
-### Pull Request Process
-1. Create feature branch (`feature/amazing-feature`)
-2. Make your changes
-3. Test thoroughly (all browsers, dark mode, responsive)
-4. Update documentation if needed
-5. Submit PR with clear description
-
-## 🐛 Known Issues
-
-- [ ] No backend implementation (frontend only)
-- [ ] No real authentication (mock login)
-- [ ] No data persistence (mock data)
-- [ ] No URL routing (state-based)
-- [ ] AI endpoints need implementation
-
-See [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md#known-limitations) for complete list.
-
-## 🗺️ Roadmap
-
-### Phase 1: Backend Integration (Q2 2026)
-- [ ] Authentication API
-- [ ] Database integration
-- [ ] File upload service
-- [ ] Email notifications
-
-### Phase 2: Advanced Features (Q3 2026)
-- [ ] Analytics dashboard
-- [ ] Export to Excel/PDF
-- [ ] Workflow automation
-- [ ] Mobile app
-
-### Phase 3: AI Enhancement (Q4 2026)
-- [ ] Smart scheduling
-- [ ] Predictive analytics
-- [ ] NLP search
-- [ ] Auto-reports
-
-See [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md#future-roadmap) for detailed roadmap.
-
-## 📄 License
-
-[Your License Here] - See LICENSE file for details
-
-## 🙏 Acknowledgments
-
-- **shadcn** - For the amazing UI component library
-- **Vercel** - For Tailwind CSS and hosting
-- **Radix UI** - For accessible primitives
-- **Lucide** - For beautiful icons
-- **Anthropic** - For AI capabilities
-
-## 📞 Support
-
-- **Documentation:** Check `/docs` folder and markdown files
-- **Issues:** [GitHub Issues](https://github.com/yourusername/compensa-plus/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/yourusername/compensa-plus/discussions)
-- **Email:** your.email@example.com
-
-## 🌟 Screenshots
-
-### Dashboard
-![Dashboard](./docs/screenshots/dashboard.png)
-
-### AI Document Converter
-![AI Converter](./docs/screenshots/ai-converter.png)
-
-### Calendar View
-![Calendar](./docs/screenshots/calendar.png)
-
-### Dark Mode
-![Dark Mode](./docs/screenshots/dark-mode.png)
-
----
-
-**Made with ❤️ for educational institutions**
-
-**Version:** 1.0.0  
-**Last Updated:** May 5, 2026  
-**Status:** ✅ Active Development
+- [Architecture](./guidelines/ARCHITECTURE.md)
+- [Development Guidelines](./guidelines/DEVELOPMENT_GUIDELINES.md)
+- [Project Overview](./guidelines/PROJECT_OVERVIEW.md)
+- [AI Backend Implementation](./guidelines/AI_BACKEND_IMPLEMENTATION.md)

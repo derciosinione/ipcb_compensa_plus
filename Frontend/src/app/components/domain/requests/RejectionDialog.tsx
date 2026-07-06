@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,9 +8,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../../ui/alert-dialog';
-import { Label } from '../../ui/label';
-import { Textarea } from '../../ui/textarea';
+} from "../../ui/alert-dialog";
+import { Label } from "../../ui/label";
+import { Textarea } from "../../ui/textarea";
+import { useLanguage } from "../../../providers/LanguageContext";
 
 interface RejectionDialogProps {
   open: boolean;
@@ -18,13 +19,18 @@ interface RejectionDialogProps {
   onConfirm: (reason: string) => void;
 }
 
-export const RejectionDialog = ({ open, onOpenChange, onConfirm }: RejectionDialogProps) => {
-  const [reason, setReason] = useState('');
+export const RejectionDialog = ({
+  open,
+  onOpenChange,
+  onConfirm,
+}: RejectionDialogProps) => {
+  const { t } = useLanguage();
+  const [reason, setReason] = useState("");
 
   const handleConfirm = () => {
     if (reason.trim()) {
       onConfirm(reason);
-      setReason('');
+      setReason("");
       onOpenChange(false);
     }
   };
@@ -33,29 +39,35 @@ export const RejectionDialog = ({ open, onOpenChange, onConfirm }: RejectionDial
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-red-600">Reject Request</AlertDialogTitle>
+          <AlertDialogTitle className="text-red-600">
+            {t("reject.title")}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            Please provide a reason for rejecting this request. This will be visible to the teacher.
+            {t("reject.desc")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="py-2">
-            <Label htmlFor="reason" className="mb-2 block text-sm font-medium">Rejection Reason</Label>
-            <Textarea 
-                id="reason" 
-                placeholder="E.g., Room conflict, Policy violation..." 
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="resize-none"
-            />
+          <Label htmlFor="reason" className="mb-2 block text-sm font-medium">
+            {t("reject.reason_label")}
+          </Label>
+          <Textarea
+            id="reason"
+            placeholder={t("reject.placeholder")}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="resize-none"
+          />
         </div>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setReason('')}>Cancel</AlertDialogCancel>
-          <AlertDialogAction 
-            onClick={handleConfirm} 
+          <AlertDialogCancel onClick={() => setReason("")}>
+            {t("common.cancel")}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirm}
             disabled={!reason.trim()}
             className="bg-red-600 hover:bg-red-700 text-white"
           >
-            Confirm Rejection
+            {t("reject.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

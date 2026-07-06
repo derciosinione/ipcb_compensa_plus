@@ -1,4 +1,8 @@
-import { authenticatedApiRequest, buildApiPath, coreApiBaseUrl } from '../api/httpClient';
+import {
+  authenticatedApiRequest,
+  buildApiPath,
+  coreApiBaseUrl,
+} from "../api/httpClient";
 import type {
   Course,
   CourseDetails,
@@ -11,53 +15,70 @@ import type {
   UpsertCourseRequest,
   UpsertCurricularUnitComponentRequest,
   UpsertCurricularUnitRequest,
-} from './courseTypes';
+} from "./courseTypes";
 
-export const listCourses = async (search?: string) => {
+export const listCourses = async (search?: string, academicYearId?: string) => {
   const response = await authenticatedApiRequest<Course[]>(
     coreApiBaseUrl,
-    buildApiPath('/api/courses', { search }),
+    buildApiPath("/api/courses", { search, academicYearId }),
   );
 
   return response.data ?? [];
 };
 
 export const createCourse = async (request: UpsertCourseRequest) => {
-  const response = await authenticatedApiRequest<Course>(coreApiBaseUrl, '/api/courses', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  });
+  const response = await authenticatedApiRequest<Course>(
+    coreApiBaseUrl,
+    "/api/courses",
+    {
+      method: "POST",
+      body: JSON.stringify(request),
+    },
+  );
 
   return response.data;
 };
 
-export const getCourseDetails = async (id: string) => {
-  const response = await authenticatedApiRequest<CourseDetails>(coreApiBaseUrl, `/api/courses/${id}/details`);
+export const getCourseDetails = async (id: string, academicYearId?: string) => {
+  const response = await authenticatedApiRequest<CourseDetails>(
+    coreApiBaseUrl,
+    buildApiPath(`/api/courses/${id}/details`, { academicYearId }),
+  );
 
   return response.data;
 };
 
-export const updateCourse = async (id: string, request: UpsertCourseRequest) => {
-  const response = await authenticatedApiRequest<Course>(coreApiBaseUrl, `/api/courses/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(request),
-  });
+export const updateCourse = async (
+  id: string,
+  request: UpsertCourseRequest,
+) => {
+  const response = await authenticatedApiRequest<Course>(
+    coreApiBaseUrl,
+    `/api/courses/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(request),
+    },
+  );
 
   return response.data;
 };
 
 export const deleteCourse = async (id: string) => {
   await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/courses/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 };
 
-export const createCurricularUnit = async (courseId: string, request: UpsertCurricularUnitRequest) => {
+export const createCurricularUnit = async (
+  courseId: string,
+  request: UpsertCurricularUnitRequest,
+) => {
   const response = await authenticatedApiRequest<CurricularUnit>(
     coreApiBaseUrl,
     `/api/courses/${courseId}/units`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(request),
     },
   );
@@ -74,7 +95,7 @@ export const updateCurricularUnit = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/units/${unitId}`,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(request),
     },
   );
@@ -82,10 +103,17 @@ export const updateCurricularUnit = async (
   return response.data;
 };
 
-export const deleteCurricularUnit = async (courseId: string, unitId: string) => {
-  await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/courses/${courseId}/units/${unitId}`, {
-    method: 'DELETE',
-  });
+export const deleteCurricularUnit = async (
+  courseId: string,
+  unitId: string,
+) => {
+  await authenticatedApiRequest<void>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/units/${unitId}`,
+    {
+      method: "DELETE",
+    },
+  );
 };
 
 export const createCurricularUnitComponent = async (
@@ -97,7 +125,7 @@ export const createCurricularUnitComponent = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/units/${unitId}/components`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(request),
     },
   );
@@ -115,7 +143,7 @@ export const updateCurricularUnitComponent = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/units/${unitId}/components/${componentId}`,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(request),
     },
   );
@@ -132,17 +160,20 @@ export const deleteCurricularUnitComponent = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/units/${unitId}/components/${componentId}`,
     {
-      method: 'DELETE',
+      method: "DELETE",
     },
   );
 };
 
-export const createClassGroup = async (courseId: string, request: UpsertClassGroupRequest) => {
+export const createClassGroup = async (
+  courseId: string,
+  request: UpsertClassGroupRequest,
+) => {
   const response = await authenticatedApiRequest<ClassGroup>(
     coreApiBaseUrl,
     `/api/courses/${courseId}/classes`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(request),
     },
   );
@@ -159,7 +190,7 @@ export const updateClassGroup = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/classes/${classGroupId}`,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(request),
     },
   );
@@ -167,10 +198,17 @@ export const updateClassGroup = async (
   return response.data;
 };
 
-export const deleteClassGroup = async (courseId: string, classGroupId: string) => {
-  await authenticatedApiRequest<void>(coreApiBaseUrl, `/api/courses/${courseId}/classes/${classGroupId}`, {
-    method: 'DELETE',
-  });
+export const deleteClassGroup = async (
+  courseId: string,
+  classGroupId: string,
+) => {
+  await authenticatedApiRequest<void>(
+    coreApiBaseUrl,
+    `/api/courses/${courseId}/classes/${classGroupId}`,
+    {
+      method: "DELETE",
+    },
+  );
 };
 
 export const createClassSchedule = async (
@@ -182,7 +220,7 @@ export const createClassSchedule = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/classes/${classGroupId}/schedules`,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(request),
     },
   );
@@ -200,7 +238,7 @@ export const updateClassSchedule = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/classes/${classGroupId}/schedules/${scheduleId}`,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(request),
     },
   );
@@ -217,7 +255,7 @@ export const deleteClassSchedule = async (
     coreApiBaseUrl,
     `/api/courses/${courseId}/classes/${classGroupId}/schedules/${scheduleId}`,
     {
-      method: 'DELETE',
+      method: "DELETE",
     },
   );
 };

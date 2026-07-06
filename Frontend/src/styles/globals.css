@@ -183,3 +183,14 @@
 html {
   font-size: var(--font-size);
 }
+
+.custom-datepicker::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* Ensure Sonner toast notifications permit click interactions even when modal sheet/dialog backdrop is active */
+[data-sonner-toaster] {
+  pointer-events: auto !important;
+}
+
