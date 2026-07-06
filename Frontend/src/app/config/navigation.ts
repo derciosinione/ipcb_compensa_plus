@@ -41,7 +41,6 @@ export const getMainNavigationItems = ({
       path: appPaths.requests,
       icon: FileText,
       label: user.role === "teacher" ? t("menu.my_requests") : t("menu.requests"),
-      badge: "3",
     },
     { path: appPaths.calendar, icon: CalendarDays, label: t("menu.calendar") },
     { path: appPaths.courses, icon: BookOpen, label: t("menu.courses") },

@@ -24,7 +24,7 @@ import { Badge } from "../../components/ui/badge";
 import { format, addDays, startOfWeek } from "date-fns";
 import { CompensationChart } from "./components/CompensationChart";
 import { StatCard } from "../../components/common/StatCard";
-import { useLanguage } from "../../providers/LanguageContext";
+import { useLanguage, translateNotificationText } from "../../providers/LanguageContext";
 import { useNotificationsQuery } from "../../services/notifications/notificationQueries";
 import { useDashboardSummaryQuery } from "../../services/dashboard/dashboardQueries";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
@@ -339,28 +339,35 @@ const QuickActions = () => {
             {t("dashboard.no_notifications")}
           </div>
         ) : (
-          notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
-              onClick={() => navigate("/notifications")}
-            >
-              <div className="flex justify-between items-start mb-2">
-                <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                  {notification.isRead ? t("dashboard.notif_read") : t("dashboard.notif_new")}
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  {new Date(notification.createdAt).toLocaleDateString()}
-                </span>
+          notifications.map((notification) => {
+            const { title: displayTitle, message: displayMessage } = translateNotificationText(
+              notification.title,
+              notification.message,
+              t
+            );
+            return (
+              <div
+                key={notification.id}
+                className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer group"
+                onClick={() => navigate("/notifications")}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    {notification.isRead ? t("dashboard.notif_read") : t("dashboard.notif_new")}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {new Date(notification.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <h4 className="font-semibold text-sm mb-1 group-hover:text-blue-200 transition-colors">
+                  {displayTitle}
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
+                  {displayMessage}
+                </p>
               </div>
-              <h4 className="font-semibold text-sm mb-1 group-hover:text-blue-200 transition-colors">
-                {notification.title}
-              </h4>
-              <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">
-                {notification.message}
-              </p>
-            </div>
-          ))
+            );
+          })
         )}
 
         <Button

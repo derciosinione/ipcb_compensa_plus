@@ -158,7 +158,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
       setRequestsLoaded(true);
     } catch (error) {
       toast.error(
-        getErrorMessage(error, "Unable to load compensation requests."),
+        getErrorMessage(error, t("requests.toast_load_error")),
       );
     }
   }, [user.id, selectedYear]);
@@ -192,11 +192,11 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
             setSelectedRequest(mapped);
             setViewState("details");
           } else {
-            toast.error("Compensation request not found.");
+            toast.error(t("requests.toast_not_found"));
             navigate("/requests");
           }
         } catch (err) {
-          toast.error("Unable to load request details.");
+          toast.error(t("requests.toast_load_details_error"));
           navigate("/requests");
         }
       };
@@ -237,7 +237,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
       ]);
     } catch (error) {
       toast.error(
-        getErrorMessage(error, "Unable to create compensation request."),
+        getErrorMessage(error, t("requests.toast_create_error")),
       );
       throw error;
     }
@@ -263,7 +263,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
       }
       setEditingRequest(null);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to update request."));
+      toast.error(getErrorMessage(error, t("requests.toast_update_error")));
       throw error;
     }
   };
@@ -284,7 +284,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
       }
       setRequestToCancel(null);
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to cancel request."));
+      toast.error(getErrorMessage(error, t("requests.toast_cancel_error")));
     }
   };
 
@@ -298,7 +298,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
     // Teachers can't approve/reject, so if they drag to those, it will fail in backend.
     // But for now let's just toast an error if it's not Cancelled
     if (newStatus !== "pending" && newStatus !== "cancelled") {
-      toast.error("You don't have permission to approve or reject requests.");
+      toast.error(t("requests.toast_no_permission_status"));
       return;
     }
 
@@ -316,7 +316,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
         toast.success(`Request moved to ${newStatus}.`);
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, `Unable to change status.`));
+      toast.error(getErrorMessage(error, t("requests.toast_status_update_error")));
     }
   };
 
@@ -349,12 +349,18 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
         );
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to save comment."));
+      toast.error(getErrorMessage(error, t("requests.toast_save_comment_error")));
     }
   };
 
   const openEdit = (req: ClassRequest) => {
     setEditingRequest(req);
+    setIsFormOpen(true);
+  };
+
+  const handleDuplicate = (req: ClassRequest) => {
+    const { id, comments, documents, ...rest } = req;
+    setEditingRequest(rest as any);
     setIsFormOpen(true);
   };
 
@@ -433,10 +439,10 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
             return req;
           }),
         );
-        toast.success("Document uploaded successfully.");
+        toast.success(t("requests.toast_upload_doc_success"));
       }
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to upload document."));
+      toast.error(getErrorMessage(error, t("requests.toast_upload_doc_error")));
     }
   };
 
@@ -458,9 +464,9 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
           return req;
         }),
       );
-      toast.success("Document deleted successfully.");
+      toast.success(t("requests.toast_delete_doc_success"));
     } catch (error) {
-      toast.error(getErrorMessage(error, "Unable to delete document."));
+      toast.error(getErrorMessage(error, t("requests.toast_delete_doc_error")));
     }
   };
 
@@ -478,6 +484,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
         onUploadDocument={handleUploadDocument}
         onDeleteDocument={handleDeleteDocument}
         onDownloadDocument={handleDownloadDocument}
+        onDuplicate={handleDuplicate}
       />
     );
   }
@@ -501,7 +508,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
               onClick={() => setIsExportOpen(true)}
               className="rounded-xl border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 px-5 h-9"
             >
-              <Download className="mr-2 h-4 w-4" /> Export Report
+              <Download className="mr-2 h-4 w-4" /> {t("coordinator.export_btn")}
             </Button>
             <Button
               onClick={() => {
@@ -542,6 +549,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
               onEdit={openEdit}
               onCancel={(req) => setRequestToCancel(req)}
               onStatusChange={handleStatusChange}
+              onDuplicate={handleDuplicate}
             />
           ) : (
             <RequestsTable
@@ -554,6 +562,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
               onViewDetails={openDetails}
               onEdit={openEdit}
               onCancel={(req) => setRequestToCancel(req)}
+              onDuplicate={handleDuplicate}
             />
           )}
         </div>
@@ -561,7 +570,7 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
         <RequestForm
           open={isFormOpen}
           onOpenChange={setIsFormOpen}
-          onSubmit={editingRequest ? handleUpdateRequest : handleCreateRequest}
+          onSubmit={(editingRequest && editingRequest.id) ? handleUpdateRequest : handleCreateRequest}
           initialData={editingRequest}
           user={user}
         />
@@ -572,29 +581,20 @@ export const TeacherRequestsPage = ({ user, requestId }: TeacherRequestsPageProp
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogTitle>{t("requests.cancel_confirm_title")}</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently cancel your
-                request for
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {" "}
-                  {requestToCancel?.unit}
-                </span>{" "}
-                on
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {" "}
-                  {requestToCancel?.newDate}
-                </span>
-                .
+                {t("requests.cancel_confirm_desc")
+                  .replace("{unit}", requestToCancel?.unit || "")
+                  .replace("{date}", requestToCancel?.newDate || "")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleCancelRequest}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
-                Yes, cancel request
+                {t("requests.cancel_confirm_yes")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

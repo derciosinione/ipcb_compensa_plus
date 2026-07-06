@@ -26,6 +26,7 @@ import {
   Download,
   Eye,
   Loader2,
+  Copy,
 } from "lucide-react";
 import type { ClassRequest, RequestDocument } from "../../../types/requests";
 import type { UserRole } from "../../../types/user";
@@ -63,6 +64,7 @@ interface RequestDetailsPageProps {
   onUploadDocument?: (requestId: string, file: File) => Promise<void>;
   onDeleteDocument?: (requestId: string, documentId: string) => Promise<void>;
   onDownloadDocument?: (requestId: string, documentId: string) => void;
+  onDuplicate?: (req: ClassRequest) => void;
   userRole?: UserRole;
 }
 
@@ -74,6 +76,7 @@ export const RequestDetailsPage = ({
   onUploadDocument,
   onDeleteDocument,
   onDownloadDocument,
+  onDuplicate,
   userRole = "teacher",
 }: RequestDetailsPageProps) => {
   const [newComment, setNewComment] = useState("");
@@ -178,13 +181,12 @@ export const RequestDetailsPage = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
       if (shouldRevoke && url) {
         URL.revokeObjectURL(url);
       }
     } catch (err) {
       console.error(err);
-      toast.error("Error downloading file.");
+      toast.error(t("requests.toast_download_doc_error"));
     }
   };
 
@@ -207,9 +209,9 @@ export const RequestDetailsPage = ({
     setIsUploading(true);
     try {
       await onUploadDocument(request.id, pendingUploadFile);
-      toast.success("Document uploaded successfully.");
+      toast.success(t("requests.toast_upload_doc_success"));
     } catch (error) {
-      toast.error("Error uploading document.");
+      toast.error(t("requests.toast_upload_doc_error"));
     } finally {
       setIsUploading(false);
       setPendingUploadFile(null);
@@ -360,7 +362,16 @@ export const RequestDetailsPage = ({
                 <MoreHorizontal className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+              {onDuplicate && (
+                <DropdownMenuItem
+                  onClick={() => onDuplicate(request)}
+                  className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  <Copy className="w-4 h-4 text-purple-500" />
+                  <span>{t("requests.duplicate_request")}</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem>{t("details.download_pdf")}</DropdownMenuItem>
               <DropdownMenuItem className="text-red-600">
                 {t("details.report_issue")}
@@ -557,11 +568,10 @@ export const RequestDetailsPage = ({
             </Card>
           </div>
 
-          {/* Documents Section */}
           <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <CardHeader className="bg-slate-50/50 dark:bg-slate-800/30 pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                <FileText className="w-4 h-4" /> Documents
+                <FileText className="w-4 h-4" /> {t("details.documents")}
               </CardTitle>
               {(userRole === "teacher" || userRole === "coordinator") && request.status === "pending" && (
                 <>
@@ -580,7 +590,7 @@ export const RequestDetailsPage = ({
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    {isUploading ? "Uploading..." : "Upload"}
+                    {isUploading ? t("documents.uploading") : t("documents.upload")}
                   </Button>
                 </>
               )}
@@ -644,7 +654,7 @@ export const RequestDetailsPage = ({
               ) : (
                 <div className="py-8 text-center border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl">
                   <FileText className="w-8 h-8 mx-auto text-slate-200 dark:text-slate-700 mb-2" />
-                  <p className="text-xs text-slate-400">No documents uploaded yet.</p>
+                  <p className="text-xs text-slate-400">{t("documents.no_documents")}</p>
                 </div>
               )}
             </CardContent>
@@ -753,10 +763,10 @@ export const RequestDetailsPage = ({
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Upload className="w-5 h-5 text-blue-500" />
-              Confirm Document Upload
+              {t("documents.confirm_title")}
             </DialogTitle>
             <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-              Please review the document below before uploading it to request compensation.
+              {t("documents.confirm_desc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -795,14 +805,14 @@ export const RequestDetailsPage = ({
               onClick={handleCancelUpload}
               className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 px-5 text-sm"
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleConfirmUpload}
               className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/20 px-6 font-medium text-sm flex items-center gap-2"
             >
               <Check className="w-4 h-4" />
-              Confirm & Upload
+              {t("documents.confirm_btn")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -828,12 +838,12 @@ export const RequestDetailsPage = ({
             {previewLoading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Loading document preview...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{t("documents.preview_loading")}</p>
               </div>
             ) : previewError ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-6">
                 <AlertTriangle className="w-10 h-10 text-red-500 mb-3" />
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">Failed to load preview</p>
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">{t("documents.preview_failed")}</p>
                 <p className="text-xs text-slate-500 max-w-md">{previewError}</p>
               </div>
             ) : previewDocument && previewBlobUrl ? (
@@ -866,10 +876,10 @@ export const RequestDetailsPage = ({
                   <div className="flex flex-col items-center justify-center py-16 bg-slate-50/50 dark:bg-slate-950/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-center p-6">
                     <FileText className="w-14 h-14 text-slate-300 dark:text-slate-700 mb-4" />
                     <p className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-1">
-                      Preview not available
+                      {t("documents.preview_not_available")}
                     </p>
                     <p className="text-xs text-slate-500 max-w-sm">
-                      We support previews for PDFs, text files, and images. Please download this file to view its full content.
+                      {t("documents.preview_not_available_desc")}
                     </p>
                   </div>
                 )}
@@ -883,7 +893,7 @@ export const RequestDetailsPage = ({
               onClick={handleClosePreview}
               className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 px-5 text-sm"
             >
-              Close
+              {t("common.close")}
             </Button>
             {previewDocument && (
               <Button
@@ -892,7 +902,7 @@ export const RequestDetailsPage = ({
                 disabled={previewLoading}
               >
                 <Download className="w-4 h-4" />
-                Download Document
+                {t("documents.download_btn")}
               </Button>
             )}
           </DialogFooter>

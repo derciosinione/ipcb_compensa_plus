@@ -1,6 +1,6 @@
 import React from "react";
 import { useDrag } from "react-dnd";
-import { AlertTriangle, Calendar, Clock, MoreHorizontal, RotateCcw, X } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, MoreHorizontal, RotateCcw, X, Copy } from "lucide-react";
 import { Card, CardHeader, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -34,6 +34,7 @@ export interface RequestCardProps {
   onEdit?: (req: ClassRequest) => void;
   onCancel?: (req: ClassRequest) => void;
   onChangeStatus?: (id: string, status: RequestStatus) => void;
+  onDuplicate?: (req: ClassRequest) => void;
 }
 
 const ITEM_TYPE = "REQUEST_CARD";
@@ -47,6 +48,7 @@ export const RequestCard: React.FC<RequestCardProps> = ({
   onEdit,
   onCancel,
   onChangeStatus,
+  onDuplicate,
 }) => {
   const { t } = useLanguage();
   const isAdmin = userRole === "admin";
@@ -228,6 +230,19 @@ export const RequestCard: React.FC<RequestCardProps> = ({
                 >
                   {t("actions.view_details")}
                 </DropdownMenuItem>
+
+                {isTeacher && onDuplicate && (
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDuplicate(request);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5 mr-2 text-purple-500" />
+                    {t("requests.duplicate_request")}
+                  </DropdownMenuItem>
+                )}
 
                 {/* Teacher Actions */}
                 {isTeacher &&

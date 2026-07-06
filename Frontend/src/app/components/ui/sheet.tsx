@@ -51,7 +51,7 @@ const SheetContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & {
     side?: "top" | "right" | "bottom" | "left";
   }
->(({ side = "right", className, children, ...props }, ref) => {
+>(({ side = "right", className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => {
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -69,6 +69,32 @@ const SheetContent = React.forwardRef<
             "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t",
           className,
         )}
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement;
+          if (
+            target?.closest?.("[data-sonner-toast]") ||
+            target?.closest?.(".sonner") ||
+            target?.closest?.("[data-toast]") ||
+            target?.closest?.(".toast")
+          ) {
+            e.preventDefault();
+          } else {
+            onPointerDownOutside?.(e);
+          }
+        }}
+        onInteractOutside={(e) => {
+          const target = e.target as HTMLElement;
+          if (
+            target?.closest?.("[data-sonner-toast]") ||
+            target?.closest?.(".sonner") ||
+            target?.closest?.("[data-toast]") ||
+            target?.closest?.(".toast")
+          ) {
+            e.preventDefault();
+          } else {
+            onInteractOutside?.(e);
+          }
+        }}
         {...props}
         ref={ref}
       >

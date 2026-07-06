@@ -18,7 +18,7 @@ import {
   useMarkNotificationReadMutation,
   useNotificationsQuery,
 } from "../../services/notifications/notificationQueries";
-import { useLanguage } from "../../providers/LanguageContext";
+import { useLanguage, translateNotificationText } from "../../providers/LanguageContext";
 
 export const NotificationsPage = () => {
   const { t } = useLanguage();
@@ -174,7 +174,7 @@ export const NotificationsPage = () => {
                           : "text-slate-600 dark:text-slate-400",
                       )}
                     >
-                      {notification.title}
+                      {translateNotificationText(notification.title, notification.message, t).title}
                     </h4>
                     <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
                       {new Date(notification.createdAt).toLocaleString()}
@@ -188,7 +188,7 @@ export const NotificationsPage = () => {
                         : "text-slate-500 dark:text-slate-500",
                     )}
                   >
-                    {notification.message}
+                    {translateNotificationText(notification.title, notification.message, t).message}
                   </p>
                   <div className="flex gap-3 mt-4">
                     {!notification.isRead && (

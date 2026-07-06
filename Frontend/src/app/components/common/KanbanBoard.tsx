@@ -18,6 +18,7 @@ export interface DroppableColumnProps {
   onStatusChange?: (id: string, newStatus: RequestStatus) => void;
   onEdit?: (req: ClassRequest) => void;
   onCancel?: (req: ClassRequest) => void;
+  onDuplicate?: (req: ClassRequest) => void;
 }
 
 const ITEM_TYPE = "REQUEST_CARD";
@@ -33,6 +34,7 @@ export const DroppableColumn: React.FC<DroppableColumnProps> = ({
   onStatusChange,
   onEdit,
   onCancel,
+  onDuplicate,
 }) => {
   const { t } = useLanguage();
   const isAdmin = userRole === "admin";
@@ -96,6 +98,7 @@ export const DroppableColumn: React.FC<DroppableColumnProps> = ({
             onChangeStatus={onStatusChange}
             onEdit={onEdit}
             onCancel={onCancel}
+            onDuplicate={onDuplicate}
           />
         ))}
         {requests.length === 0 && (
@@ -118,6 +121,7 @@ export interface KanbanBoardProps {
   onStatusChange?: (id: string, newStatus: RequestStatus) => void;
   onEdit?: (req: ClassRequest) => void;
   onCancel?: (req: ClassRequest) => void;
+  onDuplicate?: (req: ClassRequest) => void;
 }
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({
@@ -128,6 +132,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onStatusChange,
   onEdit,
   onCancel,
+  onDuplicate,
 }) => {
   const { t } = useLanguage();
   const pendingRequests = requests.filter((r) => r.status === "pending");
@@ -148,6 +153,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         onStatusChange={onStatusChange}
         onEdit={onEdit}
         onCancel={onCancel}
+        onDuplicate={onDuplicate}
       />
       <DroppableColumn
         status="approved"
@@ -160,6 +166,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         onStatusChange={onStatusChange}
         onEdit={onEdit}
         onCancel={onCancel}
+        onDuplicate={onDuplicate}
       />
       <DroppableColumn
         status="rejected"
@@ -172,6 +179,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         onStatusChange={onStatusChange}
         onEdit={onEdit}
         onCancel={onCancel}
+        onDuplicate={onDuplicate}
       />
       <DroppableColumn
         status="cancelled"
@@ -184,6 +192,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
         onStatusChange={onStatusChange}
         onEdit={onEdit}
         onCancel={onCancel}
+        onDuplicate={onDuplicate}
       />
     </div>
   );

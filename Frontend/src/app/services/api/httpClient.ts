@@ -81,7 +81,7 @@ export const apiRequest = async <T>(
       headers.set("X-Active-Role", activeRole);
     }
 
-    return fetch(`${baseUrl}${path}`, { ...options, headers });
+    return fetch(`${baseUrl}${path}`, { cache: "no-store", ...options, headers });
   };
 
   let response = await executeRequest(accessToken);

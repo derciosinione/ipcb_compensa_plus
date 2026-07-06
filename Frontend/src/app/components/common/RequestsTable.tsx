@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar, Clock, MoreHorizontal, Eye, Pencil, Ban, CheckCircle, XCircle } from "lucide-react";
+import { Calendar, Clock, MoreHorizontal, Eye, Pencil, Ban, CheckCircle, XCircle, Copy } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +40,7 @@ export interface RequestsTableProps {
   onViewDetails: (req: ClassRequest) => void;
   onEdit?: (req: ClassRequest) => void;
   onCancel?: (req: ClassRequest) => void;
+  onDuplicate?: (req: ClassRequest) => void;
   onStatusChange?: (requestId: string, newStatus: "approved" | "rejected" | "pending") => void;
 }
 
@@ -88,6 +89,7 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
   onEdit,
   onCancel,
   onStatusChange,
+  onDuplicate,
 }) => {
   const { t } = useLanguage();
   const isTeacher = userRole === "teacher";
@@ -243,6 +245,19 @@ export const RequestsTable: React.FC<RequestsTableProps> = ({
                         >
                           <Pencil className="w-4 h-4 text-blue-500" />
                           <span>{t("requests.edit_request")}</span>
+                        </DropdownMenuItem>
+                      )}
+
+                      {isTeacher && onDuplicate && (
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDuplicate(request);
+                          }}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800"
+                        >
+                          <Copy className="w-4 h-4 text-purple-500" />
+                          <span>{t("requests.duplicate_request")}</span>
                         </DropdownMenuItem>
                       )}
 

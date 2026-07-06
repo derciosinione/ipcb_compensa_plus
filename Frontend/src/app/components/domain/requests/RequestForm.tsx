@@ -127,11 +127,12 @@ export const RequestForm = ({
   const [openCombobox, setOpenCombobox] = useState(false);
   const [suggestedBaseDate, setSuggestedBaseDate] = useState<Date>(new Date());
   const [compBaseDate, setCompBaseDate] = useState<Date>(new Date());
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
   // Edit Mode Flag
   const isEditMode = !!(initialData && initialData.id);
+  const isDuplicateMode = !!(initialData && !initialData.id);
 
   useEffect(() => {
     if (!open) return;
@@ -179,6 +180,15 @@ export const RequestForm = ({
   useEffect(() => {
     setErrors({});
     if (initialData) {
+      // Parse starting hour from newTime if it's a range (e.g. "14:30 - 16:30" or "14:30-16:30")
+      const cleanNewTime = (() => {
+        if (!initialData.newTime) return "";
+        const val = String(initialData.newTime).trim();
+        if (val.includes(" - ")) return val.split(" - ")[0].trim();
+        if (val.includes("-")) return val.split("-")[0].trim();
+        return val;
+      })();
+
       // Populate form if in edit mode
       setCurrentData({
         course: initialData.courseId || initialData.course || "",
@@ -189,7 +199,7 @@ export const RequestForm = ({
         originalTime: initialData.originalTime || "",
         originalRoom: initialData.originalClassScheduleId || initialData.originalRoom || "",
         newDate: initialData.newDate || "",
-        newTime: initialData.newTime || "",
+        newTime: cleanNewTime,
         newRoom: initialData.newClassroomId || initialData.newRoom || "",
         reason: initialData.reason || "",
       });
@@ -508,10 +518,10 @@ export const RequestForm = ({
           excludedScheduleId: selectedSchedule.id,
         });
         setRoomAvailability(items);
-        // If currently selected room is now occupied, clear it
+        // If currently selected room is now occupied or not present, clear it
         if (currentData.newRoom) {
           const selected = items.find((r) => r.classroomId === currentData.newRoom);
-          if (selected && !selected.isAvailable) {
+          if (!selected || !selected.isAvailable) {
             setCurrentData((prev) => ({ ...prev, newRoom: "" }));
           }
         }
@@ -531,6 +541,13 @@ export const RequestForm = ({
     selectedSchedule,
     classGroupConflict,
   ]);
+
+  // Clear room selection if there is a group schedule conflict
+  useEffect(() => {
+    if (classGroupConflict && currentData.newRoom) {
+      setCurrentData((prev) => ({ ...prev, newRoom: "" }));
+    }
+  }, [classGroupConflict, currentData.newRoom]);
 
 
   const getSuggestedDates = (dayOfWeek: number, baseDate: Date) => {
@@ -649,6 +666,15 @@ export const RequestForm = ({
     return dates;
   };
 
+  const showValidationToast = (missingFields: string[]) => {
+    if (missingFields.length === 0) return;
+    if (language === "pt") {
+      toast.error(`Por favor, preencha os seguintes campos obrigatórios: ${missingFields.join(", ")}`);
+    } else {
+      toast.error(`Please fill in the following required fields: ${missingFields.join(", ")}`);
+    }
+  };
+
   const validateForm = () => {
     const newErrors: Record<string, boolean> = {
       course: !currentData.course,
@@ -662,17 +688,42 @@ export const RequestForm = ({
       newRoom: !currentData.newRoom,
     };
     setErrors(newErrors);
-    return !Object.values(newErrors).some(Boolean);
+
+    const missingFields: string[] = [];
+    if (newErrors.course) missingFields.push(language === "pt" ? "Curso" : "Course");
+    if (newErrors.unit) missingFields.push(language === "pt" ? "Unidade Curricular" : "Curricular Unit");
+    if (newErrors.yearGroups) missingFields.push(language === "pt" ? "Turma" : "Class Group");
+    if (newErrors.originalDate) missingFields.push(language === "pt" ? "Data Original" : "Original Date");
+    if (newErrors.originalRoom) missingFields.push(language === "pt" ? "Horário Original" : "Original Schedule");
+    if (newErrors.newDate) missingFields.push(language === "pt" ? "Nova Data" : "New Date");
+    if (newErrors.newTime) missingFields.push(language === "pt" ? "Novo Horário" : "New Time");
+    if (newErrors.newRoom) missingFields.push(language === "pt" ? "Nova Sala" : "New Room");
+    if (newErrors.reason) missingFields.push(language === "pt" ? "Justificativa" : "Justification");
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+    };
   };
 
   const handleAddToQueue = () => {
-    if (!validateForm()) {
-      toast.error(t("form.fill_required"));
+    const { isValid, missingFields } = validateForm();
+    if (!isValid) {
+      showValidationToast(missingFields);
       return;
     }
 
     if (originalDateError) {
       toast.error(originalDateError);
+      return;
+    }
+
+    if (classGroupConflict) {
+      toast.error(
+        language === "pt"
+          ? "Por favor, resolva o conflito de horário da turma antes de adicionar à fila."
+          : "Please resolve the class group schedule conflict before adding to the queue."
+      );
       return;
     }
 
@@ -765,6 +816,15 @@ export const RequestForm = ({
         return;
       }
 
+      if (classGroupConflict) {
+        toast.error(
+          language === "pt"
+            ? "Por favor, resolva o conflito de horário da turma antes de salvar."
+            : "Please resolve the class group schedule conflict before saving."
+        );
+        return;
+      }
+
       if (conflictWarning) {
         toast.error(
           conflictMessage ||
@@ -773,8 +833,9 @@ export const RequestForm = ({
         return;
       }
 
-      if (!validateForm()) {
-        toast.error(t("form.fill_required"));
+      const { isValid, missingFields } = validateForm();
+      if (!isValid) {
+        showValidationToast(missingFields);
         return;
       }
 
@@ -815,13 +876,23 @@ export const RequestForm = ({
     );
 
     if (isFormDirty) {
-      if (!validateForm()) {
-        toast.error(t("form.fill_required"));
+      const { isValid, missingFields } = validateForm();
+      if (!isValid) {
+        showValidationToast(missingFields);
         return;
       }
 
       if (originalDateError) {
         toast.error(originalDateError);
+        return;
+      }
+
+      if (classGroupConflict) {
+        toast.error(
+          language === "pt"
+            ? "Por favor, resolva o conflito de horário da turma antes de submeter."
+            : "Please resolve the class group schedule conflict before submitting."
+        );
         return;
       }
 
@@ -873,10 +944,18 @@ export const RequestForm = ({
           <div className="flex items-center justify-between">
             <div>
               <SheetTitle className="text-xl font-bold text-slate-900">
-                {isEditMode ? t("form.edit_title") : t("form.new_title")}
+                {isEditMode
+                  ? t("form.edit_title")
+                  : isDuplicateMode
+                    ? t("form.duplicate_title")
+                    : t("form.new_title")}
               </SheetTitle>
               <SheetDescription className="text-slate-500 mt-1">
-                {isEditMode ? t("form.edit_desc") : t("form.new_desc")}
+                {isEditMode
+                  ? t("form.edit_desc")
+                  : isDuplicateMode
+                    ? t("form.duplicate_desc")
+                    : t("form.new_desc")}
               </SheetDescription>
             </div>
             {!isEditMode && queue.length > 0 && (
@@ -928,12 +1007,12 @@ export const RequestForm = ({
                                 variant="outline"
                                 className="text-[10px] h-4 px-1 py-0 border-slate-300 text-slate-500 uppercase"
                               >
-                                {req.componentType}
+                                {t(`component.${req.componentType}`) || req.componentType}
                               </Badge>
                             )}
                             {editingQueueItemId === req.id && (
                               <Badge className="text-[10px] h-4 px-1.5 py-0 bg-blue-100 text-blue-700 border-0">
-                                Editing
+                                {t("form.editing")}
                               </Badge>
                             )}
                           </div>
@@ -953,7 +1032,7 @@ export const RequestForm = ({
                               size="sm"
                               onClick={() => handleEditQueueItem(req)}
                               className="h-6 w-6 p-0 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-full"
-                              title="Edit this item"
+                              title={t("form.edit_item_title")}
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                             </Button>
@@ -1074,10 +1153,10 @@ export const RequestForm = ({
                         </Select>
                       </div>
                       {errors.course && (
-                        <p className="text-[11px] text-red-500 font-medium">Course is required</p>
+                        <p className="text-[11px] text-red-500 font-medium">{t("form.course_required")}</p>
                       )}
                       {!errors.course && errors.unit && (
-                        <p className="text-[11px] text-red-500 font-medium">Curricular Unit is required</p>
+                        <p className="text-[11px] text-red-500 font-medium">{t("form.unit_required")}</p>
                       )}
                     </div>
 
@@ -1104,7 +1183,7 @@ export const RequestForm = ({
                                 )}
                               >
                                 {currentData.yearGroups.length > 0
-                                  ? `${currentData.yearGroups.length} selected`
+                                  ? t("form.selected_count").replace("{count}", String(currentData.yearGroups.length))
                                   : t("form.select_groups")}
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                               </Button>
@@ -1114,9 +1193,9 @@ export const RequestForm = ({
                               align="start"
                             >
                               <Command>
-                                <CommandInput placeholder="Search group..." />
+                                <CommandInput placeholder={t("form.search_group")} />
                                 <CommandList>
-                                  <CommandEmpty>No group found.</CommandEmpty>
+                                  <CommandEmpty>{t("form.no_group_found")}</CommandEmpty>
                                   <CommandGroup>
                                     {availableClasses.map((group) => (
                                       <CommandItem
@@ -1184,7 +1263,7 @@ export const RequestForm = ({
                             </div>
                           )}
                           {errors.yearGroups && (
-                            <p className="text-[11px] text-red-500 font-medium mt-1">At least one group/class is required</p>
+                            <p className="text-[11px] text-red-500 font-medium mt-1">{t("form.group_required")}</p>
                           )}
                         </div>
 
@@ -1206,7 +1285,7 @@ export const RequestForm = ({
                             <SelectContent>
                               {(!user || user.role !== "teacher") && (
                                 <SelectItem value="all">
-                                  All / Standard
+                                  {t("component.all")}
                                 </SelectItem>
                               )}
                               {(courseDetails?.components ?? [])
@@ -1218,14 +1297,18 @@ export const RequestForm = ({
                                       user.role !== "teacher" ||
                                       comp.responsibleTeacherId === user.id),
                                 )
-                                .map((comp) => (
-                                  <SelectItem
-                                    key={comp.id}
-                                    value={comp.type.toLowerCase()}
-                                  >
-                                    {comp.type}
-                                  </SelectItem>
-                                ))}
+                                .map((comp) => {
+                                  const compKey = `component.${comp.type.toLowerCase()}`;
+                                  const translated = t(compKey);
+                                  return (
+                                    <SelectItem
+                                      key={comp.id}
+                                      value={comp.type.toLowerCase()}
+                                    >
+                                      {translated !== compKey ? translated : comp.type}
+                                    </SelectItem>
+                                  );
+                                })}
                             </SelectContent>
                           </Select>
                         </div>
@@ -1248,7 +1331,7 @@ export const RequestForm = ({
                         onChange={(e) => handleChange("reason", e.target.value)}
                       />
                       {errors.reason && (
-                        <p className="text-[11px] text-red-500 font-medium">Reason is required</p>
+                        <p className="text-[11px] text-red-500 font-medium">{t("form.reason_required")}</p>
                       )}
                     </div>
                   </div>
@@ -1292,9 +1375,9 @@ export const RequestForm = ({
                                   year: "numeric",
                                 });
                               })()
-                            : "Select a date from the suggestions below"}</div>
+                            : t("form.select_date_from_suggestions")}</div>
                         {errors.originalDate && (
-                          <p className="text-[11px] text-red-500 font-medium">Please select an original date suggestion below</p>
+                          <p className="text-[11px] text-red-500 font-medium">{t("form.select_original_date_suggestion")}</p>
                         )}
 
                         {selectedSchedule && (
@@ -1302,10 +1385,10 @@ export const RequestForm = ({
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-                                  Suggested Dates
+                                  {t("form.suggested_dates")}
                                 </span>
                                 <span className="text-[9px] bg-slate-100 text-slate-500 border border-slate-200 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">
-                                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][selectedSchedule.dayOfWeek]}s only
+                                  {t(["days.sun_s", "days.mon_s", "days.tue_s", "days.wed_s", "days.thu_s", "days.fri_s", "days.sat_s"][selectedSchedule.dayOfWeek])}
                                 </span>
                               </div>
                               <div className="flex gap-1">
@@ -1317,7 +1400,7 @@ export const RequestForm = ({
                                     setSuggestedBaseDate(next);
                                   }}
                                   className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
-                                  title="Previous week"
+                                  title={t("form.prev_week")}
                                 >
                                   <ChevronLeft className="w-3 h-3" />
                                 </button>
@@ -1329,7 +1412,7 @@ export const RequestForm = ({
                                     setSuggestedBaseDate(next);
                                   }}
                                   className="p-1 hover:bg-slate-100 rounded text-slate-400 transition-colors"
-                                  title="Next week"
+                                  title={t("form.next_week")}
                                 >
                                   <ChevronRight className="w-3 h-3" />
                                 </button>
@@ -1364,7 +1447,7 @@ export const RequestForm = ({
                                       day: "2-digit",
                                       month: "short",
                                     })}
-                                    {isToday && " (Today)"}
+                                    {isToday && ` (${t("common.today")})`}
                                   </button>
                                 );
                               })}
@@ -1379,7 +1462,7 @@ export const RequestForm = ({
                               ? `${selectedSchedule.startTime.slice(0, 5)} - ${selectedSchedule.endTime.slice(0, 5)}`
                               : ""
                           }
-                          placeholder="Select original class schedule"
+                          placeholder={t("form.select_original_class_schedule")}
                           readOnly
                         />
                         <Select
@@ -1417,7 +1500,7 @@ export const RequestForm = ({
                               ? "border-red-500 ring-2 ring-red-100 dark:border-red-900 focus:border-red-500"
                               : "border-slate-300 dark:border-slate-700"
                           )}>
-                            <SelectValue placeholder="Original schedule" />
+                            <SelectValue placeholder={t("form.original_schedule")} />
                           </SelectTrigger>
                           <SelectContent>
                             {availableSchedules.map((schedule) => (
@@ -1428,7 +1511,7 @@ export const RequestForm = ({
                           </SelectContent>
                         </Select>
                         {errors.originalRoom && (
-                          <p className="text-[11px] text-red-500 font-medium">Original schedule is required</p>
+                          <p className="text-[11px] text-red-500 font-medium">{t("form.original_schedule_required")}</p>
                         )}
                       </div>
                     </div>
@@ -1462,7 +1545,7 @@ export const RequestForm = ({
                             }}
                           />
                           {errors.newDate && (
-                            <p className="text-[11px] text-red-500 font-medium mt-1">New date is required</p>
+                            <p className="text-[11px] text-red-500 font-medium mt-1">{t("form.new_date_required")}</p>
                           )}
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-blue-400/50">
                             <svg
@@ -1487,7 +1570,7 @@ export const RequestForm = ({
                         <div className="space-y-2 py-1">
                           <div className="flex items-center justify-between">
                             <span className="text-[10px] text-blue-400 font-medium uppercase tracking-wider">
-                              Suggested Dates
+                              {t("form.suggested_dates")}
                             </span>
                             <div className="flex gap-1">
                               <button
@@ -1498,6 +1581,7 @@ export const RequestForm = ({
                                   setCompBaseDate(next);
                                 }}
                                 className="p-1 hover:bg-blue-50 rounded text-blue-400 transition-colors"
+                                title={t("form.prev_week")}
                               >
                                 <ChevronLeft className="w-3 h-3" />
                               </button>
@@ -1509,6 +1593,7 @@ export const RequestForm = ({
                                   setCompBaseDate(next);
                                 }}
                                 className="p-1 hover:bg-blue-50 rounded text-blue-400 transition-colors"
+                                title={t("form.next_week")}
                               >
                                 <ChevronRight className="w-3 h-3" />
                               </button>
@@ -1546,8 +1631,8 @@ export const RequestForm = ({
                                   )}
                                   title={
                                     item.isConflict
-                                      ? "Exceeds 8-hour daily limit"
-                                      : `${Math.round(item.hours)}h total on this day`
+                                      ? t("form.conflict_exceed_8h_short")
+                                      : t("form.suggested_hours_on_day").replace("{hours}", String(Math.round(item.hours)))
                                   }
                                 >
                                   <span>
@@ -1555,7 +1640,7 @@ export const RequestForm = ({
                                       day: "2-digit",
                                       month: "short",
                                     })}
-                                    {isTomorrow && " (Tmw)"}
+                                    {isTomorrow && ` (${t("form.tmw")})`}
                                   </span>
                                   <span
                                     className={cn(
@@ -1592,7 +1677,7 @@ export const RequestForm = ({
                             )}
                           </div>
                           {errors.newTime && (
-                            <p className="text-[11px] text-red-500 font-medium">New time is required</p>
+                            <p className="text-[11px] text-red-500 font-medium">{t("form.new_time_required")}</p>
                           )}
 
                           {classGroupDayInfo && (
@@ -1600,11 +1685,11 @@ export const RequestForm = ({
 
                               {/* Day Timetable */}
                               {classGroupDayLoading ? (
-                                <span className="text-[10px] text-slate-400">Loading timetable...</span>
+                                <span className="text-[10px] text-slate-400">{t("form.loading_timetable")}</span>
                               ) : (
                                 <div className="space-y-1">
                                   <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
-                                    {new Date(currentData.newDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })} — timetable
+                                    {new Date(currentData.newDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })} — {t("form.timetable")}
                                   </span>
                                   {classGroupDayInfo.busySlots && classGroupDayInfo.busySlots.length > 0 ? (
                                     <div className="space-y-0.5">
@@ -1629,10 +1714,10 @@ export const RequestForm = ({
                                               {slot.startTime}–{slot.endTime}
                                             </span>
                                             <span className="text-[9px] opacity-70 uppercase tracking-wide">
-                                              {slot.type === "ClassSchedule" ? "regular" :
-                                               slot.type === "TeacherSchedule" ? "teacher" :
-                                               slot.type === "CompensationRequest" ? "compensation" :
-                                               "teacher comp."}
+                                              {slot.type === "ClassSchedule" ? t("form.slot_regular") :
+                                               slot.type === "TeacherSchedule" ? t("form.slot_teacher") :
+                                               slot.type === "CompensationRequest" ? t("form.slot_compensation") :
+                                               t("form.slot_teacher_comp")}
                                             </span>
                                             {isConflictSlot && (
                                               <AlertTriangle className="w-2.5 h-2.5 text-amber-500 ml-auto" />
@@ -1642,7 +1727,7 @@ export const RequestForm = ({
                                       })}
                                     </div>
                                   ) : (
-                                    <span className="text-[10px] text-emerald-600 font-medium block">No classes scheduled — day is free</span>
+                                    <span className="text-[10px] text-emerald-600 font-medium block">{t("form.no_classes_scheduled")}</span>
                                   )}
                                 </div>
                               )}
@@ -1656,7 +1741,7 @@ export const RequestForm = ({
                                       {t("requests.class_group_free_hours") ?? "Class Group Free Hours"}
                                     </span>
                                     {classGroupDayLoading ? (
-                                      <span className="text-[10px] text-slate-400">Loading free hours...</span>
+                                      <span className="text-[10px] text-slate-400">{t("form.loading_free_hours")}</span>
                                     ) : filtered.length > 0 ? (
                                       <div className="flex flex-wrap gap-1.5">
                                         {filtered.map((window) => {
@@ -1681,7 +1766,7 @@ export const RequestForm = ({
                                       </div>
                                     ) : (
                                       <span className="text-[10px] text-red-500 font-medium block">
-                                        No available slot fits this class duration
+                                        {t("form.no_available_slot")}
                                       </span>
                                     )}
                                   </div>
@@ -1695,15 +1780,19 @@ export const RequestForm = ({
                             <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-[11px] font-medium leading-relaxed mt-2 flex items-start gap-1.5 animate-in fade-in">
                               <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                               <div>
-                                <span>The selected time overlaps with an existing class: </span>
+                                <span>{t("form.overlaps_msg")}</span>
                                 <span className="font-bold underline">
                                   {classGroupConflict.type === "ClassSchedule"
-                                    ? "regular class schedule"
+                                    ? t("form.regular_class_schedule")
                                     : classGroupConflict.type === "TeacherSchedule"
-                                      ? "teacher's regular schedule"
-                                      : "another compensation request"}
+                                      ? t("form.teacher_regular_schedule")
+                                      : t("form.another_compensation")}
                                 </span>
-                                <span> ({classGroupConflict.startTime}–{classGroupConflict.endTime}). Pick a time from the free windows above.</span>
+                                <span>
+                                  {t("form.overlaps_pick_time")
+                                    .replace("{start}", classGroupConflict.startTime)
+                                    .replace("{end}", classGroupConflict.endTime)}
+                                </span>
                               </div>
                             </div>
                           )}
@@ -1712,17 +1801,17 @@ export const RequestForm = ({
                         {/* Smart Room Picker — shows availability status after date+time are selected */}
                         {classGroupConflict ? (
                           <div className="h-10 flex items-center justify-center text-xs text-amber-600 border border-amber-200 rounded-md px-3 bg-amber-50/30 italic">
-                            Resolve class group conflict to select a classroom
+                            {t("form.resolve_conflict")}
                           </div>
                         ) : roomAvailabilityLoading ? (
                           <div className="h-9 flex items-center gap-2 text-xs text-slate-400 border border-blue-200 rounded-md px-3 bg-white">
                             <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" className="opacity-25" /><path d="M12 2a10 10 0 0 1 10 10" className="opacity-75" /></svg>
-                            Checking room availability…
+                            {t("form.checking_rooms")}
                           </div>
                         ) : roomAvailability.length > 0 ? (
                           <div className="space-y-1.5">
                             <span className={cn("text-[10px] font-medium uppercase tracking-wider", errors.newRoom ? "text-red-500" : "text-slate-400")}>
-                              Select Room {errors.newRoom && "— Required"}
+                              {t("form.select_room")} {errors.newRoom && t("form.required_label")}
                             </span>
                             <div className={cn(
                               "grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-0.5 p-1 rounded-lg",
@@ -1736,7 +1825,7 @@ export const RequestForm = ({
                                     type="button"
                                     disabled={!room.isAvailable}
                                     onClick={() => room.isAvailable && handleChange("newRoom", room.classroomId)}
-                                    title={room.isAvailable ? room.classroomName : (room.conflictInfo ?? "Occupied")}
+                                    title={room.isAvailable ? room.classroomName : (room.conflictInfo ?? t("form.occupied"))}
                                     className={cn(
                                       "relative text-[11px] font-medium px-2 py-1.5 rounded-lg border transition-all text-left leading-tight",
                                       room.isAvailable
@@ -1760,7 +1849,7 @@ export const RequestForm = ({
                               })}
                             </div>
                             {errors.newRoom && (
-                              <p className="text-[11px] text-red-500 font-medium">Classroom selection is required</p>
+                              <p className="text-[11px] text-red-500 font-medium">{t("form.room_required")}</p>
                             )}
                           </div>
                         ) : (
@@ -1770,7 +1859,7 @@ export const RequestForm = ({
                               ? "border-red-500 text-red-500 ring-2 ring-red-100 dark:border-red-900 dark:bg-red-950/20"
                               : "border-blue-200 text-slate-400 dark:border-blue-800"
                           )}>
-                            Select a date and time to see available rooms
+                            {t("form.select_date_time_for_rooms")}
                           </div>
                         )}
                       </div>

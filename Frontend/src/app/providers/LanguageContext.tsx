@@ -194,6 +194,7 @@ const translations: Record<Language, Record<string, string>> = {
     "requests.all_requests": "All Requests",
     "requests.oldest_first": "Oldest First",
     "requests.newest_first": "Newest First",
+    "requests.duplicate_request": "Duplicate Request",
 
     // Request Details
     "details.back_to_requests": "Back to Requests",
@@ -221,8 +222,10 @@ const translations: Record<Language, Record<string, string>> = {
     // Request Form
     "form.edit_title": "Edit Request",
     "form.new_title": "New Class Request",
+    "form.duplicate_title": "Duplicate Class Request",
     "form.edit_desc": "Modify the details of your request below.",
     "form.new_desc": "Add one or multiple compensation requests.",
+    "form.duplicate_desc": "Prefill options from an existing request and submit as a new one.",
     "form.pending_badge": "{count} Pending",
     "form.ready_submit": "Ready to Submit ({count})",
     "form.request_details": "Request Details",
@@ -902,8 +905,101 @@ const translations: Record<Language, Record<string, string>> = {
     "course.information_systems": "Information Systems",
     "course.design": "Design",
     "component.standard": "Standard",
+    "component.all": "All / Standard",
+    "component.theoreticalpractical": "Theoretical-Practical",
+    "component.practicallaboratorial": "Practical-Laboratorial",
     "requests.proposed": "Proposed",
-    "requests.activity_comments": "Activity & Comments"
+    "requests.activity_comments": "Activity & Comments",
+    "requests.cancel_confirm_title": "Are you sure?",
+    "requests.cancel_confirm_desc": "This action cannot be undone. This will permanently cancel your request for {unit} on {date}.",
+    "requests.cancel_confirm_yes": "Yes, cancel request",
+    "documents.upload": "Upload",
+    "documents.uploading": "Uploading...",
+    "documents.no_documents": "No documents uploaded yet.",
+    "documents.confirm_title": "Confirm Document Upload",
+    "documents.confirm_desc": "Please review the document below before uploading it to request compensation.",
+    "documents.confirm_btn": "Confirm & Upload",
+    "documents.preview_loading": "Loading document preview...",
+    "documents.preview_failed": "Failed to load preview",
+    "documents.preview_not_available": "Preview not available",
+    "documents.preview_not_available_desc": "We support previews for PDFs, text files, and images. Please download this file to view its full content.",
+    "documents.download_btn": "Download Document",
+    "requests.toast_no_permission_status": "You don't have permission to approve or reject requests.",
+    "requests.toast_load_error": "Unable to load compensation requests.",
+    "requests.toast_not_found": "Compensation request not found.",
+    "requests.toast_load_details_error": "Unable to load request details.",
+    "requests.toast_create_error": "Unable to create compensation request.",
+    "requests.toast_update_error": "Unable to update request.",
+    "requests.toast_cancel_error": "Unable to cancel request.",
+    "requests.toast_status_update_error": "Unable to change status.",
+    "requests.toast_save_comment_error": "Unable to save comment.",
+    "requests.toast_upload_doc_error": "Unable to upload document.",
+    "requests.toast_upload_doc_success": "Document uploaded successfully.",
+    "requests.toast_delete_doc_error": "Unable to delete document.",
+    "requests.toast_delete_doc_success": "Document deleted successfully.",
+    "requests.toast_download_doc_error": "Error downloading file.",
+    "form.editing": "Editing",
+    "form.edit_item_title": "Edit this item",
+    "form.course_required": "Course is required",
+    "form.unit_required": "Curricular Unit is required",
+    "form.search_group": "Search group...",
+    "form.no_group_found": "No group found.",
+    "details.documents": "Documents",
+    "form.group_required": "At least one group/class is required",
+    "form.reason_required": "Reason is required",
+    "form.original_schedule_required": "Original schedule is required",
+    "form.new_date_required": "New date is required",
+    "form.new_time_required": "New time is required",
+    "form.room_required": "Classroom selection is required",
+    "form.selected_count": "{count} selected",
+    "form.original_schedule": "Original Schedule",
+    "form.select_date_time_for_rooms": "Select a date and time to see available rooms",
+    "form.loading_timetable": "Loading timetable...",
+    "form.timetable": "timetable",
+    "form.select_date_from_suggestions": "Select a date from the suggestions below",
+    "form.select_original_date_suggestion": "Please select an original date suggestion below",
+    "form.suggested_dates": "Suggested Dates",
+    "form.select_original_class_schedule": "Select original class schedule",
+    "form.conflict_exceed_8h_short": "Exceeds 8-hour daily limit",
+    "form.suggested_hours_on_day": "{hours}h total on this day",
+    "form.no_available_slot": "No available slot fits this class duration",
+    "form.overlaps_msg": "The selected time overlaps with an existing class: ",
+    "form.regular_class_schedule": "regular class schedule",
+    "form.teacher_regular_schedule": "teacher's regular schedule",
+    "form.another_compensation": "another compensation request",
+    "form.overlaps_pick_time": " ({start}–{end}). Pick a time from the free windows above.",
+    "form.resolve_conflict": "Resolve class group conflict to select a classroom",
+    "form.checking_rooms": "Checking room availability…",
+    "form.slot_regular": "regular",
+    "form.slot_teacher": "teacher",
+    "form.slot_compensation": "compensation",
+    "form.slot_teacher_comp": "teacher comp.",
+    "form.no_classes_scheduled": "No classes scheduled — day is free",
+    "form.loading_free_hours": "Loading free hours...",
+    "form.tmw": "Tmw",
+    "days.sun_s": "Sundays",
+    "days.mon_s": "Mondays",
+    "days.tue_s": "Tuesdays",
+    "days.wed_s": "Wednesdays",
+    "days.thu_s": "Thursdays",
+    "days.fri_s": "Fridays",
+    "days.sat_s": "Saturdays",
+    "form.next_week": "Next week",
+    "form.prev_week": "Previous week",
+    "common.today": "Today",
+    "notification.new_request_title": "New Compensation Request",
+    "notification.new_request_msg": "submitted a new compensation request.",
+    "notification.status_updated_title": "Request Status Updated: {status}",
+    "notification.status_updated_msg": "Your request status is now '{status}'. Coordinator notes: {comment}",
+    "notification.coord_updated_title": "Compensation Request Updated to {status}",
+    "notification.coord_updated_msg": "A teacher has updated a compensation request to '{status}'. Notes: {comment}",
+    "notification.new_comment_title": "New Comment on Request",
+    "notification.new_comment_msg": "{author} added a comment: \"{comment}\"",
+    "notification.new_doc_title": "New Document Uploaded",
+    "notification.new_doc_msg": "{author} uploaded a document: {docName}",
+    "form.select_room": "Select Room",
+    "form.required_label": "— Required",
+    "form.occupied": "Occupied"
   },
   pt: {
     // Layout / Sidebar
@@ -1091,6 +1187,7 @@ const translations: Record<Language, Record<string, string>> = {
     "requests.all_requests": "Todas as Solicitações",
     "requests.oldest_first": "Mais Antigos",
     "requests.newest_first": "Mais Recentes",
+    "requests.duplicate_request": "Duplicar Solicitação",
 
     // Request Details
     "details.back_to_requests": "Voltar para Solicitações",
@@ -1118,8 +1215,10 @@ const translations: Record<Language, Record<string, string>> = {
     // Request Form
     "form.edit_title": "Editar Solicitação",
     "form.new_title": "Nova Solicitação de Aula",
+    "form.duplicate_title": "Duplicar Solicitação de Aula",
     "form.edit_desc": "Modifique os detalhes da sua solicitação abaixo.",
     "form.new_desc": "Adicione uma ou várias solicitações de compensação.",
+    "form.duplicate_desc": "Aproveite as configurações de um pedido existente para criar um novo.",
     "form.pending_badge": "{count} Pendentes",
     "form.ready_submit": "Pronto para Enviar ({count})",
     "form.request_details": "Detalhes da Solicitação",
@@ -1800,8 +1899,101 @@ const translations: Record<Language, Record<string, string>> = {
     "course.information_systems": "Sistemas de Informação",
     "course.design": "Design",
     "component.standard": "Padrão",
+    "component.all": "Todos / Padrão",
+    "component.theoreticalpractical": "Teórico-Prática",
+    "component.practicallaboratorial": "Prática-Laboratorial",
     "requests.proposed": "Proposto",
-    "requests.activity_comments": "Atividade e Comentários"
+    "requests.activity_comments": "Atividade e Comentários",
+    "requests.cancel_confirm_title": "Tem a certeza?",
+    "requests.cancel_confirm_desc": "Esta ação não pode ser desfeita. Isto cancelará permanentemente o seu pedido de {unit} em {date}.",
+    "requests.cancel_confirm_yes": "Sim, cancelar pedido",
+    "documents.upload": "Carregar",
+    "documents.uploading": "A carregar...",
+    "documents.no_documents": "Nenhum documento carregado ainda.",
+    "documents.confirm_title": "Confirmar Carregamento de Documento",
+    "documents.confirm_desc": "Por favor, reveja o documento abaixo antes de o carregar para a solicitação de compensação.",
+    "documents.confirm_btn": "Confirmar e Carregar",
+    "documents.preview_loading": "A carregar pré-visualização do documento...",
+    "documents.preview_failed": "Falha ao carregar pré-visualização",
+    "documents.preview_not_available": "Pré-visualização não disponível",
+    "documents.preview_not_available_desc": "Suportamos pré-visualizações de PDFs, ficheiros de texto e imagens. Por favor, descarregue este ficheiro para ver o seu conteúdo completo.",
+    "documents.download_btn": "Descarregar Documento",
+    "requests.toast_no_permission_status": "Não tem permissão para aprovar ou rejeitar pedidos.",
+    "requests.toast_load_error": "Não foi possível carregar os pedidos de compensação.",
+    "requests.toast_not_found": "Pedido de compensação não encontrado.",
+    "requests.toast_load_details_error": "Não foi possível carregar os detalhes do pedido.",
+    "requests.toast_create_error": "Não foi possível criar o pedido de compensação.",
+    "requests.toast_update_error": "Não foi possível atualizar o pedido.",
+    "requests.toast_cancel_error": "Não foi possível cancelar o pedido.",
+    "requests.toast_status_update_error": "Não foi possível alterar o estado.",
+    "requests.toast_save_comment_error": "Não foi possível guardar o comentário.",
+    "requests.toast_upload_doc_error": "Não foi possível carregar o documento.",
+    "requests.toast_upload_doc_success": "Documento carregado com sucesso.",
+    "requests.toast_delete_doc_error": "Não foi possível eliminar o documento.",
+    "requests.toast_delete_doc_success": "Documento eliminado com sucesso.",
+    "requests.toast_download_doc_error": "Erro ao descarregar o ficheiro.",
+    "form.editing": "A editar",
+    "form.edit_item_title": "Editar este item",
+    "form.course_required": "O curso é obrigatório",
+    "form.unit_required": "A unidade curricular é obrigatória",
+    "form.search_group": "Pesquisar turma...",
+    "form.no_group_found": "Nenhuma turma encontrada.",
+    "details.documents": "Documentos",
+    "form.group_required": "Pelo menos uma turma/grupo é obrigatório",
+    "form.reason_required": "O motivo é obrigatório",
+    "form.original_schedule_required": "O horário original é obrigatório",
+    "form.new_date_required": "A nova data é obrigatória",
+    "form.new_time_required": "O novo horário é obrigatório",
+    "form.room_required": "A seleção da sala é obrigatória",
+    "form.selected_count": "{count} selecionado(s)",
+    "form.original_schedule": "Horário Original",
+    "form.select_date_time_for_rooms": "Selecione uma data e hora para ver as salas disponíveis",
+    "form.loading_timetable": "A carregar horário...",
+    "form.timetable": "horário",
+    "form.select_date_from_suggestions": "Selecione uma data a partir das sugestões abaixo",
+    "form.select_original_date_suggestion": "Por favor, selecione uma sugestão de data original abaixo",
+    "form.suggested_dates": "Datas Sugeridas",
+    "form.select_original_class_schedule": "Selecione o horário da aula original",
+    "form.conflict_exceed_8h_short": "Excede o limite diário de 8 horas",
+    "form.suggested_hours_on_day": "{hours}h no total neste dia",
+    "form.no_available_slot": "Nenhum horário livre é compatível com a duração desta aula",
+    "form.overlaps_msg": "O horário selecionado sobrepõe-se a uma aula existente: ",
+    "form.regular_class_schedule": "horário de aula regular",
+    "form.teacher_regular_schedule": "horário regular do docente",
+    "form.another_compensation": "outro pedido de compensação",
+    "form.overlaps_pick_time": " ({start}–{end}). Escolha um horário das janelas livres acima.",
+    "form.resolve_conflict": "Resolva o conflito da turma para selecionar uma sala",
+    "form.checking_rooms": "A verificar disponibilidade de salas…",
+    "form.slot_regular": "regular",
+    "form.slot_teacher": "docente",
+    "form.slot_compensation": "compensação",
+    "form.slot_teacher_comp": "comp. docente",
+    "form.no_classes_scheduled": "Sem aulas agendadas — o dia está livre",
+    "form.loading_free_hours": "A carregar horas livres...",
+    "form.tmw": "Amanhã",
+    "days.sun_s": "Domingos",
+    "days.mon_s": "Segundas",
+    "days.tue_s": "Terças",
+    "days.wed_s": "Quartas",
+    "days.thu_s": "Quintas",
+    "days.fri_s": "Sextas",
+    "days.sat_s": "Sábados",
+    "form.next_week": "Próxima semana",
+    "form.prev_week": "Semana anterior",
+    "common.today": "Hoje",
+    "notification.new_request_title": "Novo Pedido de Compensação",
+    "notification.new_request_msg": "submeteu um novo pedido de compensação.",
+    "notification.status_updated_title": "Estado do Pedido Atualizado: {status}",
+    "notification.status_updated_msg": "O estado do seu pedido é agora '{status}'. Notas do coordenador: {comment}",
+    "notification.coord_updated_title": "Pedido de Compensação Atualizado para {status}",
+    "notification.coord_updated_msg": "Um docente atualizou um pedido de compensação para '{status}'. Notas: {comment}",
+    "notification.new_comment_title": "Novo Comentário no Pedido",
+    "notification.new_comment_msg": "{author} adicionou um comentário: \"{comment}\"",
+    "notification.new_doc_title": "Novo Documento Carregado",
+    "notification.new_doc_msg": "{author} carregou um documento: {docName}",
+    "form.select_room": "Selecionar Sala",
+    "form.required_label": "— Obrigatório",
+    "form.occupied": "Ocupada"
   },
 };
 
@@ -1840,4 +2032,77 @@ export const useLanguage = () => {
     throw new Error("useLanguage must be used within a LanguageProvider");
   }
   return context;
+};
+
+export const translateNotificationText = (
+  title: string,
+  message: string,
+  t: (k: string) => string
+): { title: string; message: string } => {
+  const getStatusTranslation = (statusStr: string): string => {
+    const statusKey = `requests.${statusStr.toLowerCase()}`;
+    const translated = t(statusKey);
+    return translated !== statusKey ? translated : statusStr;
+  };
+
+  if (title === "New Compensation Request") {
+    const displayTitle = t("notification.new_request_title");
+    const msgTemplate = "submitted a new compensation request.";
+    const displayMessage = message.includes(msgTemplate)
+      ? message.replace(msgTemplate, t("notification.new_request_msg"))
+      : message;
+    return { title: displayTitle, message: displayMessage };
+  }
+
+  if (title.startsWith("Request Status Updated:")) {
+    const status = title.replace("Request Status Updated:", "").trim();
+    const translatedStatus = getStatusTranslation(status);
+    const displayTitle = t("notification.status_updated_title").replace("{status}", translatedStatus);
+
+    const commentIndex = message.indexOf("Coordinator notes:");
+    const comment = commentIndex !== -1 ? message.substring(commentIndex + 18).trim() : "";
+    const displayMessage = t("notification.status_updated_msg")
+      .replace("{status}", translatedStatus)
+      .replace("{comment}", comment || t("requests.no_comments") || "Sem notas");
+    return { title: displayTitle, message: displayMessage };
+  }
+
+  if (title.startsWith("Compensation Request Updated to")) {
+    const status = title.replace("Compensation Request Updated to", "").trim();
+    const translatedStatus = getStatusTranslation(status);
+    const displayTitle = t("notification.coord_updated_title").replace("{status}", translatedStatus);
+
+    const commentIndex = message.indexOf("Notes:");
+    const comment = commentIndex !== -1 ? message.substring(commentIndex + 6).trim() : "";
+    const displayMessage = t("notification.coord_updated_msg")
+      .replace("{status}", translatedStatus)
+      .replace("{comment}", comment || "Sem notas");
+    return { title: displayTitle, message: displayMessage };
+  }
+
+  if (title === "New Comment on Request") {
+    const displayTitle = t("notification.new_comment_title");
+    const commentMatch = message.match(/(.*) added a comment: "(.*)"/);
+    if (commentMatch) {
+      const displayMessage = t("notification.new_comment_msg")
+        .replace("{author}", commentMatch[1])
+        .replace("{comment}", commentMatch[2]);
+      return { title: displayTitle, message: displayMessage };
+    }
+    return { title: displayTitle, message };
+  }
+
+  if (title === "New Document Uploaded") {
+    const displayTitle = t("notification.new_doc_title");
+    const docMatch = message.match(/(.*) uploaded a document: (.*)/);
+    if (docMatch) {
+      const displayMessage = t("notification.new_doc_msg")
+        .replace("{author}", docMatch[1])
+        .replace("{docName}", docMatch[2]);
+      return { title: displayTitle, message: displayMessage };
+    }
+    return { title: displayTitle, message };
+  }
+
+  return { title, message };
 };
