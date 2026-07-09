@@ -310,7 +310,7 @@ const WeeklyCalendar = ({
 };
 
 const QuickActions = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const { data: allNotifications = [], isLoading } = useNotificationsQuery();
   const notifications = allNotifications.slice(0, 3);
@@ -356,7 +356,7 @@ const QuickActions = () => {
                     {notification.isRead ? t("dashboard.notif_read") : t("dashboard.notif_new")}
                   </span>
                   <span className="text-[10px] text-slate-400">
-                    {new Date(notification.createdAt).toLocaleDateString()}
+                    {new Date(notification.createdAt).toLocaleDateString(language === "pt" ? "pt-PT" : "en-US")}
                   </span>
                 </div>
                 <h4 className="font-semibold text-sm mb-1 group-hover:text-blue-200 transition-colors">

@@ -59,7 +59,7 @@ import { getErrorMessage } from "../../utils/errors";
 import { useAcademicYear } from "../../providers/AcademicYearContext";
 
 export const AcademicYearsPage = () => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { refresh: refreshGlobalYears } = useAcademicYear();
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -252,12 +252,12 @@ export const AcademicYearsPage = () => {
               <CardContent className="pt-4">
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Starts On</span>
-                    <span className="font-medium">{new Date(year.startsOn).toLocaleDateString()}</span>
+                    <span className="text-slate-500">{t("academic_years.starts_on")}</span>
+                    <span className="font-medium">{new Date(year.startsOn).toLocaleDateString(language === "pt" ? "pt-PT" : "en-US")}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Ends On</span>
-                    <span className="font-medium">{new Date(year.endsOn).toLocaleDateString()}</span>
+                    <span className="text-slate-500">{t("academic_years.ends_on")}</span>
+                    <span className="font-medium">{new Date(year.endsOn).toLocaleDateString(language === "pt" ? "pt-PT" : "en-US")}</span>
                   </div>
                 </div>
               </CardContent>

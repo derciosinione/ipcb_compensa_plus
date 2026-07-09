@@ -197,7 +197,7 @@ export const CalendarPage = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewType, setViewType] = useState<ViewType>("month");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("requests");
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Dynamic holidays loaded from localStorage (to sync with SystemCalendarPage manager)
   const [holidays, setHolidays] = useState<CalendarHoliday[]>([]);
@@ -467,7 +467,7 @@ export const CalendarPage = ({
     }
 
     if (isHoliday(date)) {
-      toast.error("Cannot schedule on holidays.");
+      toast.error(t("calendar.cannot_schedule_holiday"));
       return;
     }
 
@@ -547,10 +547,10 @@ export const CalendarPage = ({
         tabIndex={isAdmin || isDayHoliday ? undefined : 0}
         aria-label={
           isDayHoliday
-            ? `${date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}. Holiday: ${holidayInfo?.name || "Closed"}`
+            ? `${date.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "numeric", month: "long" })}. ${t("calendar.holiday_label").replace("{name}", holidayInfo?.name || t("calendar.closed"))}`
             : isAdmin
-              ? `${date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}`
-              : `Create new compensation request on ${date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}`
+              ? `${date.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "numeric", month: "long" })}`
+              : t("calendar.create_request_on").replace("{date}", date.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "numeric", month: "long" }))
         }
         onClick={() => !isDayHoliday && handleSlotClick(date)}
         onKeyDown={(e) => {
@@ -589,7 +589,7 @@ export const CalendarPage = ({
                     variant="outline"
                     className="text-[10px] bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900/50"
                   >
-                    Holiday
+                    {t("calendar.holiday")}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -673,7 +673,7 @@ export const CalendarPage = ({
                 )}
               >
                 <div className="text-xs font-semibold text-slate-500 uppercase">
-                  {day.toLocaleDateString("en-Us", { weekday: "short" })}
+                  {day.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "short" })}
                 </div>
                 <div
                   className={cn(
@@ -687,7 +687,7 @@ export const CalendarPage = ({
                 </div>
                 {isDayHoliday && (
                   <span className="text-[10px] text-amber-600 font-medium block mt-1">
-                    Holiday
+                    {t("calendar.holiday")}
                   </span>
                 )}
               </div>
@@ -734,10 +734,12 @@ export const CalendarPage = ({
                       tabIndex={isAdmin || isDayHoliday ? undefined : 0}
                       aria-label={
                         isDayHoliday
-                          ? `${day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${hour}:00 (Holiday - Closed)`
+                          ? `${day.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "numeric", month: "long" })} ${t("calendar.at")} ${hour}:00 (${t("calendar.holiday")} - ${t("calendar.closed")})`
                           : isAdmin
-                            ? `${day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${hour}:00`
-                            : `Request compensation class on ${day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} at ${hour}:00`
+                            ? `${day.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "numeric", month: "long" })} ${t("calendar.at")} ${hour}:00`
+                            : t("calendar.create_request_at")
+                                .replace("{date}", day.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "numeric", month: "long" }))
+                                .replace("{time}", `${hour}:00`)
                       }
                       className="h-20 border-b border-slate-50 dark:border-slate-800/50 box-border hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset"
                       onClick={() => !isDayHoliday && handleSlotClick(day, `${hour}:00`)}
@@ -1338,7 +1340,7 @@ export const CalendarPage = ({
         <DialogContent className="sm:max-w-[480px] w-full max-w-[calc(100%-2rem)]">
           <DialogHeader className="w-full min-w-0">
             <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">
-              Events for {dayEventsDate?.toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+              {t("calendar.events_for").replace("{date}", dayEventsDate ? dayEventsDate.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : "")}
             </DialogTitle>
           </DialogHeader>
 
@@ -1346,7 +1348,7 @@ export const CalendarPage = ({
             {dayEventsDate && (
               <div className="space-y-2.5 max-h-[420px] overflow-y-auto overflow-x-hidden pr-1 w-full min-w-0">
                 {getEventsForDate(dayEventsDate).length === 0 ? (
-                  <p className="text-center text-sm text-slate-400 py-6">No events scheduled on this day.</p>
+                  <p className="text-center text-sm text-slate-400 py-6">{t("calendar.no_events_on_day")}</p>
                 ) : (
                   getEventsForDate(dayEventsDate).map((event: any) => (
                     <div

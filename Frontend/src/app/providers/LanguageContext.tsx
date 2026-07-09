@@ -999,7 +999,32 @@ const translations: Record<Language, Record<string, string>> = {
     "notification.new_doc_msg": "{author} uploaded a document: {docName}",
     "form.select_room": "Select Room",
     "form.required_label": "— Required",
-    "form.occupied": "Occupied"
+    "form.occupied": "Occupied",
+
+    // Conflict Translations
+    "conflict.TimeBounds": "Compensation classes must be scheduled between 08:00 and 19:00.",
+    "conflict.ClassGroup": "The selected class group already has a class in this interval.",
+    "conflict.Classroom": "The selected classroom is already occupied in this interval.",
+    "conflict.Teacher": "The selected teacher already has a class in this interval.",
+    "conflict.ClassGroupRequest": "The selected class group already has a compensation request in this interval.",
+    "conflict.ClassroomRequest": "The selected classroom already has a compensation request in this interval.",
+    "conflict.TeacherRequest": "The selected teacher already has a compensation request in this interval.",
+    "conflict.exceed_8h": "The class group already has {currentHours} hours of classes on this day. Adding this compensation would total {totalHours}h, exceeding the 8-hour daily limit.",
+
+    // Calendar Translations
+    "calendar.holiday": "Holiday",
+    "calendar.holiday_label": "Holiday: {name}",
+    "calendar.cannot_schedule_holiday": "Cannot schedule on holidays.",
+    "calendar.events_for": "Events for {date}",
+    "calendar.no_events_on_day": "No events scheduled on this day.",
+    "calendar.create_request_on": "Create new compensation request on {date}",
+    "calendar.create_request_at": "Request compensation class on {date} at {time}",
+    "calendar.closed": "Closed",
+    "calendar.at": "at",
+
+    // Academic Years Translations
+    "academic_years.starts_on": "Starts On",
+    "academic_years.ends_on": "Ends On"
   },
   pt: {
     // Layout / Sidebar
@@ -1993,7 +2018,32 @@ const translations: Record<Language, Record<string, string>> = {
     "notification.new_doc_msg": "{author} carregou um documento: {docName}",
     "form.select_room": "Selecionar Sala",
     "form.required_label": "— Obrigatório",
-    "form.occupied": "Ocupada"
+    "form.occupied": "Ocupada",
+
+    // Conflict Translations
+    "conflict.TimeBounds": "As aulas de compensação devem ser agendadas entre as 08:00 e as 19:00.",
+    "conflict.ClassGroup": "A turma selecionada já tem uma aula neste intervalo.",
+    "conflict.Classroom": "A sala selecionada já está ocupada neste intervalo.",
+    "conflict.Teacher": "O professor selecionado já tem uma aula neste intervalo.",
+    "conflict.ClassGroupRequest": "A turma selecionada já tem um pedido de compensação neste intervalo.",
+    "conflict.ClassroomRequest": "A sala selecionada já tem um pedido de compensação neste intervalo.",
+    "conflict.TeacherRequest": "O professor selecionado já tem um pedido de compensação neste intervalo.",
+    "conflict.exceed_8h": "A turma já tem {currentHours} horas de aulas neste dia. Adicionar esta compensação totalizaria {totalHours}h, excedendo o limite diário de 8 horas.",
+
+    // Calendar Translations
+    "calendar.holiday": "Feriado",
+    "calendar.holiday_label": "Feriado: {name}",
+    "calendar.cannot_schedule_holiday": "Não é possível agendar em feriados.",
+    "calendar.events_for": "Eventos para {date}",
+    "calendar.no_events_on_day": "Sem eventos agendados para este dia.",
+    "calendar.create_request_on": "Criar novo pedido de compensação em {date}",
+    "calendar.create_request_at": "Solicitar aula de compensação em {date} às {time}",
+    "calendar.closed": "Encerrado",
+    "calendar.at": "às",
+
+    // Academic Years Translations
+    "academic_years.starts_on": "Inicia em",
+    "academic_years.ends_on": "Termina em"
   },
 };
 

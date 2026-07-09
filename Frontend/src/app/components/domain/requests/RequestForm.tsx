@@ -327,7 +327,9 @@ export const RequestForm = ({
       if (totalProjectedHours > 8) {
         setConflictWarning(true);
         setConflictMessage(
-          `The class group already has ${Math.round(dayDetails.totalHours)} hours of classes on this day. Adding this compensation would total ${Math.round(totalProjectedHours)}h, exceeding the 8-hour daily limit.`,
+          t("conflict.exceed_8h")
+            .replace("{currentHours}", String(Math.round(dayDetails.totalHours)))
+            .replace("{totalHours}", String(Math.round(totalProjectedHours))),
         );
         return;
       }
@@ -347,7 +349,16 @@ export const RequestForm = ({
 
         const conflicts = availability?.conflicts ?? [];
         setConflictWarning(conflicts.length > 0);
-        setConflictMessage(conflicts[0]?.message ?? "");
+        if (conflicts.length > 0) {
+          const conflict = conflicts[0];
+          const translationKey = `conflict.${conflict.type}`;
+          const translatedMsg = t(translationKey);
+          setConflictMessage(
+            translatedMsg !== translationKey ? translatedMsg : conflict.message,
+          );
+        } else {
+          setConflictMessage("");
+        }
       } catch {
         setConflictWarning(false);
         setConflictMessage("");
@@ -413,7 +424,8 @@ export const RequestForm = ({
   const getScheduleLabel = (schedule: ClassSchedule) => {
     const room = classrooms.find((item) => item.id === schedule.classroomId);
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    return `${days[schedule.dayOfWeek] ?? "Day"} ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)} · ${room?.name ?? "Room"}`;
+    const dayKey = `day.${days[schedule.dayOfWeek] ?? "Sun"}`;
+    return `${t(dayKey)} ${schedule.startTime.slice(0, 5)}-${schedule.endTime.slice(0, 5)} · ${room?.name ?? "Room"}`;
   };
 
   /** Returns only free windows that are wide enough to fit the compensation class duration */
@@ -1368,7 +1380,7 @@ export const RequestForm = ({
                           {currentData.originalDate
                             ? (() => {
                                 const [y, m, d] = currentData.originalDate.split("-").map(Number);
-                                return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+                                return new Date(y, m - 1, d).toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", {
                                   weekday: "short",
                                   day: "2-digit",
                                   month: "short",
@@ -1443,7 +1455,7 @@ export const RequestForm = ({
                                         : "bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:bg-blue-50/50",
                                     )}
                                   >
-                                    {date.toLocaleDateString(undefined, {
+                                    {date.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", {
                                       day: "2-digit",
                                       month: "short",
                                     })}
@@ -1636,7 +1648,7 @@ export const RequestForm = ({
                                   }
                                 >
                                   <span>
-                                    {item.date.toLocaleDateString(undefined, {
+                                    {item.date.toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", {
                                       day: "2-digit",
                                       month: "short",
                                     })}
@@ -1689,7 +1701,7 @@ export const RequestForm = ({
                               ) : (
                                 <div className="space-y-1">
                                   <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider block">
-                                    {new Date(currentData.newDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "2-digit", month: "short" })} — {t("form.timetable")}
+                                    {new Date(currentData.newDate + "T00:00:00").toLocaleDateString(language === "pt" ? "pt-PT" : "en-US", { weekday: "long", day: "2-digit", month: "short" })} — {t("form.timetable")}
                                   </span>
                                   {classGroupDayInfo.busySlots && classGroupDayInfo.busySlots.length > 0 ? (
                                     <div className="space-y-0.5">
